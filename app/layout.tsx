@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AppShell } from "@/components/AppShell";
 import { getOfficeSummaries, type OfficeSummary } from "@/lib/offices";
@@ -34,6 +35,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
         <AppShell offices={offices}>{children}</AppShell>
+        <Analytics />
       </body>
     </html>
   );
