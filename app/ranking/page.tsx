@@ -1,8 +1,7 @@
-import { buildGrowthItems } from "@/lib/ranking";
+import { getGrowthData } from "@/lib/growth-data";
 import { RankingTabs } from "@/components/RankingTabs";
 import {
   GcsFetchError,
-  getSubscriberTransitionList,
   getVideoCountRanking,
   getWeeklyLiveViewRanking,
   getYoutubeSubscriberRanking,
@@ -17,12 +16,10 @@ async function load() {
     getVideoCountRanking(),
   ]);
   // 推移データだけ失敗しても既存タブは表示する
-  const growth = await getSubscriberTransitionList()
-    .then((t) => buildGrowthItems(t, subscribers))
-    .catch((e) => {
-      if (!(e instanceof GcsFetchError)) throw e;
-      return null;
-    });
+  const growth = await getGrowthData().catch((e) => {
+    if (!(e instanceof GcsFetchError)) throw e;
+    return null;
+  });
   return { weekly, subscribers, videoCounts, growth };
 }
 

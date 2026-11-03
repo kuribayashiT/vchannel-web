@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { BottomNav } from "@/components/BottomNav";
 import { YouTubePlayer } from "@/components/YouTubePlayer";
@@ -151,6 +151,9 @@ export function AppShell({
           <Link href="/favorites" aria-label="お気に入り" className="px-2">
             ★
           </Link>
+          <Link href="/settings" aria-label="設定" className="px-2">
+            ⚙
+          </Link>
           <Link href="/events" aria-label="イベントカレンダー" className="px-2">
             📅
           </Link>
@@ -166,7 +169,9 @@ export function AppShell({
       </header>
       <div className="flex min-h-0 flex-1 flex-col pb-14">{children}</div>
       <YouTubePlayer />
-      <BottomNav />
+      <Suspense fallback={null}>
+        <BottomNav />
+      </Suspense>
       {menuOpen && (
         <SideMenu
           offices={offices}

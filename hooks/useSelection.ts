@@ -67,3 +67,10 @@ export function useOnboardingDone() {
   const markDone = useCallback(() => write(ONBOARDING_KEY, "true"), []);
   return { done, markDone };
 }
+
+/** 選択とオンボーディング完了フラグを消し、次の描画で事務所選択を再表示する */
+export function resetSelection() {
+  localStorage.removeItem(CHANNELS_KEY);
+  localStorage.removeItem(ONBOARDING_KEY);
+  window.dispatchEvent(new Event(EVENT));
+}

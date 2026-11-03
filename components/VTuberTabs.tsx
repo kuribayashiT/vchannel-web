@@ -40,7 +40,7 @@ function SubscriberChart({ data }: { data: VTuberDetail["transition"] }) {
   );
 }
 
-function Detail({ channelId }: { channelId: string }) {
+export function Detail({ channelId }: { channelId: string }) {
   const [result, setResult] = useState<{
     id: string;
     detail: VTuberDetail | null;

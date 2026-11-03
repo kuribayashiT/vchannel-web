@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { useSelectedChannels } from "@/hooks/useSelection";
 import {
@@ -111,6 +112,13 @@ function Row({ r, rank }: { r: RankingRow; rank: number }) {
     >
       {body}
     </a>
+  ) : r.channelId ? (
+    <Link
+      href={`/vtuber/${encodeURIComponent(r.channelId)}`}
+      className={`${cls} hover:bg-zinc-100 dark:hover:bg-zinc-900`}
+    >
+      {body}
+    </Link>
   ) : (
     <div className={cls}>{body}</div>
   );
