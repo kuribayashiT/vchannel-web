@@ -1,0 +1,35 @@
+name: Weekly Rival & Analytics Analysis
+
+on:
+  schedule:
+    # 毎週月曜日の午前9時（JST）に自動実行
+    - cron: '0 0 * * 1'
+  workflow_dispatch: # 手動でもいつでも実行可能
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run Analysis Script
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          # ここでAnalyticsデータの取得やClaude APIを呼び出すスクリプトを実行
+          node scripts/weekly-ai-analyzer.js
+
+      - name: Create Pull Request with Report
+        uses: peter-evans/create-pull-request@v6
+        with:
+          title: '📊 週刊AI改善レポート & ライバル分析'
+          commit-message: 'docs: 自動生成された今週の改善提案レポート'
+          branch: 'auto-report'
+          body: 'Vercel Analyticsのデータとライバルサイトの傾向に基づいた今週の改善提案です。'
