@@ -1,0 +1,3 @@
+[submodule "backend-repo"]
+	path = backend-repo
+	url = https://github.com/kuribayashiT/vtuberchannel.git
