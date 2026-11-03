@@ -7,7 +7,7 @@ import {
   getYoutubeSubscriberRanking,
 } from "@/lib/gcs";
 
-export const metadata = { title: "ランキング | Vちゃんねる" };
+export const metadata = { title: "ランキング" };
 
 async function load() {
   const [weekly, subscribers, videoCounts] = await Promise.all([

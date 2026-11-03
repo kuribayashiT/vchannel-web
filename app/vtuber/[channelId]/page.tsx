@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { Detail } from "@/components/VTuberTabs";
 
-export const metadata = { title: "VTuber詳細 | Vちゃんねる" };
+export const metadata = { title: "VTuber詳細" };
 
 async function Content({ params }: { params: Promise<{ channelId: string }> }) {
   const { channelId } = await params;

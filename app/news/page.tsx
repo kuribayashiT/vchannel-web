@@ -3,7 +3,7 @@ import { GcsFetchError, getNews } from "@/lib/gcs";
 import { safeHttpUrl } from "@/lib/url";
 import type { News } from "@/types";
 
-export const metadata = { title: "ニュース | Vちゃんねる" };
+export const metadata = { title: "ニュース" };
 
 function NewsCard({ n }: { n: News }) {
   const url = safeHttpUrl(n.url);

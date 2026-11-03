@@ -1,6 +1,6 @@
 import { VTuberTabs } from "@/components/VTuberTabs";
 
-export const metadata = { title: "VTuber | Vちゃんねる" };
+export const metadata = { title: "VTuber" };
 
 export default function VTuberPage() {
   return (

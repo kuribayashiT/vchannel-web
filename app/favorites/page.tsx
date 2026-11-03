@@ -1,6 +1,6 @@
 import { FavoritesList } from "@/components/FavoritesList";
 
-export const metadata = { title: "お気に入り | Vちゃんねる" };
+export const metadata = { title: "お気に入り", robots: { index: false } };
 
 export default function FavoritesPage() {
   return (

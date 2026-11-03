@@ -1,7 +1,7 @@
 import { ChatBoard } from "@/components/ChatBoard";
 import { getOfficeSummaries } from "@/lib/offices";
 
-export const metadata = { title: "チャット | Vちゃんねる" };
+export const metadata = { title: "チャット" };
 
 export default async function ChatPage() {
   const offices = await getOfficeSummaries();

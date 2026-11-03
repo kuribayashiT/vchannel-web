@@ -2,7 +2,7 @@ import { EventCalendar } from "@/components/EventCalendar";
 import { GcsFetchError, getEventList } from "@/lib/gcs";
 import type { EventList } from "@/types";
 
-export const metadata = { title: "イベントカレンダー | Vちゃんねる" };
+export const metadata = { title: "イベントカレンダー" };
 
 export default async function EventsPage() {
   let events: EventList | null = null;

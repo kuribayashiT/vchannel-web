@@ -1,6 +1,6 @@
 import { SettingsList } from "@/components/SettingsList";
 
-export const metadata = { title: "設定 | Vちゃんねる" };
+export const metadata = { title: "設定", robots: { index: false } };
 
 export default function SettingsPage() {
   return (
