@@ -13,7 +13,7 @@ function NewsCard({ n }: { n: News }) {
       {n.urlToImage && safeHttpUrl(n.urlToImage) && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={n.urlToImage}
+          src={`/api/news-image?u=${encodeURIComponent(n.urlToImage)}`}
           alt=""
           loading="lazy"
           referrerPolicy="no-referrer"
