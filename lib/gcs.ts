@@ -7,7 +7,9 @@ import {
   type OfficeDataList,
   type RawOfficeDataList,
   type RawVideo,
+  type RawSubscriberTransitionList,
   type RawVTuber,
+  type SubscriberTransitionMap,
   type TwitterFollowerRankingItem,
   type Video,
   type VideoCountRankingItem,
@@ -225,4 +227,25 @@ export async function getVideoCountRanking(): Promise<VideoCountRankingItem[]> {
     ...rankingBase(r),
     videoCount: toNumber(r.videoCount),
   }));
+}
+
+/** YYYYMMDD 形式の日付キーのみ採用し、日付昇順に並べる */
+export async function getSubscriberTransitionList(): Promise<SubscriberTransitionMap> {
+  const raw = toArray<RawSubscriberTransitionList[number]>(
+    await fetchGcsJson(GCS_FILES.subscriberTransition),
+  );
+  const out: SubscriberTransitionMap = {};
+  for (const obj of raw) {
+    for (const [channelId, entries] of Object.entries(obj)) {
+      if (!Array.isArray(entries)) continue;
+      const points = entries.flatMap((e) =>
+        Object.entries(e ?? {})
+          .filter(([date]) => /^\d{8}$/.test(date))
+          .map(([date, count]) => ({ date, count: toNumber(count) })),
+      );
+      points.sort((a, b) => a.date.localeCompare(b.date));
+      if (points.length > 0) out[channelId] = points;
+    }
+  }
+  return out;
 }

@@ -189,6 +189,50 @@ export interface VideoCountRankingItem extends RankingBase {
   videoCount: number;
 }
 
+// ---------- 登録者推移・急上昇 ----------
+
+/** youtubeSubscriberCountTransitionList.json の生データ */
+export type RawSubscriberTransitionList = Record<
+  string,
+  Record<string, NumLike>[]
+>[];
+
+/** 正規化後: channelId → 日付昇順の推移 */
+export type SubscriberTransitionMap = Record<
+  string,
+  { date: string; count: number }[]
+>;
+
+export type GrowthPeriod = "week" | "month";
+
+/** サーバーで集計してクライアントに渡す 1 行（props を軽くするため最小限） */
+export interface SubscriberGrowthItem {
+  channelId: string;
+  name: string;
+  office: string;
+  thumbnail: string;
+  /** 期間末の登録者数 */
+  current: number;
+  /** 期間内の増加数（> 0 のみ） */
+  growth: number;
+  /** 増加率（%） */
+  rate: number;
+  /** ミニグラフ用: 期間内の登録者数（日付昇順） */
+  spark: number[];
+}
+
+export interface SubscriberGrowthPeriodData {
+  /** YYYYMMDD */
+  from: string;
+  to: string;
+  items: SubscriberGrowthItem[];
+}
+
+export type SubscriberGrowthData = Record<
+  GrowthPeriod,
+  SubscriberGrowthPeriodData
+>;
+
 // ---------- GCS ファイル名 ----------
 
 export const GCS_FILES = {
@@ -198,6 +242,7 @@ export const GCS_FILES = {
   news: "news.json",
   events: "eventList.json",
   rankingYoutube: "rankingYoutubeRegiData.json",
+  subscriberTransition: "youtubeSubscriberCountTransitionList.json",
   rankingTwitter: "rankingTwitterData.json",
   weeklyLiveView: "weeklyLiveViewRanking.json",
   rankingVideoCount: "rankingVideoCountData.json",
