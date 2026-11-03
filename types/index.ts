@@ -109,6 +109,27 @@ export interface Video {
   publishedAt: string;
 }
 
+// ---------- VTuber（API 返却用） ----------
+
+export interface VTuberIndexItem {
+  channelId: string;
+  name: string;
+  office: string;
+  officeFlg: boolean;
+  thumbnail: string;
+  subscriberCount: number;
+}
+
+export interface VTuberDetail extends VTuberIndexItem {
+  title: string;
+  viewCount: number;
+  videoCount: number;
+  /** 直近 30 日（古い順） */
+  transition: { date: string; count: number }[];
+  /** 新しい順・最大 30 件 */
+  videos: Video[];
+}
+
 // ---------- News ----------
 
 export interface News {

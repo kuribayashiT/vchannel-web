@@ -8,51 +8,8 @@ import {
   groupByTab,
   type StreamTab,
 } from "@/lib/stream";
+import { VideoCard } from "@/components/VideoCard";
 import type { Video } from "@/types";
-
-const timeFmt = new Intl.DateTimeFormat("ja-JP", {
-  timeZone: "Asia/Tokyo",
-  month: "numeric",
-  day: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
-
-function formatTime(iso: string) {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? "" : timeFmt.format(d);
-}
-
-function VideoCard({ v, live }: { v: Video; live: boolean }) {
-  return (
-    <a
-      href={`https://www.youtube.com/watch?v=${v.videoId}`}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="block overflow-hidden rounded-lg border border-zinc-200 bg-white hover:shadow dark:border-zinc-800 dark:bg-zinc-900"
-    >
-      {v.thumbnail && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={v.thumbnail}
-          alt=""
-          loading="lazy"
-          className="aspect-video w-full object-cover"
-        />
-      )}
-      <div className="space-y-1 p-3">
-        {live && (
-          <span className="inline-block animate-pulse rounded bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
-            🔴 配信中 {v.concurrentViewers.toLocaleString()}人
-          </span>
-        )}
-        <p className="line-clamp-2 text-sm font-medium">{v.title}</p>
-        <p className="text-xs text-zinc-500">{v.channelTitle}</p>
-        <p className="text-xs text-zinc-500">{formatTime(v.comparisonDay)}</p>
-      </div>
-    </a>
-  );
-}
 
 function Grid({ videos, live }: { videos: Video[]; live: boolean }) {
   return (

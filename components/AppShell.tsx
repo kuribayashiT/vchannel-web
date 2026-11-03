@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { BottomNav } from "@/components/BottomNav";
+import { YouTubePlayer } from "@/components/YouTubePlayer";
 import { OfficeSelector } from "@/components/OfficeSelector";
 import { useOnboardingDone, useSelectedChannels } from "@/hooks/useSelection";
 import type { OfficeSummary } from "@/lib/offices";
@@ -142,25 +144,29 @@ export function AppShell({
   return (
     <>
       <header className="sticky top-0 z-30 flex items-center justify-between border-b border-zinc-200 bg-white/90 px-4 py-3 backdrop-blur dark:border-zinc-800 dark:bg-black/90">
-        <nav className="flex items-center gap-4 font-bold">
-          <Link href="/">Vちゃんねる</Link>
-          <Link href="/" className="text-sm font-normal">
-            配信
+        <Link href="/" className="font-bold">
+          Vちゃんねる
+        </Link>
+        <div className="flex items-center gap-2 text-sm">
+          <Link href="/favorites" aria-label="お気に入り" className="px-2">
+            ★
           </Link>
-          <Link href="/ranking" className="text-sm font-normal">
-            ランキング
+          <Link href="/events" aria-label="イベントカレンダー" className="px-2">
+            📅
           </Link>
-        </nav>
-        <button
-          type="button"
-          onClick={() => setMenuOpen(true)}
-          disabled={offices.length === 0}
-          className="rounded border border-zinc-300 px-3 py-1 text-sm disabled:opacity-40 dark:border-zinc-700"
-        >
-          フィルター
-        </button>
+          <button
+            type="button"
+            onClick={() => setMenuOpen(true)}
+            disabled={offices.length === 0}
+            className="rounded border border-zinc-300 px-3 py-1 text-sm disabled:opacity-40 dark:border-zinc-700"
+          >
+            フィルター
+          </button>
+        </div>
       </header>
-      {children}
+      <div className="flex min-h-0 flex-1 flex-col pb-14">{children}</div>
+      <YouTubePlayer />
+      <BottomNav />
       {menuOpen && (
         <SideMenu
           offices={offices}
