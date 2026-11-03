@@ -2,24 +2,6 @@ import type { NextRequest } from "next/server";
 import { extractParentNo, validatePost } from "@/lib/chat";
 import { addPost, listPosts } from "@/lib/firestore";
 
-const WINDOW_MS = 60_000;
-const MAX_PER_WINDOW = 5;
-const hits = new Map<string, number[]>();
-
-/** インスタンス単位の簡易レート制限（IP ごとに 1 分 5 件） */
-function limited(ip: string): boolean {
-  const now = Date.now();
-  const recent = (hits.get(ip) ?? []).filter((t) => now - t < WINDOW_MS);
-  if (recent.length >= MAX_PER_WINDOW) {
-    hits.set(ip, recent);
-    return true;
-  }
-  recent.push(now);
-  hits.set(ip, recent);
-  if (hits.size > 5000) hits.clear();
-  return false;
-}
-
 export async function GET(req: NextRequest) {
   const threadId = req.nextUrl.searchParams.get("threadId") ?? "";
   if (!/^[A-Za-z0-9]{10,40}$/.test(threadId)) {
@@ -33,14 +15,6 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const ip =
-    req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";
-  if (limited(ip)) {
-    return Response.json(
-      { error: "投稿が多すぎます。しばらく待ってください" },
-      { status: 429 },
-    );
-  }
   const parsed = validatePost(await req.json().catch(() => null));
   if (!parsed.ok) {
     return Response.json({ error: parsed.error }, { status: 400 });
