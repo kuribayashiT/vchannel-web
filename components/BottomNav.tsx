@@ -8,6 +8,7 @@ const ITEMS = [
   { href: "/news", label: "ニュース" },
   { href: "/vtuber", label: "VTuber" },
   { href: "/ranking", label: "ランキング" },
+  { href: "/chat", label: "チャット" },
 ] as const;
 
 export function BottomNav() {
