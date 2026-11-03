@@ -1,9 +1,12 @@
-<!-- BEGIN:nextjs-agent-rules -->
+# AI Agent Execution Guidelines
 
-## This is NOT the Next.js you know
+## 自律開発ループルール
+タスクの指示を受けた際、以下のステップを必ず自律的に完遂してください。
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
-
-This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
-
-<!-- END:nextjs-agent-rules -->
+1. **実装 (Develop)**: `FRONTEND_SPEC.md` および仕様に従いコードを実装する。
+2. **検証 (Test & Build)**: 以下のコマンドをターミナルで実行して自らテストする。
+   - `npx tsc --noEmit` (型チェック)
+   - `npm run build` (Next.jsビルド検証)
+3. **分析 (Analyze)**: ビルドや型チェックでエラーが出た場合、ログを解析して原因を特定する。
+4. **改善 (Refine)**: エラーが完全に解消されるまで修正コードを生成し、再度検証を行う。
+5. **完了条件**: エラーなしで `npm run build` が成功した場合のみユーザーに完了報告を行う。
