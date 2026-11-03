@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { OfficeSelector } from "@/components/OfficeSelector";
 import { useOnboardingDone, useSelectedChannels } from "@/hooks/useSelection";
 import type { OfficeSummary } from "@/lib/offices";
@@ -141,7 +142,15 @@ export function AppShell({
   return (
     <>
       <header className="sticky top-0 z-30 flex items-center justify-between border-b border-zinc-200 bg-white/90 px-4 py-3 backdrop-blur dark:border-zinc-800 dark:bg-black/90">
-        <span className="font-bold">Vちゃんねる</span>
+        <nav className="flex items-center gap-4 font-bold">
+          <Link href="/">Vちゃんねる</Link>
+          <Link href="/" className="text-sm font-normal">
+            配信
+          </Link>
+          <Link href="/ranking" className="text-sm font-normal">
+            ランキング
+          </Link>
+        </nav>
         <button
           type="button"
           onClick={() => setMenuOpen(true)}
