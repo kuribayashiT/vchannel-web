@@ -13,8 +13,10 @@ export default async function EventsPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 p-4">
-      <h1 className="mb-4 text-xl font-bold">イベントカレンダー</h1>
+    <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-5 md:px-6 md:py-8">
+      <h1 className="mb-5 text-2xl font-extrabold tracking-tight">
+        イベントカレンダー
+      </h1>
       {events ? (
         <EventCalendar events={events} />
       ) : (

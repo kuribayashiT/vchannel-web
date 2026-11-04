@@ -30,9 +30,9 @@ export default async function Home() {
   const growth = await growthPromise;
 
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 p-4">
+    <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-5 md:px-6 md:py-8">
       <GrowthTop3 items={growth} />
-      <h1 className="mb-4 text-xl font-bold">配信</h1>
+      <h1 className="mb-5 text-2xl font-extrabold tracking-tight">配信</h1>
       {failed ? (
         <p className="py-16 text-center text-zinc-500">
           動画の読み込みに失敗しました。

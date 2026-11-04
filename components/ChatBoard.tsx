@@ -232,7 +232,7 @@ function ThreadView({ thread }: { thread: ChatThread }) {
       </ul>
       <button
         onClick={() => setSheet("")}
-        className="fixed bottom-20 right-4 z-40 rounded-full bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-lg"
+        className="fixed bottom-20 right-4 md:bottom-6 z-40 rounded-full bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-lg"
       >
         投稿する
       </button>

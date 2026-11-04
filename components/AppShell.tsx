@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
-import { BottomNav } from "@/components/BottomNav";
+import { BottomNav, TopNav } from "@/components/BottomNav";
 import { YouTubePlayer } from "@/components/YouTubePlayer";
 import { OfficeSelector } from "@/components/OfficeSelector";
 import { useOnboardingDone, useSelectedChannels } from "@/hooks/useSelection";
@@ -143,31 +143,53 @@ export function AppShell({
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-zinc-200 bg-white/90 px-4 py-3 backdrop-blur dark:border-zinc-800 dark:bg-black/90">
-        <Link href="/" className="font-bold">
-          Vちゃんねる
-        </Link>
-        <div className="flex items-center gap-2 text-sm">
-          <Link href="/favorites" aria-label="お気に入り" className="px-2">
-            ★
-          </Link>
-          <Link href="/settings" aria-label="設定" className="px-2">
-            ⚙
-          </Link>
-          <Link href="/events" aria-label="イベントカレンダー" className="px-2">
-            📅
-          </Link>
-          <button
-            type="button"
-            onClick={() => setMenuOpen(true)}
-            disabled={offices.length === 0}
-            className="rounded border border-zinc-300 px-3 py-1 text-sm disabled:opacity-40 dark:border-zinc-700"
+      <header className="sticky top-0 z-30 border-b border-zinc-200 bg-white/90 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/90">
+        <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-2.5 md:px-6">
+          <Link
+            href="/"
+            className="bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-lg font-extrabold tracking-tight text-transparent"
           >
-            フィルター
-          </button>
+            Vちゃんねる
+          </Link>
+          <Suspense fallback={null}>
+            <TopNav />
+          </Suspense>
+          <div className="ml-auto flex items-center gap-1 text-sm">
+            <Link
+              href="/favorites"
+              aria-label="お気に入り"
+              className="rounded-full px-2.5 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            >
+              ★
+            </Link>
+            <Link
+              href="/events"
+              aria-label="イベントカレンダー"
+              className="rounded-full px-2.5 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            >
+              📅
+            </Link>
+            <Link
+              href="/settings"
+              aria-label="設定"
+              className="rounded-full px-2.5 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            >
+              ⚙
+            </Link>
+            <button
+              type="button"
+              onClick={() => setMenuOpen(true)}
+              disabled={offices.length === 0}
+              className="ml-1 rounded-full bg-blue-600 px-4 py-1.5 text-sm font-medium text-white disabled:opacity-40"
+            >
+              フィルター
+            </button>
+          </div>
         </div>
       </header>
-      <div className="flex min-h-0 flex-1 flex-col pb-14">{children}</div>
+      <div className="flex min-h-0 flex-1 flex-col pb-14 md:pb-0">
+        {children}
+      </div>
       <YouTubePlayer />
       <Suspense fallback={null}>
         <BottomNav />

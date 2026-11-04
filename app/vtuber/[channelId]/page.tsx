@@ -13,7 +13,7 @@ export default function VTuberDetailPage({
   params,
 }: PageProps<"/vtuber/[channelId]">) {
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 p-4">
+    <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-5 md:px-6 md:py-8">
       <Link href="/vtuber" className="mb-4 inline-block text-sm text-blue-600">
         ‹ VTuber一覧
       </Link>

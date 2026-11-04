@@ -135,7 +135,7 @@ export function Detail({ channelId }: { channelId: string }) {
             動画データがありません
           </p>
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {d.videos.map((v) => (
               <VideoCard key={v.videoId} v={v} />
             ))}
@@ -203,15 +203,18 @@ export function VTuberTabs() {
   const current = members.find((m) => m.channelId === active) ?? members[0];
 
   return (
-    <div>
-      <div role="tablist" className="mb-4 flex gap-2 overflow-x-auto pb-1">
+    <div className="lg:grid lg:grid-cols-[16rem_1fr] lg:items-start lg:gap-6">
+      <div
+        role="tablist"
+        className="mb-4 flex gap-2 overflow-x-auto pb-1 lg:sticky lg:top-20 lg:mb-0 lg:max-h-[calc(100vh-6rem)] lg:flex-col lg:overflow-y-auto lg:overflow-x-hidden lg:rounded-xl lg:border lg:border-zinc-200 lg:bg-white lg:p-2 lg:shadow-sm dark:lg:border-zinc-800 dark:lg:bg-zinc-900"
+      >
         {members.map((m) => (
           <button
             key={m.channelId}
             role="tab"
             aria-selected={m.channelId === current.channelId}
             onClick={() => setActive(m.channelId)}
-            className={`flex shrink-0 items-center gap-2 rounded-full py-1 pl-1 pr-3 text-sm ${
+            className={`flex shrink-0 items-center gap-2 rounded-full py-1 pl-1 pr-3 text-sm lg:rounded-lg lg:py-2 ${
               m.channelId === current.channelId
                 ? "bg-blue-600 text-white"
                 : "bg-zinc-200 dark:bg-zinc-800"
@@ -226,7 +229,7 @@ export function VTuberTabs() {
                 className="size-7 rounded-full object-cover"
               />
             )}
-            <span className="max-w-40 truncate">{m.name}</span>
+            <span className="max-w-40 truncate lg:max-w-none">{m.name}</span>
           </button>
         ))}
       </div>

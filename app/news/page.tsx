@@ -28,7 +28,7 @@ function NewsCard({ n }: { n: News }) {
     </div>
   );
   return (
-    <li className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
+    <li className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm transition-shadow hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900">
       {url ? (
         <a href={url} target="_blank" rel="noopener noreferrer">
           {body}
@@ -59,8 +59,8 @@ export default async function NewsPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 p-4">
-      <h1 className="mb-4 text-xl font-bold">ニュース</h1>
+    <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-5 md:px-6 md:py-8">
+      <h1 className="mb-5 text-2xl font-extrabold tracking-tight">ニュース</h1>
       {!news || news.length === 0 ? (
         <div className="py-16 text-center text-zinc-500">
           <p>ニュースデータの取得に失敗しました（空データ）</p>
@@ -72,7 +72,7 @@ export default async function NewsPage() {
           </Link>
         </div>
       ) : (
-        <ul className="space-y-3">
+        <ul className="grid gap-3 md:grid-cols-2">
           {news.map((n, i) => (
             <NewsCard key={`${n.url}-${i}`} n={n} />
           ))}

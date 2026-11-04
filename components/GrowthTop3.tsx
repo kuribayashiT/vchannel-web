@@ -30,7 +30,7 @@ export function GrowthTop3({ items }: { items: SubscriberGrowthItem[] }) {
           <li key={i.channelId}>
             <Link
               href={`/vtuber/${encodeURIComponent(i.channelId)}`}
-              className="flex items-center gap-3 rounded-lg border border-zinc-200 bg-white p-3 hover:shadow dark:border-zinc-800 dark:bg-zinc-900"
+              className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-white p-3 shadow-sm transition-shadow hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
             >
               <span className="text-xl">{MEDALS[idx]}</span>
               {i.thumbnail && (

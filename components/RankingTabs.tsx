@@ -75,7 +75,7 @@ function Row({ r, rank }: { r: RankingRow; rank: number }) {
           src={r.thumbnail}
           alt=""
           loading="lazy"
-          className="size-10 shrink-0 rounded-full object-cover"
+          className="size-11 shrink-0 rounded-full object-cover"
         />
       )}
       <div className="min-w-0 flex-1">
@@ -102,7 +102,7 @@ function Row({ r, rank }: { r: RankingRow; rank: number }) {
     </>
   );
   const cls =
-    "flex items-center gap-3 border-b border-zinc-200 px-2 py-2 dark:border-zinc-800";
+    "flex items-center gap-3 border-b border-zinc-100 px-4 py-3 dark:border-zinc-800";
   return r.videoId ? (
     <a
       href={`https://www.youtube.com/watch?v=${r.videoId}`}
@@ -227,9 +227,11 @@ export function RankingTabs({
         </p>
       ) : (
         <>
-          {rows.slice(0, limit).map((r, i) => (
-            <Row key={r.key} r={r} rank={i + 1} />
-          ))}
+          <div className="grid gap-x-4 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm md:grid-cols-2 dark:border-zinc-800 dark:bg-zinc-900">
+            {rows.slice(0, limit).map((r, i) => (
+              <Row key={r.key} r={r} rank={i + 1} />
+            ))}
+          </div>
           {limit < rows.length && (
             <button
               type="button"
@@ -250,7 +252,7 @@ export function RankingTabs({
         type="button"
         onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
         aria-label="トップへ戻る"
-        className="fixed bottom-20 right-4 size-12 rounded-full bg-blue-600 text-white shadow-lg"
+        className="fixed bottom-20 right-4 md:bottom-6 size-12 rounded-full bg-blue-600 text-white shadow-lg"
       >
         ↑
       </button>

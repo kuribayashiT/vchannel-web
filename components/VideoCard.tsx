@@ -23,7 +23,7 @@ export function VideoCard({ v, live = false }: { v: Video; live?: boolean }) {
   const fav = ids.includes(v.videoId);
 
   return (
-    <div className="relative overflow-hidden rounded-lg border border-zinc-200 bg-white hover:shadow dark:border-zinc-800 dark:bg-zinc-900">
+    <div className="relative overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm transition-shadow hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900">
       <a
         href={`https://www.youtube.com/watch?v=${encodeURIComponent(v.videoId)}`}
         target="_blank"
