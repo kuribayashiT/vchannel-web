@@ -17,6 +17,9 @@ async function main() {
     "## AGENTS.md\n" + agentsMd + "\n\n" +
     "## FRONTEND_SPEC.md\n" + frontendSpec + "\n\n" +
     "## COPILOT_TASK.md\n" + copilotTask + "\n\n" +
+    "## 🛑 絶対守るべきルール（禁止事項・制限）\n" +
+    "1. AGENTS.md, FRONTEND_SPEC.md, COPILOT_TASK.md などのマークダウン（.md）ファイルは、**絶対に新規作成・変更・出力してはなりません**。変更は app/ や components/ などのソースコード（.ts, .tsx）のみに限定してください。\n" +
+    "2. 外部仕様書やJSONのデータをそのまま出力に含めないでください。必要な型定義はコード内に直接記述してください。\n\n" +
     "## ⚠️ コーディングの絶対ルール\n" +
     "- Next.js の Server Component / API Route を作成する際は、RouteContext, LayoutProps, PageProps などのグローバル型に依存せず、必ずファイル内で以下のように型を明示的に定義してください：\n" +
     "  - RouteContext: type RouteContext = { params: Promise<{ channelId: string }> };\n" +
@@ -24,10 +27,10 @@ async function main() {
     "  - LayoutProps: type LayoutProps = { children: React.ReactNode };\n" +
     "- アイコンを使用する場合は必ず lucide-react 等から正しくインポートしてください。\n\n" +
     "## 出力形式\n" +
-    "変更するファイルごとに、以下のJSON配列の形式（コードブロックなしのプレーンなJSON）で出力してください。それ以外の解説文は一切不要です。\n\n" +
-    "[\n  {\n    \"filePath\": \"app/vtuber/[channelId]/page.tsx\",\n    \"content\": \"修正・新規作成後のファイルの中身全体...\"\n  }\n]";
+    "変更するソースコードファイルごとに、以下のJSON配列の形式（コードブロックなしのプレーンなJSON）で出力してください。それ以外の解説文は一切不要です。\n\n" +
+    "[\n  {\n    \"filePath\": \"components/Example.tsx\",\n    \"content\": \"修正・新規作成後のファイルの中身全体...\"\n  }\n]";
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
