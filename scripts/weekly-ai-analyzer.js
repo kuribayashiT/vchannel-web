@@ -36,6 +36,7 @@ ${copilotTask}
   - **完了条件**: \`npm run build\` が成功すること。
 `;
 
+
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -45,7 +46,7 @@ ${copilotTask}
     },
     body: JSON.stringify({
       model: 'claude-3-7-sonnet-20250219',
-      max_tokens: 4000,
+      max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }]
     })
   });

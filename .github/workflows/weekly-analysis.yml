@@ -24,6 +24,42 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Debug - 利用可能なモデルの確認
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          node -e '
+            import("@anthropic-ai/sdk").then(async ({ default: Anthropic }) => {
+              const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+              try {
+                const response = await anthropic.models.list();
+                console.log("=== 利用可能なモデル一覧 ===");
+                console.log(response.data.map(m => m.id));
+              } catch (e) {
+                console.error("モデル一覧の取得に失敗しました:", e.message);
+                const testModels = [
+                  "claude-3-7-sonnet-20250219",
+                  "claude-3-5-sonnet-20241022",
+                  "claude-3-5-haiku-20241022",
+                  "claude-3-opus-20240229"
+                ];
+                for (const model of testModels) {
+                  try {
+                    process.stdout.write(`Testing ${model}... `);
+                    await anthropic.messages.create({
+                      model: model,
+                      max_tokens: 10,
+                      messages: [{ role: "user", content: "ping" }]
+                    });
+                    console.log("✅ 利用可能！");
+                  } catch (err) {
+                    console.log(`❌ エラー: ${err.error?.message || err.message}`);
+                  }
+                }
+              }
+            });
+          '
+
       - name: Step 1. AGENTS.md & FRONTEND_SPEC.md の読み込みと分析
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
