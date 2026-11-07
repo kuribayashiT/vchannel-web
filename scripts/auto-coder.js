@@ -1,4 +1,3 @@
-// scripts/auto-coder.js
 import fs from 'fs';
 import path from 'path';
 
@@ -9,13 +8,14 @@ if (!ANTHROPIC_API_KEY) {
 }
 
 async function main() {
-  const copilotTask = fs.readFileSync('COPILOT_TASK.md', 'utf8');
-  const frontendSpec = fs.readFileSync('FRONTEND_SPEC.md', 'utf8');
+  // コンテキストとなるファイルを読み込み（AIの指示精度を高めるために必須）
   const agentsMd = fs.existsSync('AGENTS.md') ? fs.readFileSync('AGENTS.md', 'utf8') : '';
+  const frontendSpec = fs.existsSync('FRONTEND_SPEC.md') ? fs.readFileSync('FRONTEND_SPEC.md', 'utf8') : '';
+  const copilotTask = fs.existsSync('COPILOT_TASK.md') ? fs.readFileSync('COPILOT_TASK.md', 'utf8') : '';
 
   const prompt = `
-あなたは Next.js (App Router) + TypeScript + Tailwind CSS のフロントエンドエンジニアです。
-以下の COPILOT_TASK.md から、最優先の【未完了タスク (- [ ])】を1件だけピックアップして実装してください。
+あなたは「Vちゃんねる」のプロダクトデザイナー兼AIプロンプトエンジニアです。
+以下の資料をもとに、競合サイト（data.vmato.jp）に勝つための新しい改善タスクを1件だけ考案し、COPILOT_TASK.md の「未完了タスク (To Do)」の適切なセクション（P0またはP1）に追記してください。
 
 ## AGENTS.md
 ${agentsMd}
@@ -23,23 +23,19 @@ ${agentsMd}
 ## FRONTEND_SPEC.md
 ${frontendSpec}
 
-## COPILOT_TASK.md
+## 現在の COPILOT_TASK.md
 ${copilotTask}
 
-## 出力要件
-Claudeの出力として、以下のJSON形式のみを返してください（マークダウンのバッククォート \`\`\`json ... \`\`\` で囲んでください）。
+## 指示
+- すでに記載されているタスクと重複しないものを1件選定してください。
+- 以下のフォーマットで追記した【更新後の COPILOT_TASK.md 全体の内容】のみをマークダウン形式で出力してください（余計な解説文は不要です）。
 
-{
-  "taskId": "該当するタスク名（COPILOT_TASK.md上の表記）",
-  "filesToModify": [
-    {
-      "path": "変更または新規作成するファイルパス",
-      "content": "ファイルの完全な新しいコード内容"
-    }
-  ],
-  "updatedFrontendSpec": "今回の実装を反映した更新後の FRONTEND_SPEC.md の全体内容",
-  "updatedCopilotTask": "該当タスクを [x] に変更し、Doneに移動またはチェックを入れた更新後の COPILOT_TASK.md の全体内容"
-}
+- [ ] **P0-X. タスク名**
+- **対象ファイル**: 
+\`components/Example.tsx\`
+- **仕様**: 〇〇を実装・修正する。
+- **完了条件**: 
+\`npm run build\` が成功すること。
 `;
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -51,49 +47,41 @@ Claudeの出力として、以下のJSON形式のみを返してください（�
     },
     body: JSON.stringify({
       model: 'claude-sonnet-5-5',
-      max_tokens: 8192,
+      max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }]
     })
   });
 
   const data = await response.json();
-  if (!data.content || !data.content[0]) {
-    console.error('API Error:', data);
+
+  // APIエラー発生時のログ出力
+  if (!response.ok || data.error) {
+    console.error('API Error Response:', JSON.stringify(data, null, 2));
     process.exit(1);
   }
 
-  let textResponse = data.content[0].text;
-  const jsonMatch = textResponse.match(/```json([\s\S]*?)```/) || textResponse.match(/\{([\s\S]*)\}/);
-  if (!jsonMatch) {
-    console.error('Failed to parse JSON from Claude response.');
-    process.exit(1);
-  }
-
-  const jsonString = jsonMatch[1] ? jsonMatch[1] : jsonMatch[0];
-  const result = JSON.parse(jsonString);
-
-  // ファイルの書き込み
-  for (const file of result.filesToModify) {
-    const dir = path.dirname(file.path);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+  // content 配列から text ブロックを安全に取得
+  let textOutput = '';
+  if (data.content && Array.isArray(data.content)) {
+    for (const block of data.content) {
+      if (block.type === 'text') {
+        textOutput += block.text;
+      }
     }
-    fs.writeFileSync(file.path, file.content, 'utf8');
-    console.log(`Updated/Created file: ${file.path}`);
   }
 
-  // 仕様書とタスク表の更新
-  if (result.updatedFrontendSpec) {
-    fs.writeFileSync('FRONTEND_SPEC.md', result.updatedFrontendSpec, 'utf8');
-    console.log('Updated FRONTEND_SPEC.md');
+  if (!textOutput) {
+    console.error('API Error: レスポンス内に有効なテキストコンテンツがありませんでした。', JSON.stringify(data, null, 2));
+    process.exit(1);
   }
-  if (result.updatedCopilotTask) {
-    fs.writeFileSync('COPILOT_TASK.md', result.updatedCopilotTask, 'utf8');
-    console.log('Updated COPILOT_TASK.md');
-  }
+
+  // マークダウンのコードブロック囲み（```markdown など）を安全に除去して書き込み
+  const updatedContent = textOutput.replace(/```markdown/g, '').replace(/```/g, '').trim();
+  fs.writeFileSync('COPILOT_TASK.md', updatedContent, 'utf8');
+  console.log('Successfully updated COPILOT_TASK.md with a new task.');
 }
 
 main().catch(err => {
-  console.error(err);
+  console.error('Unhandled Error:', err);
   process.exit(1);
 });

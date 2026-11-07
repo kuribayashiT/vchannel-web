@@ -1,4 +1,3 @@
-// scripts/weekly-ai-analyzer.js
 import fs from 'fs';
 import path from 'path';
 
@@ -31,11 +30,12 @@ ${copilotTask}
 - 以下のフォーマットで追記した【更新後の COPILOT_TASK.md 全体の内容】のみをマークダウン形式で出力してください（余計な解説文は不要です）。
 
 - [ ] **P0-X. タスク名**
-  - **対象ファイル**: \`components/Example.tsx\`
-  - **仕様**: 〇〇を実装・修正する。
-  - **完了条件**: \`npm run build\` が成功すること。
+- **対象ファイル**: 
+\`components/Example.tsx\`
+- **仕様**: 〇〇を実装・修正する。
+- **完了条件**: 
+\`npm run build\` が成功すること。
 `;
-
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -52,17 +52,34 @@ ${copilotTask}
   });
 
   const data = await response.json();
-  if (!data.content || !data.content[0]) {
-    console.error('API Error:', data);
+
+  // APIエラーやステータス異常時の詳細ログ出力
+  if (!response.ok || data.error) {
+    console.error('API Error Response:', JSON.stringify(data, null, 2));
     process.exit(1);
   }
 
-  const updatedContent = data.content[0].text.replace(/```markdown/g, '').replace(/```/g, '').trim();
+  // content 配列から text ブロックを安全に抽出
+  let textOutput = '';
+  if (data.content && Array.isArray(data.content)) {
+    for (const block of data.content) {
+      if (block.type === 'text') {
+        textOutput += block.text;
+      }
+    }
+  }
+
+  if (!textOutput) {
+    console.error('API Error: レスポンス内に有効なテキストコンテンツがありませんでした。', JSON.stringify(data, null, 2));
+    process.exit(1);
+  }
+
+  const updatedContent = textOutput.replace(/```markdown/g, '').replace(/```/g, '').trim();
   fs.writeFileSync('COPILOT_TASK.md', updatedContent, 'utf8');
   console.log('Successfully updated COPILOT_TASK.md with a new task.');
 }
 
 main().catch(err => {
-  console.error(err);
+  console.error('Unhandled Error:', err);
   process.exit(1);
 });
