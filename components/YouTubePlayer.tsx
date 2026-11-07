@@ -1,5 +1,6 @@
 "use client";
 
+import { X } from "lucide-react";
 import { closePlayer, usePlayingVideo } from "@/hooks/usePlayer";
 
 /** 画面下部の YouTube プレーヤー（埋め込み不可の動画は YouTube で開く） */
