@@ -131,6 +131,7 @@ jobs:
         if: steps.git-check.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v6
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
           title: '🤖 【全自動AI開発】本日の改善案件の実装と仕様書更新'
           commit-message: 'feat(auto): 毎日のAI自動開発パイプラインによる案件実装・ビルド検証完了'
           branch: 'daily-auto-dev'
