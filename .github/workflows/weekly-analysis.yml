@@ -127,6 +127,22 @@ jobs:
         run: |
           git diff --quiet || echo "changed=true" >> $GITHUB_OUTPUT
 
+      - name: Prepare PR body content
+        if: steps.git-check.outputs.changed == 'true'
+        id: pr-body
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=format:"%s")
+          CHANGED_FILES=$(git diff --name-only origin/main...HEAD || git diff --name-only HEAD~1 HEAD)
+          
+          {
+            echo "commit_msg<<EOF"
+            echo "$COMMIT_MSG"
+            echo "EOF"
+            echo "changed_files<<EOF"
+            echo "$CHANGED_FILES"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
       - name: Create Pull Request for Daily Task
         if: steps.git-check.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v6
@@ -136,6 +152,16 @@ jobs:
           commit-message: 'feat(auto): 毎日のAI自動開発パイプラインによる案件実装・ビルド検証完了'
           branch: 'daily-auto-dev'
           body: |
+            ## 🤖 自動開発パイプライン レポート
             毎日の定期実行により、AIが `AGENTS.md` および `FRONTEND_SPEC.md` の仕様に沿って1案件を実装し、ビルド検証を通過させました。
-            実装された機能のコード差分および `FRONTEND_SPEC.md` の更新内容を確認し、問題なければマージしてください。
+            
+            ### 📝 実装サマリー
+            - **コミットメッセージ**: ${{ steps.pr-body.outputs.commit_msg }}
+            
+            ### 📂 変更されたファイル
+            \`\`\`
+            ${{ steps.pr-body.outputs.changed_files }}
+            \`\`\`
+            
+            実装された機能のコード差分を確認し、問題なければマージしてください。
           delete-branch: true
