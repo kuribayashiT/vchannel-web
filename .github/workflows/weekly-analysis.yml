@@ -83,11 +83,35 @@ jobs:
             echo "scripts/auto-coder.js が存在しないため、コード自動実装ステップをスキップします。"
           fi
 
-      - name: Step 3. 自動テスト & ビルド検証
+      - name: Step 3. 自動テスト & ビルド検証 (セルフヒーリング付き)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          echo "=== 4. 型チェックとビルドの実行 ==="
-          npx tsc --noEmit
-          npm run build
+          MAX_RETRIES=3
+          attempt=1
+          
+          while [ $attempt -le $MAX_RETRIES ]; do
+            echo "=== ビルド検証 試行回数: $attempt / $MAX_RETRIES ==="
+            
+            # 型チェックとビルドを実行し、標準エラーを出力しつつキャプチャ
+            if npx tsc --noEmit && npm run build; then
+              echo "✅ ビルド & 型チェック成功！"
+              exit 0
+            else
+              echo "❌ ビルドまたは型チェックが失敗しました。AIによる自動修復を試みます..."
+              
+              # tsc等のエラー出力を一時ファイルに保存
+              npx tsc --noEmit > tsc_errors.log 2>&1 || true
+              
+              # AIにエラーを修正させるためのスクリプトを呼び出す（または直接nodeでAPIを叩く）
+              node scripts/auto-fixer.js
+              
+              attempt=$((attempt + 1))
+            fi
+          done
+          
+          echo "❌ 最大リトライ回数を超えたため、自動ビルドに失敗しました。"
+          exit 1
 
       - name: Check for codebase changes
         id: git-check
