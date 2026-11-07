@@ -6,6 +6,8 @@ import { getOfficeSummaries, type OfficeSummary } from "@/lib/offices";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/site";
 import "./globals.css";
 
+type LayoutProps = { children: React.ReactNode };
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -66,7 +68,7 @@ const jsonLd = {
   ],
 };
 
-export default async function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps) {
   let offices: OfficeSummary[] = [];
   try {
     offices = await getOfficeSummaries();

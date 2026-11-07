@@ -42,6 +42,40 @@
   - 対象ファイル: `components/VTuberTabs.tsx`, `app/vtuber/[channelId]/page.tsx`, `app/api/vtuber/[channelId]/route.ts`
 - [ ] **P1-6. 事務所（グループ）一覧・詳細ページ**
   - 対象ファイル: 新規 `app/office/page.tsx`, `app/office/[slug]/page.tsx`、`lib/offices.ts`, `app/sitemap.ts`
+- [ ] **P1-7. ランキングの表示状態を URL クエリと同期（共有・ブラウザ戻る/進む・ブックマーク対応）**
+  - **対象ファイル**:
+    `lib/rankingQuery.ts`（新規）
+    `components/RankingTabs.tsx`
+    `app/ranking/page.tsx`
+  - **仕様**:
+    - **背景**: 現状、ランキングのタブ（週間同時視聴者数 / YouTube登録者数 / 動画本数 / 登録者急上昇）や期間（週間/月間）は React の state だけで保持している。そのため URL を SNS や Discord で共有しても常に初期タブで開く。リロードやブラウザの戻る操作でも選択状態が失われる。「このランキング見て！」と URL 単位で共有・流入できるようにし、ファン間の拡散と検索流入の導線を作る。
+    - `lib/rankingQuery.ts` に、クエリ文字列と状態を相互変換する純関数を新規作成する。
+      - `parseRankingQuery(searchParams): RankingViewState`
+      - `buildRankingQuery(state): string`
+      - 対応パラメータ:
+        - `tab` = `live` | `subscribers` | `videos` | `growth`
+        - `period` = `week` | `month`（`growth` タブのみ有効）
+      - 不正値・未指定は既定値（現行の初期タブ）にフォールバックする。`any` は使わず、`as const` のユニオン型で定義する。
+      - 既定値と同じ値はクエリに含めない（URL を `/ranking` のままきれいに保つ）。
+    - `components/RankingTabs.tsx`:
+      - タブ・期間切替時に `router.replace(`${pathname}?${query}`, { scroll: false })` で URL を更新する。履歴を汚さないため `push` ではなく `replace` を使う。ただしタブ切替のみ `push` とし、戻る操作でタブが戻るようにしてもよい（どちらかに統一し、`FRONTEND_SPEC.md` に明記すること）。
+      - 初期 state は URL から復元する。ブラウザの戻る/進むで `searchParams` が変わった場合も表示が追従すること。
+      - 選択事務所フィルター（localStorage）は URL に含めない。URL を開いた人には全体ランキングを見せ、共有 URL が個人設定に左右されないようにする。
+      - `useSearchParams` を使うため、`app/ranking/page.tsx` 側で `RankingTabs` を `<Suspense fallback={...}>` で囲む。`npm run build` の CSR bailout エラーを防ぐこと。
+    - `app/ranking/page.tsx`:
+      - `generateMetadata` で `tab` / `period` に応じたタイトルと description を返す。例: `登録者急上昇ランキング（月間）| Vちゃんねる`。
+      - `canonical` はタブごとの URL（`/ranking?tab=growth&period=month`）にする。
+    - アクセシビリティ: タブは `role="tablist"` / `role="tab"` / `aria-selected` を付与する。
+    - 範囲外: OGP 画像生成（P2-2）、順位変動（P2-1）は本タスクでは扱わない。
+    - 追加パッケージは不要。`FRONTEND_SPEC.md` の「ランキング」節に、対応クエリ一覧と履歴の方針を追記する。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。
+    - `npm run build` が成功する（`useSearchParams` 関連の Suspense 警告・エラーが出ない）。
+    - `/ranking?tab=growth&period=month` を直接開くと「登録者急上昇」タブ・「月間」が選択された状態で表示される。
+    - タブや期間を切り替えると URL が更新される。リロードしても同じ状態が復元される。ブラウザの戻る/進むで表示が追従する。
+    - `?tab=xxx` のような不正値でもエラーにならず、既定タブで表示される。
+    - 375px / 1280px の両方で見た目が崩れず、横スクロールが発生しない。ダークモードでも崩れない。
+    - `FRONTEND_SPEC.md` が更新されている。
 
 ### P2: 差別化（競合に無い体験）
 - [ ] **P2-1. 順位変動（前週比 ▲3 / ▼2 / NEW）**
@@ -59,7 +93,7 @@
 
 ## 📌 Copilot への共通実装指示プロンプトテンプレート
 
-```text
+text
 あなたは Next.js (App Router) + TypeScript + Tailwind CSS v4 のフロントエンドエンジニアです。
 リポジトリ直下の COPILOT_TASK.md の「UI改善バックログ」から、タスク【P0-1】を実装してください。
 必ず「共通デザインルール」と該当タスクの「仕様」「完了条件」を読んでから着手すること。
