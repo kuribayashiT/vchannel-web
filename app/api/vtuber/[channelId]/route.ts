@@ -1,9 +1,8 @@
 import { loadVTubers } from "@/lib/server-data";
 
-export async function GET(
-  _req: Request,
-  ctx: RouteContext<"/api/vtuber/[channelId]">,
-) {
+type RouteContext = { params: Promise<{ channelId: string }> };
+
+export async function GET(_req: Request, ctx: RouteContext) {
   const { channelId } = await ctx.params;
   try {
     const { details } = await loadVTubers();

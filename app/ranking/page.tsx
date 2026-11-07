@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import { Suspense } from "react";
 import { getGrowthData } from "@/lib/growth-data";
 import { RankingTabs } from "@/components/RankingTabs";
 import {
@@ -6,8 +8,31 @@ import {
   getWeeklyLiveViewRanking,
   getYoutubeSubscriberRanking,
 } from "@/lib/gcs";
+import {
+  buildRankingQuery,
+  parseRankingQuery,
+  rankingMeta,
+} from "@/lib/rankingQuery";
 
-export const metadata = { title: "ランキング" };
+type PageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export async function generateMetadata({
+  searchParams,
+}: PageProps): Promise<Metadata> {
+  const state = parseRankingQuery(await searchParams);
+  const { title, description } = rankingMeta(state);
+  const query = buildRankingQuery(state);
+  const canonical = query ? `/ranking?${query}` : "/ranking";
+  return {
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: { title, description, url: canonical },
+    twitter: { title, description },
+  };
+}
 
 async function load() {
   const [weekly, subscribers, videoCounts] = await Promise.all([
@@ -37,7 +62,13 @@ export default async function RankingPage() {
         ランキング
       </h1>
       {data ? (
-        <RankingTabs {...data} />
+        <Suspense
+          fallback={
+            <p className="py-16 text-center text-zinc-500">読み込み中…</p>
+          }
+        >
+          <RankingTabs {...data} />
+        </Suspense>
       ) : (
         <p className="py-16 text-center text-zinc-500">
           ランキングの読み込みに失敗しました。

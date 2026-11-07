@@ -2,6 +2,7 @@
 
 import { smallAvatar } from "@/lib/url";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { useSelectedChannels } from "@/hooks/useSelection";
 import {
@@ -15,6 +16,12 @@ import {
   type RankingRow,
   type RankingTab,
 } from "@/lib/ranking";
+import {
+  buildRankingQuery,
+  parseRankingQuery,
+  type RankingQueryTab,
+  type RankingViewState,
+} from "@/lib/rankingQuery";
 import type {
   GrowthPeriod,
   SubscriberGrowthData,
@@ -35,6 +42,27 @@ const PAGE = 100;
 const noopSubscribe = () => () => {};
 
 const MEDALS = ["🥇", "🥈", "🥉"];
+
+/** 動画本数タブのキー（weekly / subscribers / growth 以外の残り 1 つ） */
+const VIDEO_TAB: RankingTab =
+  RANKING_TABS.find(
+    (t) =>
+      t.key !== "weekly" && t.key !== "subscribers" && t.key !== "growth",
+  )?.key ?? "weekly";
+
+function toRankingTab(q: RankingQueryTab): RankingTab {
+  if (q === "live") return "weekly";
+  if (q === "subscribers") return "subscribers";
+  if (q === "growth") return "growth";
+  return VIDEO_TAB;
+}
+
+function fromRankingTab(t: RankingTab): RankingQueryTab {
+  if (t === "weekly") return "live";
+  if (t === "subscribers") return "subscribers";
+  if (t === "growth") return "growth";
+  return "videos";
+}
 
 function Sparkline({ data }: { data: number[] }) {
   if (data.length < 2) return null;
@@ -132,9 +160,20 @@ export function RankingTabs({
   videoCounts,
   growth,
 }: Props) {
-  const [tab, setTab] = useState<RankingTab>("weekly");
-  const [period, setPeriod] = useState<GrowthPeriod>("week");
-  const [limit, setLimit] = useState(PAGE);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // タブ・期間の状態は URL（クエリ）が唯一の情報源。戻る/進む・リロードにも追従する
+  const view = useMemo(() => parseRankingQuery(searchParams), [searchParams]);
+  const tab = toRankingTab(view.tab);
+  const period: GrowthPeriod = view.period;
+  const viewKey = `${view.tab}:${view.period}`;
+
+  // 表示件数はタブ/期間が変わったら既定値に戻す
+  const [limitState, setLimitState] = useState({ key: viewKey, n: PAGE });
+  const limit = limitState.key === viewKey ? limitState.n : PAGE;
+
   const { channelIds } = useSelectedChannels();
   // 見出しの日付は現在時刻依存のため、マウント後にのみ表示する
   const mounted = useSyncExternalStore(
@@ -151,14 +190,18 @@ export function RankingTabs({
     return videoCountRows(videoCounts, channelIds);
   }, [tab, period, weekly, growth, subscribers, videoCounts, channelIds]);
 
+  // 履歴を汚さないよう、タブ・期間の切替はどちらも replace で URL を更新する
+  const navigate = (next: RankingViewState) => {
+    const q = buildRankingQuery(next);
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+  };
+
   const changePeriod = (p: GrowthPeriod) => {
-    setPeriod(p);
-    setLimit(PAGE);
+    navigate({ tab: "growth", period: p });
   };
 
   const changeTab = (t: RankingTab) => {
-    setTab(t);
-    setLimit(PAGE);
+    navigate({ tab: fromRankingTab(t), period: "week" });
   };
 
   return (
@@ -167,6 +210,7 @@ export function RankingTabs({
         {RANKING_TABS.map((t) => (
           <button
             key={t.key}
+            type="button"
             role="tab"
             aria-selected={t.key === tab}
             onClick={() => changeTab(t.key)}
@@ -237,7 +281,7 @@ export function RankingTabs({
           {limit < rows.length && (
             <button
               type="button"
-              onClick={() => setLimit((n) => n + PAGE)}
+              onClick={() => setLimitState({ key: viewKey, n: limit + PAGE })}
               className="mx-auto mt-4 block rounded border border-zinc-300 px-6 py-2 text-sm dark:border-zinc-700"
             >
               さらに表示
