@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
+import { X, CalendarDays, Settings, SlidersHorizontal, Star } from "lucide-react";
 import { BottomNav, TopNav } from "@/components/BottomNav";
 import { YouTubePlayer } from "@/components/YouTubePlayer";
 import { OfficeSelector } from "@/components/OfficeSelector";
@@ -107,7 +108,7 @@ function SideMenu({
             aria-label="閉じる"
             className="px-2 text-lg"
           >
-            ✕
+            <X size={18} />
           </button>
         </div>
         <OfficeSelector
@@ -160,34 +161,36 @@ export function AppShell({
               aria-label="お気に入り"
               className="rounded-full px-2.5 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800"
             >
-              ★
+              <Star size={18} />
             </Link>
             <Link
               href="/events"
               aria-label="イベントカレンダー"
               className="rounded-full px-2.5 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800"
             >
-              📅
+              <CalendarDays size={18} />
             </Link>
             <Link
               href="/settings"
               aria-label="設定"
               className="rounded-full px-2.5 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800"
             >
-              ⚙
+              <Settings size={18} />
             </Link>
             <button
               type="button"
+              aria-label="フィルター"
               onClick={() => setMenuOpen(true)}
               disabled={offices.length === 0}
-              className="ml-1 rounded-full bg-blue-600 px-4 py-1.5 text-sm font-medium text-white disabled:opacity-40"
+              className="ml-1 flex items-center gap-1.5 rounded-full bg-blue-600 px-3 py-1.5 text-sm sm:px-4 font-medium text-white disabled:opacity-40"
             >
-              フィルター
+              <SlidersHorizontal size={16} aria-hidden />
+              <span className="hidden sm:inline">フィルター</span>
             </button>
           </div>
         </div>
       </header>
-      <div className="flex min-h-0 flex-1 flex-col pb-14 md:pb-0">
+      <div className="flex min-h-0 flex-1 flex-col pb-16 md:pb-0">
         {children}
       </div>
       <YouTubePlayer />

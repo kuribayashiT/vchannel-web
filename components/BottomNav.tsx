@@ -2,14 +2,22 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import {
+  MessageCircle,
+  Newspaper,
+  Radio,
+  Trophy,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 
-const ITEMS = [
-  { href: "/", label: "配信" },
-  { href: "/news", label: "ニュース" },
-  { href: "/vtuber", label: "VTuber" },
-  { href: "/ranking", label: "ランキング" },
-  { href: "/chat", label: "チャット" },
-] as const;
+const ITEMS: { href: string; label: string; icon: LucideIcon }[] = [
+  { href: "/", label: "配信", icon: Radio },
+  { href: "/news", label: "ニュース", icon: Newspaper },
+  { href: "/vtuber", label: "VTuber", icon: Users },
+  { href: "/ranking", label: "ランキング", icon: Trophy },
+  { href: "/chat", label: "チャット", icon: MessageCircle },
+];
 
 export function TopNav() {
   const pathname = usePathname();
@@ -42,23 +50,28 @@ export function BottomNav() {
   return (
     <nav
       aria-label="メインナビゲーション"
-      className="fixed inset-x-0 bottom-0 z-40 flex h-14 md:hidden border-t border-zinc-200 bg-white dark:border-zinc-800 dark:bg-black"
+      className="fixed inset-x-0 bottom-0 z-40 flex h-16 border-t border-zinc-200 bg-white/90 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden dark:border-zinc-800 dark:bg-zinc-950/90"
     >
       {ITEMS.map((i) => {
         const active =
           i.href === "/" ? pathname === "/" : pathname.startsWith(i.href);
+        const Icon = i.icon;
         return (
           <Link
             key={i.href}
             href={i.href}
             aria-current={active ? "page" : undefined}
-            className={`flex flex-1 items-center justify-center text-sm ${
+            className={`relative flex flex-1 flex-col items-center justify-center gap-0.5 ${
               active
                 ? "font-bold text-blue-600"
                 : "text-zinc-600 dark:text-zinc-400"
             }`}
           >
-            {i.label}
+            {active && (
+              <span className="absolute inset-x-5 top-0 h-0.5 rounded-full bg-blue-600" />
+            )}
+            <Icon size={20} aria-hidden />
+            <span className="text-[10px] leading-none">{i.label}</span>
           </Link>
         );
       })}

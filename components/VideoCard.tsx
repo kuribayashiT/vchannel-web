@@ -1,5 +1,6 @@
 "use client";
 
+import { Star } from "lucide-react";
 import { useFavorites } from "@/hooks/useFavorites";
 import { playVideo } from "@/hooks/usePlayer";
 import type { Video } from "@/types";
@@ -42,13 +43,14 @@ export function VideoCard({ v, live = false }: { v: Video; live?: boolean }) {
             src={v.thumbnail}
             alt=""
             loading="lazy"
+            referrerPolicy="no-referrer"
             className="aspect-video w-full object-cover"
           />
         )}
         <div className="space-y-1 p-3">
           {live && (
             <span className="inline-block animate-pulse rounded bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
-              🔴 配信中 {v.concurrentViewers.toLocaleString()}人
+              <span aria-hidden className="mr-1 inline-block size-2 rounded-full bg-white" />配信中 {v.concurrentViewers.toLocaleString()}人
             </span>
           )}
           <p className="line-clamp-2 text-sm font-medium">{v.title}</p>
@@ -63,7 +65,7 @@ export function VideoCard({ v, live = false }: { v: Video; live?: boolean }) {
         aria-label={fav ? "お気に入りから削除" : "お気に入りに追加"}
         className="absolute right-2 top-2 flex size-8 items-center justify-center rounded-full bg-black/60 text-lg text-white"
       >
-        {fav ? "★" : "☆"}
+        <Star size={16} className={fav ? "fill-current" : ""} />
       </button>
     </div>
   );

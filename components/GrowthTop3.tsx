@@ -1,6 +1,8 @@
 "use client";
 
+import { smallAvatar } from "@/lib/url";
 import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 import { useSelectedChannels } from "@/hooks/useSelection";
 import type { SubscriberGrowthItem } from "@/types";
 
@@ -20,9 +22,9 @@ export function GrowthTop3({ items }: { items: SubscriberGrowthItem[] }) {
   return (
     <section aria-label="今週の急上昇" className="mb-6">
       <div className="mb-2 flex items-center justify-between">
-        <h2 className="font-bold">今週の急上昇 🔥</h2>
+        <h2 className="font-bold">今週の急上昇</h2>
         <Link href="/ranking" className="text-xs text-blue-600">
-          もっと見る ›
+          もっと見る <ChevronRight size={14} className="inline" />
         </Link>
       </div>
       <ul className="grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -36,7 +38,8 @@ export function GrowthTop3({ items }: { items: SubscriberGrowthItem[] }) {
               {i.thumbnail && (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={i.thumbnail}
+                  src={smallAvatar(i.thumbnail)}
+                  referrerPolicy="no-referrer"
                   alt=""
                   loading="lazy"
                   className="size-10 shrink-0 rounded-full object-cover"

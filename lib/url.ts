@@ -8,3 +8,8 @@ export function safeHttpUrl(url: string | undefined | null): string | null {
     return null;
   }
 }
+
+/** YouTube/Google のアイコン URL 末尾の `=s800-...` を一覧向けの小サイズに差し替える */
+export function smallAvatar(url: string, size = 96): string {
+  return url.replace(/=s\d+(-|$)/, `=s${size}$1`);
+}

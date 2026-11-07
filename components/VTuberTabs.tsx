@@ -1,5 +1,6 @@
 "use client";
 
+import { smallAvatar } from "@/lib/url";
 import { useEffect, useMemo, useState } from "react";
 import { VideoCard } from "@/components/VideoCard";
 import { useSelectedChannels } from "@/hooks/useSelection";
@@ -223,7 +224,8 @@ export function VTuberTabs() {
             {m.thumbnail && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={m.thumbnail}
+                src={smallAvatar(m.thumbnail)}
+                referrerPolicy="no-referrer"
                 alt=""
                 loading="lazy"
                 className="size-7 rounded-full object-cover"

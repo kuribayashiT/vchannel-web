@@ -1,14 +1,17 @@
-name: Weekly Rival & Analytics Analysis
+name: AI Autonomous Analysis & Task Generator
 
 on:
   schedule:
-    # 毎週月曜日の午前9時（JST）に自動実行
-    - cron: '0 0 * * 1'
+    # 毎週月曜日と木曜日の午前9時（JST = UTC 0:00）に自動実行
+    - cron: '0 0 * * 1,4'
   workflow_dispatch: # 手動でもいつでも実行可能
 
 jobs:
   analyze:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -18,18 +21,33 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Run Analysis Script
+      - name: Run AI Analysis & Update Tasks
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
-          # ここでAnalyticsデータの取得やClaude APIを呼び出すスクリプトを実行
+          echo "=== 1. AGENTS.md および FRONTEND_SPEC.md のコンテキスト読み込み ==="
+          if [ -f "AGENTS.md" ]; then cat AGENTS.md; fi
+          if [ -f "FRONTEND_SPEC.md" ]; then cat FRONTEND_SPEC.md; fi
+
+          echo "=== 2. AI アナライザーの実行 ==="
+          # このスクリプト内で Claude API (Anthropic SDK) を呼び出し、
+          # AGENTS.md のルールに従って COPILOT_TASK.md に新しい改善タスクを追記する処理を行わせます
           node scripts/weekly-ai-analyzer.js
 
-      - name: Create Pull Request with Report
+      - name: Check for changes in COPILOT_TASK.md
+        id: git-check
+        run: |
+          git diff --quiet COPILOT_TASK.md || echo "changed=true" >> $GITHUB_OUTPUT
+
+      - name: Create Pull Request with Updated Tasks
+        if: steps.git-check.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v6
         with:
-          title: '📊 週刊AI改善レポート & ライバル分析'
-          commit-message: 'docs: 自動生成された今週の改善提案レポート'
-          branch: 'auto-report'
-          body: 'Vercel Analyticsのデータとライバルサイトの傾向に基づいた今週の改善提案です。'
+          title: '🤖 【AI自動生成】新規改善タスク追加（月曜・木曜定期更新）'
+          commit-message: 'docs(tasks): AGENTS.md および FRONTEND_SPEC.md に基づく自動改善タスクの追加'
+          branch: 'auto-task-updates'
+          body: |
+            Vercel Analyticsのデータやライバルサイトの傾向に基づき、AI（Claude）が `AGENTS.md` と `FRONTEND_SPEC.md` の仕様に沿って `COPILOT_TASK.md` を更新しました。
+            内容を確認し、問題なければマージして GitHub Copilot による実装に繋げてください。
+          delete-branch: true

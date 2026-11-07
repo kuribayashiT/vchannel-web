@@ -1,5 +1,6 @@
 "use client";
 
+import { smallAvatar } from "@/lib/url";
 import Link from "next/link";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { useSelectedChannels } from "@/hooks/useSelection";
@@ -72,7 +73,8 @@ function Row({ r, rank }: { r: RankingRow; rank: number }) {
       {r.thumbnail && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={r.thumbnail}
+          src={smallAvatar(r.thumbnail)}
+          referrerPolicy="no-referrer"
           alt=""
           loading="lazy"
           className="size-11 shrink-0 rounded-full object-cover"

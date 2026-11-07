@@ -7,7 +7,7 @@ export function YouTubePlayer() {
   const id = usePlayingVideo();
   if (!id) return null;
   return (
-    <div className="fixed inset-x-0 bottom-14 z-30 md:bottom-0 border-t border-zinc-300 bg-black shadow-lg dark:border-zinc-700">
+    <div className="fixed inset-x-0 bottom-16 z-30 md:bottom-0 border-t border-zinc-300 bg-black shadow-lg dark:border-zinc-700">
       <div className="mx-auto flex max-w-4xl flex-col">
         <div className="flex items-center justify-between px-3 py-1 text-xs text-white">
           <a
@@ -24,7 +24,7 @@ export function YouTubePlayer() {
             aria-label="プレーヤーを閉じる"
             className="px-2 text-base"
           >
-            ✕
+            <X size={16} />
           </button>
         </div>
         <iframe
