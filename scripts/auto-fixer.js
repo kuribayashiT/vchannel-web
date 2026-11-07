@@ -15,30 +15,42 @@ async function fixCode() {
     return;
   }
 
-  // 該当する可能性のある主要なソースコードをあらかじめ読み込んでコンテキストとして渡す
-  // （エラー解決に必要なファイルの内容をAIに把握させるため）
-  const appShellPath = 'components/AppShell.tsx';
-  const bottomNavPath = 'components/BottomNav.tsx';
-  const appShellCode = fs.existsSync(appShellPath) ? fs.readFileSync(appShellPath, 'utf8') : '';
-  const bottomNavCode = fs.existsSync(bottomNavPath) ? fs.readFileSync(bottomNavPath, 'utf8') : '';
+  // エラーログから該当するファイルパスを自動抽出して中身を読み込む
+  const fileMatches = errorLog.matchAll(/^([a-zA-Z0-9_\-\/.]+\.(ts|tsx|js|jsx))/gm);
+  const targetFiles = [...new Set([...fileMatches].map(m => m[1]))];
+
+  let fileContentsContext = '';
+  for (const filePath of targetFiles) {
+    if (fs.existsSync(filePath)) {
+      const content = fs.readFileSync(filePath, 'utf8');
+      fileContentsContext += `\n### ファイル: ${filePath}\n\`\`\`ts\n${content}\n\`\`\`\n`;
+    }
+  }
+
+  // デフォルトでよくあるファイルも念のため追加
+  const fallbackFiles = ['components/AppShell.tsx', 'components/BottomNav.tsx'];
+  for (const filePath of fallbackFiles) {
+    if (!targetFiles.includes(filePath) && fs.existsSync(filePath)) {
+      const content = fs.readFileSync(filePath, 'utf8');
+      fileContentsContext += `\n### ファイル: ${filePath}\n\`\`\`ts\n${content}\n\`\`\`\n`;
+    }
+  }
 
   const prompt = "あなたは Next.js (App Router) + TypeScript + Tailwind CSS のプロフェッショナルなフロントエンドエンジニアです。\n" +
     "直前の自動ビルド（型チェック）で以下のエラーが発生しました。\n\n" +
     "## エラーログ\n" + errorLog + "\n\n" +
-    "## 参考: 現在のコンポーネントコード\n" +
-    "### components/AppShell.tsx\n" + appShellCode + "\n\n" +
-    "### components/BottomNav.tsx\n" + bottomNavCode + "\n\n" +
+    "## 該当ファイルの現在のコード\n" + fileContentsContext + "\n\n" +
     "## 🛑 絶対守るべきルール（禁止事項・制限）\n" +
-    "1. AGENTS.md, FRONTEND_SPEC.md, COPILOT_TASK.md などのマークダウン（.md）ファイルは、絶対に変更・出力してはなりません。変更は app/ や components/ などのソースコード（.ts, .tsx）のみに限定してください。\n" +
+    "1. AGENTS.md, FRONTEND_SPEC.md, COPILOT_TASK.md などのマークダウン（.md）ファイルは、絶対に変更・出力してはなりません。変更はソースコード（.ts, .tsx）のみに限定してください。\n" +
     "2. Next.js の Server Component / API Route / Page を修正する際は、`RouteContext`, `PageProps`, `LayoutProps` などのグローバル型に依存せず、必ずファイル内で以下のように型を明示的に定義してください：\n" +
     "   - RouteContext: `type RouteContext = { params: Promise<{ channelId: string }> };`\n" +
     "   - PageProps: `type PageProps = { params: Promise<{ channelId: string }> };`\n" +
     "   - LayoutProps: `type LayoutProps = { children: React.ReactNode };`\n" +
-    "3. インポートエラー（例: `TopNav` やアイコンの欠落など）は、正しい名前や default/named インポートに修正してください。\n" +
+    "3. インポートエラーや名前解決エラーは、該当ファイルを正確に修正して解決してください。\n" +
     "4. **絶対に解説文や挨拶などの余計なテキストを出力せず、純粋なJSON配列のみを出力してください。**\n\n" +
     "## 出力形式\n" +
     "修正するファイルごとに、以下のJSON配列の形式（コードブロックなしのプレーンなJSON）で出力してください。解説文は一切不要です。\n\n" +
-    "[\n  {\n    \"filePath\": \"components/AppShell.tsx\",\n    \"content\": \"修正後のファイルの中身全体...\"\n  }\n]";
+    "[\n  {\n    \"filePath\": \"app/api/vtuber/[channelId]/route.ts\",\n    \"content\": \"修正後のファイルの中身全体...\"\n  }\n]";
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
