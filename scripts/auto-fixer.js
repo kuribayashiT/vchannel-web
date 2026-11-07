@@ -15,8 +15,8 @@ async function fixCode() {
     return;
   }
 
-  // エラーログから該当するファイルパスを自動抽出して中身を読み込む
-  const fileMatches = errorLog.matchAll(/^([a-zA-Z0-9_\-\/.]+\.(ts|tsx|js|jsx))/gm);
+  // 大括弧 [channelId] などのパスにも対応するように正規表現を修正
+  const fileMatches = errorLog.matchAll(/^([a-zA-Z0-9_\-\/.[\]]+\.(ts|tsx|js|jsx))/gm);
   const targetFiles = [...new Set([...fileMatches].map(m => m[1]))];
 
   let fileContentsContext = '';
@@ -27,7 +27,7 @@ async function fixCode() {
     }
   }
 
-  // デフォルトでよくあるファイルも念のため追加
+  // デフォルトでよくあるファイルもフォールバックとして追加
   const fallbackFiles = ['components/AppShell.tsx', 'components/BottomNav.tsx'];
   for (const filePath of fallbackFiles) {
     if (!targetFiles.includes(filePath) && fs.existsSync(filePath)) {
