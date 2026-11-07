@@ -15,22 +15,13 @@ async function fixCode() {
     return;
   }
 
-  // 大括弧 [channelId] などのパスにも対応するように正規表現を修正
+  // 大括弧 [channelId] などのパスにも対応する正規表現
   const fileMatches = errorLog.matchAll(/^([a-zA-Z0-9_\-\/.[\]]+\.(ts|tsx|js|jsx))/gm);
   const targetFiles = [...new Set([...fileMatches].map(m => m[1]))];
 
   let fileContentsContext = '';
   for (const filePath of targetFiles) {
     if (fs.existsSync(filePath)) {
-      const content = fs.readFileSync(filePath, 'utf8');
-      fileContentsContext += `\n### ファイル: ${filePath}\n\`\`\`ts\n${content}\n\`\`\`\n`;
-    }
-  }
-
-  // デフォルトでよくあるファイルもフォールバックとして追加
-  const fallbackFiles = ['components/AppShell.tsx', 'components/BottomNav.tsx'];
-  for (const filePath of fallbackFiles) {
-    if (!targetFiles.includes(filePath) && fs.existsSync(filePath)) {
       const content = fs.readFileSync(filePath, 'utf8');
       fileContentsContext += `\n### ファイル: ${filePath}\n\`\`\`ts\n${content}\n\`\`\`\n`;
     }
@@ -46,11 +37,11 @@ async function fixCode() {
     "   - RouteContext: `type RouteContext = { params: Promise<{ channelId: string }> };`\n" +
     "   - PageProps: `type PageProps = { params: Promise<{ channelId: string }> };`\n" +
     "   - LayoutProps: `type LayoutProps = { children: React.ReactNode };`\n" +
-    "3. インポートエラーや名前解決エラーは、該当ファイルを正確に修正して解決してください。\n" +
+    "3. **存在しないモジュールや関数（例: `@/lib/offices` の `getOffices` など、元コードに存在しないもの）を勝手に捏造してインポート・使用しないでください。エラー解決に最低限必要な修正のみを行い、既存の正しいコードやインポートを破壊しないでください。**\n" +
     "4. **絶対に解説文や挨拶などの余計なテキストを出力せず、純粋なJSON配列のみを出力してください。**\n\n" +
     "## 出力形式\n" +
     "修正するファイルごとに、以下のJSON配列の形式（コードブロックなしのプレーンなJSON）で出力してください。解説文は一切不要です。\n\n" +
-    "[\n  {\n    \"filePath\": \"app/api/vtuber/[channelId]/route.ts\",\n    \"content\": \"修正後のファイルの中身全体...\"\n  }\n]";
+    "[\n  {\n    \"filePath\": \"app/layout.tsx\",\n    \"content\": \"修正後のファイルの中身全体...\"\n  }\n]";
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',

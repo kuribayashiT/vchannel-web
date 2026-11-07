@@ -31,7 +31,6 @@ async function main() {
   const frontendSpec = fs.existsSync('FRONTEND_SPEC.md') ? fs.readFileSync('FRONTEND_SPEC.md', 'utf8') : '';
   const copilotTask = fs.existsSync('COPILOT_TASK.md') ? fs.readFileSync('COPILOT_TASK.md', 'utf8') : '';
 
-  // app や components の既存コードをコンテキストとして自動収集
   console.log('既存のソースコードをスキャン中...');
   const sourceCodeContext = [
     ...loadSourceFiles('app'),
@@ -47,12 +46,12 @@ async function main() {
     "## 🛑 絶対守るべきルール（禁止事項・制限）\n" +
     "1. AGENTS.md, FRONTEND_SPEC.md, COPILOT_TASK.md などのマークダウン（.md）ファイルは、**絶対に新規作成・変更・出力してはなりません**。変更は app/ や components/ などのソースコード（.ts, .tsx）のみに限定してください。\n" +
     "2. 外部仕様書やJSONのデータをそのまま出力に含めないでください。必要な型定義はコード内に直接記述してください。\n\n" +
-    "## ⚠️ コーディングの絶対ルール\n" +
-    "- Next.js の Server Component / API Route を作成する際は、RouteContext, LayoutProps, PageProps などのグローバル型に依存せず、必ずファイル内で以下のように型を明示的に定義してください：\n" +
-    "  - RouteContext: type RouteContext = { params: Promise<{ channelId: string }> };\n" +
-    "  - PageProps: type PageProps = { params: Promise<{ channelId: string }> };\n" +
-    "  - LayoutProps: type LayoutProps = { children: React.ReactNode };\n" +
-    "- アイコンを使用する場合は必ず lucide-react 等から正しくインポートしてください。\n" +
+    "## ⚠️ コーディングの絶対ルール（型エラー・ビルドエラー防止）\n" +
+    "- Next.js の Server Component / API Route / Page を作成・修正する際は、`RouteContext`, `PageProps`, `LayoutProps` などのグローバル型に依存せず、**必ず各ファイル内で以下のように型を明示的に定義**してください：\n" +
+    "  - RouteContext: `type RouteContext = { params: Promise<{ channelId: string }> };`\n" +
+    "  - PageProps: `type PageProps = { params: Promise<{ channelId: string }> };`\n" +
+    "  - LayoutProps: `type LayoutProps = { children: React.ReactNode };`\n" +
+    "- **存在しないモジュールや関数（プロジェクト内に存在しないファイルパスや存在しないexportメンバー）を勝手に捏造してインポート・使用しないでください。** 必ず既存のファイルやライブラリ（`lucide-react` など）で実在するものだけを正しくインポートしてください。\n" +
     "- 既存のコンポーネントや関数を破壊せず、安全に拡張・修正してください。\n\n" +
     "## 出力形式\n" +
     "変更するソースコードファイルごとに、以下のJSON配列の形式（コードブロックなしのプレーンなJSON）で出力してください。それ以外の解説文は一切不要です。\n\n" +
