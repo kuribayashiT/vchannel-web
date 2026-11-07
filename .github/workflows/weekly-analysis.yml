@@ -1,13 +1,13 @@
-name: AI Autonomous Analysis & Task Generator
+name: Daily AI Autonomous Dev & PR Pipeline
 
 on:
   schedule:
-    # 毎週月曜日と木曜日の午前9時（JST = UTC 0:00）に自動実行
-    - cron: '0 0 * * 1,4'
+    # 毎日午前9時（JST = UTC 0:00）に自動実行
+    - cron: '0 0 * * *'
   workflow_dispatch: # 手動でもいつでも実行可能
 
 jobs:
-  analyze:
+  daily-dev:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -21,33 +21,51 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Run AI Analysis & Update Tasks
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Step 1. AGENTS.md & FRONTEND_SPEC.md の読み込みと分析
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
-          echo "=== 1. AGENTS.md および FRONTEND_SPEC.md のコンテキスト読み込み ==="
+          echo "=== 1. コンテキストの確認 ==="
           if [ -f "AGENTS.md" ]; then cat AGENTS.md; fi
           if [ -f "FRONTEND_SPEC.md" ]; then cat FRONTEND_SPEC.md; fi
 
-          echo "=== 2. AI アナライザーの実行 ==="
-          # このスクリプト内で Claude API (Anthropic SDK) を呼び出し、
-          # AGENTS.md のルールに従って COPILOT_TASK.md に新しい改善タスクを追記する処理を行わせます
+          echo "=== 2. AI アナライザーによるタスク選定・追加 ==="
           node scripts/weekly-ai-analyzer.js
 
-      - name: Check for changes in COPILOT_TASK.md
+      - name: Step 2. 1案件の自動実装 (Auto-Coder)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          echo "=== 3. COPILOT_TASK.md の未完了タスクを1件ピックアップして実装 ==="
+          if [ -f "scripts/auto-coder.js" ]; then
+            node scripts/auto-coder.js
+          else
+            echo "scripts/auto-coder.js が存在しないため、コード自動実装ステップをスキップします。"
+          fi
+
+      - name: Step 3. 自動テスト & ビルド検証
+        run: |
+          echo "=== 4. 型チェックとビルドの実行 ==="
+          npx tsc --noEmit
+          npm run build
+
+      - name: Check for codebase changes
         id: git-check
         run: |
-          git diff --quiet COPILOT_TASK.md || echo "changed=true" >> $GITHUB_OUTPUT
+          git diff --quiet || echo "changed=true" >> $GITHUB_OUTPUT
 
-      - name: Create Pull Request with Updated Tasks
+      - name: Create Pull Request for Daily Task
         if: steps.git-check.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v6
         with:
-          title: '🤖 【AI自動生成】新規改善タスク追加（月曜・木曜定期更新）'
-          commit-message: 'docs(tasks): AGENTS.md および FRONTEND_SPEC.md に基づく自動改善タスクの追加'
-          branch: 'auto-task-updates'
+          title: '🤖 【全自動AI開発】本日の改善案件の実装と仕様書更新'
+          commit-message: 'feat(auto): 毎日のAI自動開発パイプラインによる案件実装・ビルド検証完了'
+          branch: 'daily-auto-dev'
           body: |
-            Vercel Analyticsのデータやライバルサイトの傾向に基づき、AI（Claude）が `AGENTS.md` と `FRONTEND_SPEC.md` の仕様に沿って `COPILOT_TASK.md` を更新しました。
-            内容を確認し、問題なければマージして GitHub Copilot による実装に繋げてください。
+            毎日の定期実行により、AIが `AGENTS.md` および `FRONTEND_SPEC.md` の仕様に沿って1案件を実装し、ビルド検証を通過させました。
+            実装された機能のコード差分および `FRONTEND_SPEC.md` の更新内容を確認し、問題なければマージしてください。
           delete-branch: true
