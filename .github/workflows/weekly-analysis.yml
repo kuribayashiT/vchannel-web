@@ -83,35 +83,44 @@ jobs:
             echo "scripts/auto-coder.js が存在しないため、コード自動実装ステップをスキップします。"
           fi
 
-      - name: Step 3. 自動テスト & ビルド検証 (セルフヒーリング付き)
+      - name: Step 3. 自動テスト & ビルド検証 (セルフヒーリング付き & フォールバック完備)
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           MAX_RETRIES=3
           attempt=1
+          success=false
           
           while [ $attempt -le $MAX_RETRIES ]; do
             echo "=== ビルド検証 試行回数: $attempt / $MAX_RETRIES ==="
             
-            # 型チェックとビルドを実行し、標準エラーを出力しつつキャプチャ
             if npx tsc --noEmit && npm run build; then
               echo "✅ ビルド & 型チェック成功！"
-              exit 0
+              success=true
+              break
             else
               echo "❌ ビルドまたは型チェックが失敗しました。AIによる自動修復を試みます..."
-              
-              # tsc等のエラー出力を一時ファイルに保存
               npx tsc --noEmit > tsc_errors.log 2>&1 || true
               
-              # AIにエラーを修正させるためのスクリプトを呼び出す（または直接nodeでAPIを叩く）
               node scripts/auto-fixer.js
-              
               attempt=$((attempt + 1))
             fi
           done
           
-          echo "❌ 最大リトライ回数を超えたため、自動ビルドに失敗しました。"
-          exit 1
+          # 3回試行してもダメだった場合のフォールバック処理
+          if [ "$success" = "false" ]; then
+            echo "⚠️ 最大リトライ回数を超えました。変更をロールバックし、COPILOT_TASK.md を別アプローチに修正します..."
+            
+            # 1. ソースコードを元に戻す（未追跡ファイルや変更を破棄）
+            git checkout .
+            git clean -fd
+            
+            # 2. 失敗したエラーを元に、COPILOT_TASK.md のタスク内容を別アプローチに修正するスクリプトを実行
+            node scripts/task-fallback.js
+            
+            echo "❌ 今回の自動実装は中断されましたが、タスクを別のアプローチに書き換えました。"
+            exit 1
+          fi
 
       - name: Check for codebase changes
         id: git-check

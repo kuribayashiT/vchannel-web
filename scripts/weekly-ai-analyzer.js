@@ -53,13 +53,11 @@ ${copilotTask}
 
   const data = await response.json();
 
-  // APIエラーやステータス異常時の詳細ログ出力
   if (!response.ok || data.error) {
     console.error('API Error Response:', JSON.stringify(data, null, 2));
     process.exit(1);
   }
 
-  // content 配列から text ブロックを安全に抽出
   let textOutput = '';
   if (data.content && Array.isArray(data.content)) {
     for (const block of data.content) {

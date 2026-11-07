@@ -8,14 +8,13 @@ if (!ANTHROPIC_API_KEY) {
 }
 
 async function main() {
-  // コンテキストとなるファイルを読み込み（AIの指示精度を高めるために必須）
   const agentsMd = fs.existsSync('AGENTS.md') ? fs.readFileSync('AGENTS.md', 'utf8') : '';
   const frontendSpec = fs.existsSync('FRONTEND_SPEC.md') ? fs.readFileSync('FRONTEND_SPEC.md', 'utf8') : '';
   const copilotTask = fs.existsSync('COPILOT_TASK.md') ? fs.readFileSync('COPILOT_TASK.md', 'utf8') : '';
 
   const prompt = `
-あなたは「Vちゃんねる」のプロダクトデザイナー兼AIプロンプトエンジニアです。
-以下の資料をもとに、競合サイト（data.vmato.jp）に勝つための新しい改善タスクを1件だけ考案し、COPILOT_TASK.md の「未完了タスク (To Do)」の適切なセクション（P0またはP1）に追記してください。
+あなたは Next.js (App Router) + TypeScript + Tailwind CSS のプロフェッショナルなフロントエンドエンジニアです。
+以下の資料（AGENTS.md, FRONTEND_SPEC.md）および `COPILOT_TASK.md` の「未完了タスク (- [ ])」の中から、最優先のタスクを1件だけピックアップして実装してください。
 
 ## AGENTS.md
 ${agentsMd}
@@ -23,19 +22,25 @@ ${agentsMd}
 ## FRONTEND_SPEC.md
 ${frontendSpec}
 
-## 現在の COPILOT_TASK.md
+## COPILOT_TASK.md
 ${copilotTask}
 
-## 指示
-- すでに記載されているタスクと重複しないものを1件選定してください。
-- 以下のフォーマットで追記した【更新後の COPILOT_TASK.md 全体の内容】のみをマークダウン形式で出力してください（余計な解説文は不要です）。
+## ⚠️ コーディングの絶対ルール
+- Next.js の Server Component / API Route を作成する際は、RouteContext, LayoutProps, PageProps などのグローバル型に依存せず、必ずファイル内で以下のように型を明示的に定義してください：
+  - RouteContext: \`type RouteContext = { params: Promise<{ channelId: string }> };\`
+  - PageProps: \`type PageProps = { params: Promise<{ channelId: string }> };\`
+  - LayoutProps: \`type LayoutProps = { children: React.ReactNode };\`
+- アイコンを使用する場合は必ず \`lucide-react\` 等から正しくインポートしてください。
 
-- [ ] **P0-X. タスク名**
-- **対象ファイル**: 
-\`components/Example.tsx\`
-- **仕様**: 〇〇を実装・修正する。
-- **完了条件**: 
-\`npm run build\` が成功すること。
+## 出力形式
+変更するファイルごとに、以下のJSON配列の形式（コードブロックなしのプレーンなJSON）で出力してください。それ以外の解説文は一切不要です。
+
+[
+  {
+    "filePath": "app/vtuber/[channelId]/page.tsx",
+    "content": "修正・新規作成後のファイルの中身全体..."
+  }
+]
 `;
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -47,20 +52,18 @@ ${copilotTask}
     },
     body: JSON.stringify({
       model: 'claude-sonnet-5-5',
-      max_tokens: 4096,
+      max_tokens: 8192,
       messages: [{ role: 'user', content: prompt }]
     })
   });
 
   const data = await response.json();
 
-  // APIエラー発生時のログ出力
   if (!response.ok || data.error) {
     console.error('API Error Response:', JSON.stringify(data, null, 2));
     process.exit(1);
   }
 
-  // content 配列から text ブロックを安全に取得
   let textOutput = '';
   if (data.content && Array.isArray(data.content)) {
     for (const block of data.content) {
@@ -75,10 +78,34 @@ ${copilotTask}
     process.exit(1);
   }
 
-  // マークダウンのコードブロック囲み（```markdown など）を安全に除去して書き込み
-  const updatedContent = textOutput.replace(/```markdown/g, '').replace(/```/g, '').trim();
-  fs.writeFileSync('COPILOT_TASK.md', updatedContent, 'utf8');
-  console.log('Successfully updated COPILOT_TASK.md with a new task.');
+  try {
+    // AIの出力からJSON配列部分を抽出してファイルを作成・上書き保存
+    const jsonMatch = textOutput.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) {
+      throw new Error('有効なJSON配列が見つかりませんでした');
+    }
+    const changes = JSON.parse(jsonMatch[0]);
+
+    for (const change of changes) {
+      if (change.filePath && change.content) {
+        // ディレクトリが存在しない場合に備えて作成
+        const dir = path.dirname(change.filePath);
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+        fs.writeFileSync(change.filePath, change.content, 'utf8');
+        console.log(`Successfully generated/updated: ${change.filePath}`);
+      }
+    }
+
+    // 実装が完了したら、COPILOT_TASK.md の該当タスクを完了（- [x]）に更新する処理
+    // （※必要に応じてタスクのステータス更新もここに記述できます）
+
+  } catch (e) {
+    console.error('Failed to parse AI response or apply code changes:', e);
+    console.log('Raw output:', textOutput);
+    process.exit(1);
+  }
 }
 
 main().catch(err => {
