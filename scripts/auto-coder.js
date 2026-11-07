@@ -39,7 +39,7 @@ async function main() {
     },
     body: JSON.stringify({
       model: 'claude-sonnet-5-5',
-      max_tokens: 8192,
+      max_tokens: 16384,
       messages: [{ role: 'user', content: prompt }]
     })
   });

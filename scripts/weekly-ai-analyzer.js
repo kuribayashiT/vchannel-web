@@ -46,7 +46,7 @@ ${copilotTask}
     },
     body: JSON.stringify({
       model: 'claude-sonnet-5-5',
-      max_tokens: 4096,
+      max_tokens: 16384,
       messages: [{ role: 'user', content: prompt }]
     })
   });
