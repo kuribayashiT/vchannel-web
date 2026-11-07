@@ -45,7 +45,7 @@ ${copilotTask}
       'anthropic-version': '2023-06-01'
     },
     body: JSON.stringify({
-      model: 'claude-3-7-sonnet-20250219',
+      model: 'claude-sonnet-5-5',
       max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }]
     })

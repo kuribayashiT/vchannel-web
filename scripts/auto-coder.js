@@ -50,8 +50,8 @@ Claudeの出力として、以下のJSON形式のみを返してください（�
       'anthropic-version': '2023-06-01'
     },
     body: JSON.stringify({
-      model: 'claude-3-7-sonnet-20250219',
-      max_tokens: 8000,
+      model: 'claude-sonnet-5-5',
+      max_tokens: 8192,
       messages: [{ role: 'user', content: prompt }]
     })
   });
