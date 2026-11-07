@@ -15,15 +15,25 @@ async function fixCode() {
     return;
   }
 
-  // 大括弧 [channelId] などのパスにも対応する正規表現
-  const fileMatches = errorLog.matchAll(/^([a-zA-Z0-9_\-\/.[\]]+\.(ts|tsx|js|jsx))/gm);
-  const targetFiles = [...new Set([...fileMatches].map(m => m[1]))];
+  // エラーログの行からファイルパスを確実に抽出する（より堅牢なパース処理）
+  const targetFiles = new Set();
+  const lines = errorLog.split('\n');
+  for (const line of lines) {
+    // 例: app/layout.tsx(69,56): error TS2304... のファイル名部分を抽出
+    const match = line.match(/^([a-zA-Z0-9_\-\/.[\]]+)\(\d+,\d+\):\s*error/);
+    if (match && match[1]) {
+      targetFiles.add(match[1]);
+    }
+  }
 
   let fileContentsContext = '';
   for (const filePath of targetFiles) {
     if (fs.existsSync(filePath)) {
       const content = fs.readFileSync(filePath, 'utf8');
       fileContentsContext += `\n### ファイル: ${filePath}\n\`\`\`ts\n${content}\n\`\`\`\n`;
+      console.log(`Auto-fixer loaded context for: ${filePath}`);
+    } else {
+      console.log(`Warning: Error file not found on disk: ${filePath}`);
     }
   }
 
@@ -37,10 +47,10 @@ async function fixCode() {
     "   - RouteContext: `type RouteContext = { params: Promise<{ channelId: string }> };`\n" +
     "   - PageProps: `type PageProps = { params: Promise<{ channelId: string }> };`\n" +
     "   - LayoutProps: `type LayoutProps = { children: React.ReactNode };`\n" +
-    "3. **存在しないモジュールや関数（例: `@/lib/offices` の `getOffices` など、元コードに存在しないもの）を勝手に捏造してインポート・使用しないでください。エラー解決に最低限必要な修正のみを行い、既存の正しいコードやインポートを破壊しないでください。**\n" +
+    "3. 存在しないモジュールや関数を勝手に捏造してインポートしないでください。エラー解決に最低限必要な修正のみを行い、確実にビルドが通る状態にしてください。\n" +
     "4. **絶対に解説文や挨拶などの余計なテキストを出力せず、純粋なJSON配列のみを出力してください。**\n\n" +
     "## 出力形式\n" +
-    "修正するファイルごとに、以下のJSON配列の形式（コードブロックなしのプレーンなJSON）で出力してください。解説文は一切不要です。\n\n" +
+    "エラーログに含まれるファイルすべてについて、修正後のファイル全体を以下のJSON配列形式（コードブロックなしのプレーンなJSON）で出力してください。解説文は一切不要です。\n\n" +
     "[\n  {\n    \"filePath\": \"app/layout.tsx\",\n    \"content\": \"修正後のファイルの中身全体...\"\n  }\n]";
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {

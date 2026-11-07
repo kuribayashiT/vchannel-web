@@ -7,7 +7,7 @@ if (!ANTHROPIC_API_KEY) {
   process.exit(1);
 }
 
-// 指定ディレクトリから主要なソースコードを再帰的に読み込むヘルパー
+// 指定ディレクトリから主要なソースコード（動的ルート等の括弧付きも含めて）を再帰的に読み込む
 function loadSourceFiles(dir, fileList = []) {
   if (!fs.existsSync(dir)) return fileList;
   const files = fs.readdirSync(dir);
@@ -45,17 +45,17 @@ async function main() {
     "## 📂 既存のソースコード（参考コンテキスト）\n" + sourceCodeContext + "\n\n" +
     "## 🛑 絶対守るべきルール（禁止事項・制限）\n" +
     "1. AGENTS.md, FRONTEND_SPEC.md, COPILOT_TASK.md などのマークダウン（.md）ファイルは、**絶対に新規作成・変更・出力してはなりません**。変更は app/ や components/ などのソースコード（.ts, .tsx）のみに限定してください。\n" +
-    "2. 外部仕様書やJSONのデータをそのまま出力に含めないでください。必要な型定義はコード内に直接記述してください。\n\n" +
-    "## ⚠️ コーディングの絶対ルール（型エラー・ビルドエラー防止）\n" +
-    "- Next.js の Server Component / API Route / Page を作成・修正する際は、`RouteContext`, `PageProps`, `LayoutProps` などのグローバル型に依存せず、**必ず各ファイル内で以下のように型を明示的に定義**してください：\n" +
+    "2. 外部仕様書やJSONのデータをそのまま出力に含めないでください。\n\n" +
+    "## ⚠️ コーディングの絶対ルール（型エラー・ビルドエラー防止のため必須）\n" +
+    "- Next.js の Server Component / API Route / Page を作成・修正する際は、**絶対にグローバル型（`RouteContext`, `PageProps`, `LayoutProps` 等）に頼らず、必ずファイル内で次のように型を明示的に定義**してください：\n" +
     "  - RouteContext: `type RouteContext = { params: Promise<{ channelId: string }> };`\n" +
     "  - PageProps: `type PageProps = { params: Promise<{ channelId: string }> };`\n" +
     "  - LayoutProps: `type LayoutProps = { children: React.ReactNode };`\n" +
-    "- **存在しないモジュールや関数（プロジェクト内に存在しないファイルパスや存在しないexportメンバー）を勝手に捏造してインポート・使用しないでください。** 必ず既存のファイルやライブラリ（`lucide-react` など）で実在するものだけを正しくインポートしてください。\n" +
-    "- 既存のコンポーネントや関数を破壊せず、安全に拡張・修正してください。\n\n" +
+    "- 存在しないモジュールや関数を勝手に捏造してインポートしないでください（`lucide-react` などの実在するアイコンのみ使用可）。\n" +
+    "- 既存のコードを破壊せず、確実に `tsc --noEmit` および `npm run build` が通る完璧なコードを出力してください。\n\n" +
     "## 出力形式\n" +
-    "変更するソースコードファイルごとに、以下のJSON配列の形式（コードブロックなしのプレーンなJSON）で出力してください。それ以外の解説文は一切不要です。\n\n" +
-    "[\n  {\n    \"filePath\": \"components/Example.tsx\",\n    \"content\": \"修正・新規作成後のファイルの中身全体...\"\n  }\n]";
+    "変更・新規作成するソースコードファイルごとに、以下のJSON配列の形式（コードブロックなしのプレーンなJSON）で出力してください。それ以外の解説文は一切不要です。\n\n" +
+    "[\n  {\n    \"filePath\": \"app/vtuber/[channelId]/page.tsx\",\n    \"content\": \"修正・新規作成後のファイルの中身全体...\"\n  }\n]";
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
