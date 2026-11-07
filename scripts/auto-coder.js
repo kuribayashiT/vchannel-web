@@ -7,16 +7,43 @@ if (!ANTHROPIC_API_KEY) {
   process.exit(1);
 }
 
+// 指定ディレクトリから主要なソースコードを再帰的に読み込むヘルパー
+function loadSourceFiles(dir, fileList = []) {
+  if (!fs.existsSync(dir)) return fileList;
+  const files = fs.readdirSync(dir);
+  for (const file of files) {
+    const filePath = path.join(dir, file);
+    const stat = fs.statSync(filePath);
+    if (stat.isDirectory()) {
+      if (file !== 'node_modules' && file !== '.next' && file !== '.git') {
+        loadSourceFiles(filePath, fileList);
+      }
+    } else if (file.endsWith('.ts' ) || file.endsWith('.tsx')) {
+      const content = fs.readFileSync(filePath, 'utf8');
+      fileList.push(`### File: ${filePath}\n\`\`\`tsx\n${content}\n\`\`\`\n`);
+    }
+  }
+  return fileList;
+}
+
 async function main() {
   const agentsMd = fs.existsSync('AGENTS.md') ? fs.readFileSync('AGENTS.md', 'utf8') : '';
   const frontendSpec = fs.existsSync('FRONTEND_SPEC.md') ? fs.readFileSync('FRONTEND_SPEC.md', 'utf8') : '';
   const copilotTask = fs.existsSync('COPILOT_TASK.md') ? fs.readFileSync('COPILOT_TASK.md', 'utf8') : '';
 
+  // app や components の既存コードをコンテキストとして自動収集
+  console.log('既存のソースコードをスキャン中...');
+  const sourceCodeContext = [
+    ...loadSourceFiles('app'),
+    ...loadSourceFiles('components')
+  ].join('\n');
+
   const prompt = "あなたは Next.js (App Router) + TypeScript + Tailwind CSS のプロフェッショナルなフロントエンドエンジニアです。\n" +
-    "以下の資料（AGENTS.md, FRONTEND_SPEC.md）および COPILOT_TASK.md の「未完了タスク (- [ ])」の中から、最優先のタスクを1件だけピックアップして実装してください。\n\n" +
+    "以下のプロジェクト資料および既存のソースコード構造を完全に理解した上で、COPILOT_TASK.md の「未完了タスク (- [ ])」の中から、最優先のタスクを1件だけピックアップして正確に実装してください。\n\n" +
     "## AGENTS.md\n" + agentsMd + "\n\n" +
     "## FRONTEND_SPEC.md\n" + frontendSpec + "\n\n" +
     "## COPILOT_TASK.md\n" + copilotTask + "\n\n" +
+    "## 📂 既存のソースコード（参考コンテキスト）\n" + sourceCodeContext + "\n\n" +
     "## 🛑 絶対守るべきルール（禁止事項・制限）\n" +
     "1. AGENTS.md, FRONTEND_SPEC.md, COPILOT_TASK.md などのマークダウン（.md）ファイルは、**絶対に新規作成・変更・出力してはなりません**。変更は app/ や components/ などのソースコード（.ts, .tsx）のみに限定してください。\n" +
     "2. 外部仕様書やJSONのデータをそのまま出力に含めないでください。必要な型定義はコード内に直接記述してください。\n\n" +
@@ -25,12 +52,13 @@ async function main() {
     "  - RouteContext: type RouteContext = { params: Promise<{ channelId: string }> };\n" +
     "  - PageProps: type PageProps = { params: Promise<{ channelId: string }> };\n" +
     "  - LayoutProps: type LayoutProps = { children: React.ReactNode };\n" +
-    "- アイコンを使用する場合は必ず lucide-react 等から正しくインポートしてください。\n\n" +
+    "- アイコンを使用する場合は必ず lucide-react 等から正しくインポートしてください。\n" +
+    "- 既存のコンポーネントや関数を破壊せず、安全に拡張・修正してください。\n\n" +
     "## 出力形式\n" +
     "変更するソースコードファイルごとに、以下のJSON配列の形式（コードブロックなしのプレーンなJSON）で出力してください。それ以外の解説文は一切不要です。\n\n" +
     "[\n  {\n    \"filePath\": \"components/Example.tsx\",\n    \"content\": \"修正・新規作成後のファイルの中身全体...\"\n  }\n]";
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
