@@ -1,6 +1,6 @@
 # COPILOT_TASK: ランキングへの「登録者 急上昇」タブ追加および UI 改善バックログ
 
-> 最終更新: 2026-11-11 / 担当: プロダクトデザイナー → 実装: GitHub Copilot
+> 最終更新: 2026-11-12 / 担当: プロダクトデザイナー → 実装: GitHub Copilot
 
 ---
 
@@ -24,7 +24,7 @@
   - 対象ファイル: 新規 `components/SafeImage.tsx`、`app/news/page.tsx`, `components/VideoCard.tsx`, `components/RankingTabs.tsx`, `components/GrowthTop3.tsx`, `components/VTuberTabs.tsx`
 - [x] **P0-4. スケルトンローディング**
   - 対象ファイル: 新規 `components/Skeleton.tsx`、新規 `app/loading.tsx`, `app/ranking/loading.tsx`, `app/news/loading.tsx`, `components/StreamTabs.tsx`, `components/VTuberTabs.tsx`, `app/vtuber/[channelId]/page.tsx`
-- [ ] **P0-5. セクション見出しコンポーネント**
+- [x] **P0-5. セクション見出しコンポーネント**
   - 対象ファイル: 新規 `components/SectionHeader.tsx`、各 `app/*/page.tsx`
 - [ ] **P0-6. フッター（指標の定義・注意書き）**
   - 対象ファイル: 新規 `components/SiteFooter.tsx`、`components/AppShell.tsx`
@@ -261,4 +261,10 @@
       - `buildVTuberDescription(v): string` — 名前・事務所・登録者数（`lib/format.ts` の短縮表記を再利用）・動画本数を含む日本語の説明文。120 字以内に収め、欠損値（`0` / 空 / `NaN`）の項目は文から省く。数値は必ず `toNumber` で変換する。
       - `buildVTuberJsonLd(v, siteUrl): object 相当の型付きオブジェクト` — schema.org `Person`（`name`, `url`, `image`, `affiliation`（事務所が空なら省略）, `sameAs`（YouTube チャンネル URL、`twitterID` / `twitterName` があれば X(Twitter) URL））。`image` / `sameAs` は `safeHttpUrl` を通し、不正な URL は除外する。戻り値の型は明示的に定義し、`any` は使わない。
       - `buildBreadcrumbJsonLd(items: { name: string; path: string }[], siteUrl): 型付きオブジェクト` — schema.org `BreadcrumbList`。
-      - `serializeJsonLd(data): string` — `JSON.stringify` 後に `
+      - `serializeJsonLd(data): string` — `JSON.stringify` 後に `<` を `\u003c` へエスケープし、`<script>` 内での XSS／タグ破りを防ぐ。
+    - `components/JsonLd.tsx`: `serializeJsonLd` の結果を `<script type="application/ld+json">` として出力する Server Component。
+    - `components/Breadcrumbs.tsx`: `ホーム › VTuber › {name}` 形式のパンくず（`<nav aria-label="パンくずリスト">`、現在地は `aria-current="page"`）。見た目は控えめにし、既存レイアウトを崩さない。同じ内容を `BreadcrumbList` として JSON-LD にも出力する。
+    - `app/vtuber/[channelId]/page.tsx`:
+      - `generateMetadata` で title / description / `alternates.canonical`（`/vtuber/{channelId}`）/ `openGraph`（`type: "profile"`, 画像は `channelThumbnail`。不正 URL ならサイト既定画像）/ `twitter` カード（`summary`）を返す。該当 VTuber が存在しない場合は `robots: { index: false }` とし、既存の 404 挙動は維持する。
+      - `channelId` はキー揺れ（`channeID` / `channelId` / `youtubeChId`）を既存ヘルパーで吸収して照合する。
+    - `app/sitemap.ts`: トップ・ランキング・ニュースなどの
