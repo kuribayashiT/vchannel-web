@@ -111,11 +111,8 @@ jobs:
           if [ "$success" = "false" ]; then
             echo "⚠️ 最大リトライ回数を超えました。変更をロールバックし、COPILOT_TASK.md を別アプローチに修正します..."
             
-            # 1. ソースコードを元に戻す（未追跡ファイルや変更を破棄）
             git checkout .
             git clean -fd
-            
-            # 2. 失敗したエラーを元に、COPILOT_TASK.md のタスク内容を別アプローチに修正するスクリプトを実行
             node scripts/task-fallback.js
             
             echo "❌ 今回の自動実装は中断されましたが、タスクを別のアプローチに書き換えました。"
@@ -131,12 +128,18 @@ jobs:
         if: steps.git-check.outputs.changed == 'true'
         id: pr-body
         run: |
-          COMMIT_MSG=$(git log -1 --pretty=format:"%s")
+          # task_summary.txt があれば読み込み、なければデフォルトのフォールバック
+          if [ -f "task_summary.txt" ]; then
+            SUMMARY_CONTENT=$(cat task_summary.txt)
+          else
+            SUMMARY_CONTENT="### 🚀 本日の自動実装成果\n- 自動開発パイプラインによるコード実装およびビルド検証完了"
+          }
+          
           CHANGED_FILES=$(git diff --name-only origin/main...HEAD || git diff --name-only HEAD~1 HEAD)
           
           {
-            echo "commit_msg<<EOF"
-            echo "$COMMIT_MSG"
+            echo "summary_content<<EOF"
+            echo -e "$SUMMARY_CONTENT"
             echo "EOF"
             echo "changed_files<<EOF"
             echo "$CHANGED_FILES"
@@ -155,10 +158,9 @@ jobs:
             ## 🤖 自動開発パイプライン レポート
             毎日の定期実行により、AIが `AGENTS.md` および `FRONTEND_SPEC.md` の仕様に沿って1案件を実装し、ビルド検証を通過させました。
             
-            ### 📝 実装サマリー
-            - **コミットメッセージ**: ${{ steps.pr-body.outputs.commit_msg }}
+            ${{ steps.pr-body.outputs.summary_content }}
             
-            ### 📂 変更されたファイル
+            ### 📂 変更されたファイル一覧
             \`\`\`
             ${{ steps.pr-body.outputs.changed_files }}
             \`\`\`

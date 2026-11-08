@@ -99,6 +99,7 @@ async function main() {
     }
     const changes = JSON.parse(jsonMatch[0]);
 
+    const updatedFiles = [];
     for (const change of changes) {
       if (change.filePath && change.content) {
         const dir = path.dirname(change.filePath);
@@ -107,8 +108,14 @@ async function main() {
         }
         fs.writeFileSync(change.filePath, change.content, 'utf8');
         console.log(`Successfully generated/updated: ${change.filePath}`);
+        updatedFiles.push(change.filePath);
       }
     }
+
+    // 💡 ワークフロー側のPR本文用サマリーファイルを出力
+    const summaryText = `### 🚀 本日の自動実装成果\n- **更新ファイル数**: ${updatedFiles.length} 件\n- **対象ファイル**:\n${updatedFiles.map(f => `  - \`${f}\``).join('\n')}`;
+    fs.writeFileSync('task_summary.txt', summaryText, 'utf8');
+
   } catch (e) {
     console.error('Failed to parse AI response or apply code changes:', e);
     console.log('Raw output:', textOutput);
