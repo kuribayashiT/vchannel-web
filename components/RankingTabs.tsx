@@ -4,6 +4,7 @@ import { smallAvatar } from "@/lib/url";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState, useSyncExternalStore } from "react";
+import { SafeImage } from "@/components/SafeImage";
 import { useSelectedChannels } from "@/hooks/useSelection";
 import { formatCompact, formatNumber } from "@/lib/format";
 import {
@@ -40,9 +41,32 @@ interface Props {
 }
 
 const PAGE = 100;
+const PODIUM_SIZE = 3;
 const noopSubscribe = () => () => {};
 
 const MEDALS = ["🥇", "🥈", "🥉"];
+
+/** 表彰台カードの配色（1〜3 位） */
+const PODIUM_STYLES = [
+  {
+    card: "border-amber-300 bg-amber-50 dark:border-amber-500/50 dark:bg-amber-950/30",
+    order: "order-2",
+    pad: "pb-5 pt-4",
+    avatar: "size-14 sm:size-16",
+  },
+  {
+    card: "border-zinc-300 bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-800/50",
+    order: "order-1",
+    pad: "pb-3 pt-3",
+    avatar: "size-11 sm:size-14",
+  },
+  {
+    card: "border-orange-300 bg-orange-50 dark:border-orange-500/40 dark:bg-orange-950/30",
+    order: "order-3",
+    pad: "pb-3 pt-3",
+    avatar: "size-11 sm:size-14",
+  },
+] as const;
 
 /** 動画本数タブのキー（weekly / subscribers / growth 以外の残り 1 つ） */
 const VIDEO_TAB: RankingTab =
@@ -92,72 +116,143 @@ function Sparkline({ data }: { data: number[] }) {
   );
 }
 
+/** 行・表彰台カード共通のリンク（動画 / VTuber 詳細 / リンクなし） */
+function RowLink({
+  r,
+  className,
+  children,
+}: {
+  r: RankingRow;
+  className: string;
+  children: React.ReactNode;
+}) {
+  if (r.videoId) {
+    return (
+      <a
+        href={`https://www.youtube.com/watch?v=${encodeURIComponent(r.videoId)}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={className}
+      >
+        {children}
+      </a>
+    );
+  }
+  if (r.channelId) {
+    return (
+      <Link
+        href={`/vtuber/${encodeURIComponent(r.channelId)}`}
+        className={className}
+      >
+        {children}
+      </Link>
+    );
+  }
+  return <div className={className}>{children}</div>;
+}
+
+/** 数値表示（急上昇は増加数＋増加率） */
+function Value({
+  r,
+  align,
+  compact = false,
+}: {
+  r: RankingRow;
+  align: "left" | "center" | "right";
+  compact?: boolean;
+}) {
+  const alignCls =
+    align === "center"
+      ? "text-center"
+      : align === "right"
+        ? "text-right"
+        : "text-left";
+  const sizeCls = compact ? "text-xs sm:text-sm" : "text-sm";
+  if (r.rate !== undefined) {
+    return (
+      <div
+        className={`${alignCls} tabular-nums`}
+        title={`+${formatNumber(r.value)}${r.unit ?? ""}`}
+      >
+        <p
+          className={`${sizeCls} font-bold text-emerald-600 dark:text-emerald-400`}
+        >
+          +{formatCompact(r.value)}
+          {r.unit}
+        </p>
+        <p className="text-xs text-zinc-500">+{r.rate.toFixed(2)}%</p>
+      </div>
+    );
+  }
+  return (
+    <p
+      className={`${alignCls} ${sizeCls} font-bold tabular-nums`}
+      title={`${formatNumber(r.value)}${r.unit ?? ""}`}
+    >
+      {formatCompact(r.value)}
+      {r.unit}
+    </p>
+  );
+}
+
+function Avatar({ r, className }: { r: RankingRow; className: string }) {
+  return (
+    <SafeImage
+      src={r.thumbnail ? smallAvatar(r.thumbnail) : null}
+      alt=""
+      variant="avatar"
+      loading="lazy"
+      referrerPolicy="no-referrer"
+      className={`shrink-0 rounded-full object-cover ${className}`}
+    />
+  );
+}
+
+/** TOP3 の表彰台カード。2位・1位・3位の順に並べ、1位を一回り大きく見せる */
+function PodiumCard({ r, rank }: { r: RankingRow; rank: number }) {
+  const style = PODIUM_STYLES[rank - 1];
+  return (
+    <li className={`${style.order} min-w-0`}>
+      <RowLink
+        r={r}
+        className={`flex h-full flex-col items-center gap-1.5 rounded-xl border px-2 text-center shadow-sm transition-shadow hover:shadow-md ${style.card} ${style.pad}`}
+      >
+        <span className="text-xl sm:text-2xl" aria-label={`${rank}位`}>
+          {MEDALS[rank - 1]}
+        </span>
+        <Avatar r={r} className={style.avatar} />
+        <div className="w-full min-w-0">
+          <p className="truncate text-xs font-medium sm:text-sm">{r.name}</p>
+          <p className="truncate text-[11px] text-zinc-500">
+            {r.sub ?? r.office}
+          </p>
+        </div>
+        <Value r={r} align="center" compact />
+      </RowLink>
+    </li>
+  );
+}
+
 function Row({ r, rank }: { r: RankingRow; rank: number }) {
   const isGrowth = r.rate !== undefined;
-  const body = (
-    <>
-      <span className="w-8 shrink-0 text-center font-bold">
-        {isGrowth && rank <= 3 ? MEDALS[rank - 1] : rank}
+  return (
+    <RowLink
+      r={r}
+      className="flex items-center gap-3 border-b border-zinc-100 px-4 py-3 transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/60"
+    >
+      <span className="flex h-7 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-xs font-bold tabular-nums text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+        {rank}
       </span>
-      {r.thumbnail && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={smallAvatar(r.thumbnail)}
-          referrerPolicy="no-referrer"
-          alt=""
-          loading="lazy"
-          className="size-11 shrink-0 rounded-full object-cover"
-        />
-      )}
+      <Avatar r={r} className="size-11" />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{r.name}</p>
         <p className="truncate text-xs text-zinc-500">{r.sub ?? r.office}</p>
       </div>
-      {isGrowth ? (
-        <>
-          {r.spark && <Sparkline data={r.spark} />}
-          <div
-            className="shrink-0 text-right tabular-nums"
-            title={`+${formatNumber(r.value)}${r.unit ?? ""}`}
-          >
-            <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
-              +{formatCompact(r.value)}
-              {r.unit}
-            </p>
-            <p className="text-xs text-zinc-500">+{r.rate!.toFixed(2)}%</p>
-          </div>
-        </>
-      ) : (
-        <span
-          className="shrink-0 text-sm font-bold tabular-nums"
-          title={`${formatNumber(r.value)}${r.unit ?? ""}`}
-        >
-          {formatCompact(r.value)}
-          {r.unit}
-        </span>
-      )}
-    </>
-  );
-  const cls =
-    "flex items-center gap-3 border-b border-zinc-100 px-4 py-3 dark:border-zinc-800";
-  return r.videoId ? (
-    <a
-      href={`https://www.youtube.com/watch?v=${r.videoId}`}
-      target="_blank"
-      rel="noopener noreferrer"
-      className={`${cls} hover:bg-zinc-100 dark:hover:bg-zinc-900`}
-    >
-      {body}
-    </a>
-  ) : r.channelId ? (
-    <Link
-      href={`/vtuber/${encodeURIComponent(r.channelId)}`}
-      className={`${cls} hover:bg-zinc-100 dark:hover:bg-zinc-900`}
-    >
-      {body}
-    </Link>
-  ) : (
-    <div className={cls}>{body}</div>
+      {isGrowth && r.spark && <Sparkline data={r.spark} />}
+      <div className="shrink-0">
+        <Value r={r} align="right" />
+      </div>
+    </RowLink>
   );
 }
 
@@ -210,6 +305,10 @@ export function RankingTabs({
   const changeTab = (t: RankingTab) => {
     navigate({ tab: fromRankingTab(t), period: "week" });
   };
+
+  // 3 件以上あるときだけ表彰台を出し、残りを通常行で表示する
+  const podium = rows.length >= PODIUM_SIZE ? rows.slice(0, PODIUM_SIZE) : [];
+  const rest = rows.slice(podium.length, Math.max(limit, podium.length));
 
   return (
     <div>
@@ -280,11 +379,23 @@ export function RankingTabs({
         </p>
       ) : (
         <>
-          <div className="grid gap-x-4 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm md:grid-cols-2 dark:border-zinc-800 dark:bg-zinc-900">
-            {rows.slice(0, limit).map((r, i) => (
-              <Row key={r.key} r={r} rank={i + 1} />
-            ))}
-          </div>
+          {podium.length > 0 && (
+            <ol
+              aria-label="TOP3"
+              className="mb-4 grid grid-cols-3 items-end gap-2 sm:gap-3"
+            >
+              {podium.map((r, i) => (
+                <PodiumCard key={r.key} r={r} rank={i + 1} />
+              ))}
+            </ol>
+          )}
+          {rest.length > 0 && (
+            <div className="grid gap-x-4 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm md:grid-cols-2 dark:border-zinc-800 dark:bg-zinc-900">
+              {rest.map((r, i) => (
+                <Row key={r.key} r={r} rank={podium.length + i + 1} />
+              ))}
+            </div>
+          )}
           {limit < rows.length && (
             <button
               type="button"
