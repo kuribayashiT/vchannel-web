@@ -91,7 +91,7 @@ jobs:
           attempt=1
           success=false
           
-          while [ $attempt -le $MAX_RETRIES ]; do
+          while [ $attempt -le$MAX_RETRIES ]; do
             echo "=== ビルド検証 試行回数: $attempt / $MAX_RETRIES ==="
             
             if npx tsc --noEmit && npm run build; then
@@ -119,6 +119,20 @@ jobs:
             exit 1
           fi
 
+      - name: Step 4. ビルド成功時のみ COPILOT_TASK.md のタスクを完了扱いに更新
+        run: |
+          node -e '
+            const fs = require("fs");
+            if (fs.existsSync("COPILOT_TASK.md")) {
+              let content = fs.readFileSync("COPILOT_TASK.md", "utf8");
+              if (content.includes("- [ ]")) {
+                content = content.replace("- [ ]", "- [x]");
+                fs.writeFileSync("COPILOT_TASK.md", content, "utf8");
+                console.log("✅ COPILOT_TASK.md の先頭タスクを完了 (- [x]) に更新しました");
+              }
+            }
+          '
+
       - name: Check for codebase changes
         id: git-check
         run: |
@@ -128,17 +142,18 @@ jobs:
         if: steps.git-check.outputs.changed == 'true'
         id: pr-body
         run: |
-          if [ -f "task_summary.txt" ]; then
-            SUMMARY_CONTENT=$(cat task_summary.txt)
-          else
-            SUMMARY_CONTENT="### 🚀 本日の自動実装成果\n- 自動開発パイプラインによるコード実装およびビルド検証完了"
+          # task_summary.txt がなければデフォルトのサマリーを作成
+          if [ ! -f "task_summary.txt" ]; then
+            echo "### 🚀 本日の自動実装成果" > task_summary.txt
+            echo "- 自動開発パイプラインによるコード実装およびビルド検証完了" >> task_summary.txt
           fi
           
           CHANGED_FILES=$(git diff --name-only origin/main...HEAD || git diff --name-only HEAD~1 HEAD)
           
+          # GitHub Actionsのマルチライン出力の安全な書き方（EOF方式で直接cat）
           {
             echo "summary_content<<EOF"
-            echo -e "$SUMMARY_CONTENT"
+            cat task_summary.txt
             echo "EOF"
             echo "changed_files<<EOF"
             echo "$CHANGED_FILES"
@@ -159,10 +174,4 @@ jobs:
             
             ${{ steps.pr-body.outputs.summary_content }}
             
-            ### 📂 変更されたファイル一覧
-            \`\`\`
-            ${{ steps.pr-body.outputs.changed_files }}
-            \`\`\`
-            
-            実装された機能のコード差分を確認し、問題なければマージしてください。
-          delete-branch: true
+            ### 📂
