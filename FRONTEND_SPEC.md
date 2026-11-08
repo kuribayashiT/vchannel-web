@@ -14,6 +14,9 @@ Flutter アプリ（`lib/`, v2.22.2）の現行実装を元にまとめた仕様
 | バックエンド | Firebase プロジェクト `vtuber-335811`（Cloud Functions 1st Gen / GCS / Firestore / RTDB / Remote Config / FCM） |
 | 言語・TZ | 日本語のみ。日付判定は端末ローカル時刻（実質 JST） |
 
+### サイトアイコン
+- ブラウザのタブと iPhone のホーム画面アイコンには `public/logo.png` を使用する。
+
 ### 移行方針（推奨）
 - 読み取りデータは **公開 JSON（GCS）を fetch するだけ**。サーバー実装不要。Next.js では ISR/`revalidate`（60〜300 秒）または SWR で取得する。
 - 認証なし。ユーザー状態（お気に入り・選択事務所）は **localStorage**。
