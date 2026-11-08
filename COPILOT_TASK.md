@@ -1,6 +1,6 @@
 # COPILOT_TASK: ランキングへの「登録者 急上昇」タブ追加および UI 改善バックログ
 
-> 最終更新: 2026-11-07 / 担当: プロダクトデザイナー → 実装: GitHub Copilot
+> 最終更新: 2026-11-08 / 担当: プロダクトデザイナー → 実装: GitHub Copilot
 
 ---
 
@@ -74,6 +74,50 @@
     - `/ranking?tab=growth&period=month` を直接開くと「登録者急上昇」タブ・「月間」が選択された状態で表示される。
     - タブや期間を切り替えると URL が更新される。リロードしても同じ状態が復元される。ブラウザの戻る/進むで表示が追従する。
     - `?tab=xxx` のような不正値でもエラーにならず、既定タブで表示される。
+    - 375px / 1280px の両方で見た目が崩れず、横スクロールが発生しない。ダークモードでも崩れない。
+    - `FRONTEND_SPEC.md` が更新されている。
+- [ ] **P1-8. 「推しVTuber」登録（★ボタン）とマイページ「推しダッシュボード」**
+  - **対象ファイル**:
+    `lib/oshi.ts`（新規）
+    `components/OshiButton.tsx`（新規）
+    `components/OshiDashboard.tsx`（新規）
+    `app/oshi/page.tsx`（新規）
+    `components/RankingTabs.tsx`
+    `components/VTuberTabs.tsx`
+    `components/GrowthTop3.tsx`
+    `components/BottomNav.tsx` または `components/AppShell.tsx`（導線追加）
+    `FRONTEND_SPEC.md`
+  - **仕様**:
+    - **背景**: 競合 data.vmato.jp は「全体の数値を眺める」統計サイトであり、ユーザー個人に最適化された体験は持たない。Vちゃんねるは配信予定・ニュース・ランキング・誕生日データを一か所に持つ強みがある。「自分の推しだけの情報がまとめて見える」画面を作り、リピート率（毎日開く理由）とブックマーク率を高める。認証なし・localStorage のみで完結させ、サーバーコストは増やさない。既存の「選択事務所フィルター（`favoriteOffices`）」は事務所単位、「お気に入り（`favorites`）」は動画単位であり、本タスクは **VTuber（チャンネル）単位**の新概念として区別する。
+    - `lib/oshi.ts`（クライアント専用の薄いストア）:
+      - localStorage キー `oshiChannels`（`string[]`＝YouTube チャンネル ID）。最大 30 件、超過時は追加を拒否してトースト／メッセージで通知する。
+      - `useOshi(): { oshiIds: string[]; isOshi(id): boolean; toggleOshi(id): void; clearOshi(): void }` を `useSyncExternalStore` で実装する。SSR 時は空配列（hydration mismatch を起こさない）。`storage` イベントで他タブとも同期する。
+      - JSON.parse 失敗や不正値は空配列にフォールバックし、例外を投げない。`any` は使わず、既存ヘルパー（`toArray` 等）を再利用する。
+    - `components/OshiButton.tsx`:
+      - lucide-react の `Star`（登録済みは塗りつぶし）を使うアイコンボタン。`aria-pressed`、`aria-label`（`推しに登録` / `推しから外す`）を付与し、タップ領域は 44px 以上。
+      - クリックが親要素のリンク（詳細ページ遷移など）に伝播しないよう `preventDefault` / `stopPropagation` する。
+    - ★ボタンの設置箇所: ランキング行（`RankingTabs`）、急上昇 TOP3（`GrowthTop3`）、VTuber 詳細（`VTuberTabs`）。既存レイアウトを崩さない位置に置く。
+    - `app/oshi/page.tsx` + `components/OshiDashboard.tsx`（`/oshi`、`"use client"` は Dashboard 側のみ）:
+      - データは既存の GCS 取得ヘルパーで `officedataList.json` / `livevideoList.json` / ランキング用データを取得する（新規 API・RTDB 読み取りは作らない）。推し ID で絞り込み、以下のセクションを表示する。
+        1. **配信中・今日の配信予定**: `comparisonDay` を JST の暦日で判定。配信中は同時視聴者数付き。0 件は `推しの配信予定はありません`。
+        2. **登録者の動き（直近 7 日）**: `youtubeSubscriberCountTransition` から増加数・増加率を算出し、ミニ推移グラフ（既存の自前 SVG を再利用）で表示。データ不足時は `データなし`。
+        3. **もうすぐ誕生日／周年**: `birthday` / `debut` から 30 日以内に迫るものを日数順で表示（`あと N 日` / `今日`）。形式が不正なものは無視する。
+        4. **推し一覧**: サムネ・名前・事務所・VTuber 詳細へのリンク・★解除ボタン。
+      - 推し 0 件の空状態: `まだ推しが登録されていません` ＋ 説明文 ＋ `ランキングを見る` ボタン（`/ranking` へ）。
+      - 「推しを全て解除」は確認ダイアログ（`推しを全て解除しますか？` / `はい` / `いいえ`）を経由する。
+      - 画面のどこかに `推しの登録情報はこの端末のブラウザにのみ保存されます` と明記する。
+      - ローディング中は P0-4 のスケルトンがあれば再利用、無ければ `読み込み中…` を表示する。取得失敗時は `GcsFetchError` を捕捉して `データの取得に失敗しました` と `再読み込み` を表示する。
+    - 導線: BottomNav／ヘッダーに `推し`（lucide `Star` アイコン）を追加する。BottomNav が 5 項目を超えて窮屈になる場合は、ヘッダー右上のアイコンリンクとして追加する。
+    - SEO: `/oshi` は個人データのため `metadata.robots = { index: false }` とし、`app/sitemap.ts` には含めない。
+    - 範囲外: ログイン・クラウド同期、プッシュ通知、推しの共有 URL 生成、P2-1（順位変動）。
+    - 追加パッケージは不要（lucide-react は導入済み前提。未導入なら P0-1 を先に完了させる）。`FRONTEND_SPEC.md` に、`oshiChannels` キー（localStorage 一覧表への追記）、`useOshi`、`OshiButton`、`/oshi` 画面仕様を追記する。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。
+    - `npm run build` が成功し、hydration エラー／警告がコンソールに出ない。
+    - ランキング行・TOP3・VTuber 詳細で ★ をタップすると登録/解除が切り替わり、リロード後も維持される。別タブで操作しても反映される。
+    - ★ をタップしても行リンクへ遷移しない。
+    - `/oshi` に推しの配信中/予定・登録者の動き・誕生日/周年・推し一覧が表示される。0 件時は空状態が表示される。
+    - 31 件目の登録は拒否され、メッセージが表示される。localStorage に不正な値が入っていてもクラッシュしない。
     - 375px / 1280px の両方で見た目が崩れず、横スクロールが発生しない。ダークモードでも崩れない。
     - `FRONTEND_SPEC.md` が更新されている。
 

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { useSelectedChannels } from "@/hooks/useSelection";
+import { formatCompact, formatNumber } from "@/lib/format";
 import {
   RANKING_TABS,
   growthHeading,
@@ -115,17 +116,23 @@ function Row({ r, rank }: { r: RankingRow; rank: number }) {
       {isGrowth ? (
         <>
           {r.spark && <Sparkline data={r.spark} />}
-          <div className="shrink-0 text-right tabular-nums">
+          <div
+            className="shrink-0 text-right tabular-nums"
+            title={`+${formatNumber(r.value)}${r.unit ?? ""}`}
+          >
             <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
-              +{r.value.toLocaleString()}
+              +{formatCompact(r.value)}
               {r.unit}
             </p>
             <p className="text-xs text-zinc-500">+{r.rate!.toFixed(2)}%</p>
           </div>
         </>
       ) : (
-        <span className="shrink-0 text-sm font-bold tabular-nums">
-          {r.value.toLocaleString()}
+        <span
+          className="shrink-0 text-sm font-bold tabular-nums"
+          title={`${formatNumber(r.value)}${r.unit ?? ""}`}
+        >
+          {formatCompact(r.value)}
           {r.unit}
         </span>
       )}

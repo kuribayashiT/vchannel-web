@@ -4,6 +4,7 @@ import { smallAvatar } from "@/lib/url";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { useSelectedChannels } from "@/hooks/useSelection";
+import { formatCompact, formatNumber } from "@/lib/format";
 import type { SubscriberGrowthItem } from "@/types";
 
 const MEDALS = ["🥇", "🥈", "🥉"];
@@ -47,8 +48,11 @@ export function GrowthTop3({ items }: { items: SubscriberGrowthItem[] }) {
               )}
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{i.name}</p>
-                <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                  +{i.growth.toLocaleString()}人
+                <p
+                  className="text-xs font-bold text-emerald-600 dark:text-emerald-400"
+                  title={`+${formatNumber(i.growth)}人`}
+                >
+                  +{formatCompact(i.growth)}人
                   <span className="ml-1 font-normal text-zinc-500">
                     +{i.rate.toFixed(2)}%
                   </span>
