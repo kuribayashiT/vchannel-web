@@ -22,7 +22,7 @@
   - 対象ファイル: 新規 `lib/format.ts`、`components/RankingTabs.tsx`, `components/GrowthTop3.tsx`, `components/VTuberTabs.tsx`, `components/VideoCard.tsx`
 - [x] **P0-3. 画像のフォールバック（壊れ画像アイコンを根絶）**
   - 対象ファイル: 新規 `components/SafeImage.tsx`、`app/news/page.tsx`, `components/VideoCard.tsx`, `components/RankingTabs.tsx`, `components/GrowthTop3.tsx`, `components/VTuberTabs.tsx`
-- [ ] **P0-4. スケルトンローディング**
+- [x] **P0-4. スケルトンローディング**
   - 対象ファイル: 新規 `components/Skeleton.tsx`、新規 `app/loading.tsx`, `app/ranking/loading.tsx`, `app/news/loading.tsx`, `components/StreamTabs.tsx`, `components/VTuberTabs.tsx`, `app/vtuber/[channelId]/page.tsx`
 - [ ] **P0-5. セクション見出しコンポーネント**
   - 対象ファイル: 新規 `components/SectionHeader.tsx`、各 `app/*/page.tsx`
@@ -261,8 +261,4 @@
       - `buildVTuberDescription(v): string` — 名前・事務所・登録者数（`lib/format.ts` の短縮表記を再利用）・動画本数を含む日本語の説明文。120 字以内に収め、欠損値（`0` / 空 / `NaN`）の項目は文から省く。数値は必ず `toNumber` で変換する。
       - `buildVTuberJsonLd(v, siteUrl): object 相当の型付きオブジェクト` — schema.org `Person`（`name`, `url`, `image`, `affiliation`（事務所が空なら省略）, `sameAs`（YouTube チャンネル URL、`twitterID` / `twitterName` があれば X(Twitter) URL））。`image` / `sameAs` は `safeHttpUrl` を通し、不正な URL は除外する。戻り値の型は明示的に定義し、`any` は使わない。
       - `buildBreadcrumbJsonLd(items: { name: string; path: string }[], siteUrl): 型付きオブジェクト` — schema.org `BreadcrumbList`。
-      - `serializeJsonLd(data): string` — `JSON.stringify` 後に `<` を `\u003c` へエスケープし、`</script>` インジェクションを防ぐ。
-    - `components/JsonLd.tsx`（Server Component）: `<script type="application/ld+json">` を出力する。中身は必ず `serializeJsonLd` 経由とする。
-    - `components/Breadcrumbs.tsx`（Server Component）:
-      - `ホーム > VTuber > {name}` を `<nav aria-label="パンくずリスト">` ＋ `<ol>` で表示する。最後の要素は `aria-current="page"` でリンクにしない。
-      -
+      - `serializeJsonLd(data): string` — `JSON.stringify` 後に `
