@@ -128,12 +128,11 @@ jobs:
         if: steps.git-check.outputs.changed == 'true'
         id: pr-body
         run: |
-          # task_summary.txt があれば読み込み、なければデフォルトのフォールバック
           if [ -f "task_summary.txt" ]; then
             SUMMARY_CONTENT=$(cat task_summary.txt)
           else
             SUMMARY_CONTENT="### 🚀 本日の自動実装成果\n- 自動開発パイプラインによるコード実装およびビルド検証完了"
-          }
+          fi
           
           CHANGED_FILES=$(git diff --name-only origin/main...HEAD || git diff --name-only HEAD~1 HEAD)
           
