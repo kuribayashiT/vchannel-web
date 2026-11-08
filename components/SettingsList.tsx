@@ -37,7 +37,7 @@ export function SettingsList() {
         onClick={() => {
           if (
             window.confirm(
-              "選択中の事務所をリセットして、事務所選択をやり直しますか？",
+              "事務所の絞り込みを解除しますか？",
             )
           ) {
             resetSelection();
@@ -45,7 +45,7 @@ export function SettingsList() {
         }}
         className={btn}
       >
-        事務所の選択をリセット
+        事務所の絞り込みを解除
       </button>
       {message && (
         <p role="status" className="text-sm text-emerald-600">

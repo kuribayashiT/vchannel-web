@@ -77,7 +77,7 @@ export default async function RootLayout({ children }: LayoutProps) {
   try {
     offices = await getOfficeSummaries();
   } catch {
-    // 取得失敗時はフィルター/オンボーディングなしで続行
+    // 取得失敗時はフィルターなしで続行
   }
 
   return (

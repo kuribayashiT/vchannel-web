@@ -3,7 +3,6 @@
 import { useCallback, useSyncExternalStore } from "react";
 
 const CHANNELS_KEY = "selectedChannelIds";
-const ONBOARDING_KEY = "onboarding_done";
 const EVENT = "vchannel:local-state";
 const EMPTY: string[] = [];
 
@@ -54,23 +53,8 @@ export function useSelectedChannels() {
   return { channelIds, setChannelIds };
 }
 
-/**
- * オンボーディング完了フラグ。サーバー/ハイドレーション中は
- * 「完了済み」として扱い、マウント後に未完了ならダイアログを出す。
- */
-export function useOnboardingDone() {
-  const done = useSyncExternalStore(
-    subscribe,
-    () => localStorage.getItem(ONBOARDING_KEY) === "true",
-    () => true,
-  );
-  const markDone = useCallback(() => write(ONBOARDING_KEY, "true"), []);
-  return { done, markDone };
-}
-
-/** 選択とオンボーディング完了フラグを消し、次の描画で事務所選択を再表示する */
+/** 選択を消して絞り込みを解除する */
 export function resetSelection() {
   localStorage.removeItem(CHANNELS_KEY);
-  localStorage.removeItem(ONBOARDING_KEY);
   window.dispatchEvent(new Event(EVENT));
 }
