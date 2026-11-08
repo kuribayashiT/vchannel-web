@@ -120,6 +120,51 @@
     - 31 件目の登録は拒否され、メッセージが表示される。localStorage に不正な値が入っていてもクラッシュしない。
     - 375px / 1280px の両方で見た目が崩れず、横スクロールが発生しない。ダークモードでも崩れない。
     - `FRONTEND_SPEC.md` が更新されている。
+- [ ] **P1-9. 配信タブの自動更新（ライブ・ポーリング）と「最終更新 N分前」表示**
+  - **対象ファイル**:
+    `lib/useLivePolling.ts`（新規）
+    `components/LiveRefreshBar.tsx`（新規）
+    `app/api/streams/route.ts`（新規）
+    `components/StreamTabs.tsx`
+    `app/page.tsx`（配信タブを表示しているページ。初期データ受け渡しの調整のみ）
+    `FRONTEND_SPEC.md`
+  - **仕様**:
+    - **背景**: data.vmato.jp は登録者・再生数などの「統計」が中心で、数時間〜日単位の更新が前提。一方 Vちゃんねるは `livevideoList.json` が約 5 分周期で更新される「いま配信中」のリアルタイム性という、競合にない強みを持つ。ところが現状の配信タブは ISR で取得した初期表示のまま固定で、開きっぱなしにしても「配信中」「同時視聴者数」「配信終了」が更新されず、ユーザーは手動リロードが必要になっている。ページを開いたままでも配信状況が自動で追従し、「どれくらい新しい情報か」が分かる状態にして、滞在時間とリピート率を高める。サーバーコストは Route Handler の CDN キャッシュで抑える。
+    - `app/api/streams/route.ts`（新規 Route Handler、GET のみ）:
+      - 既存の GCS 取得ヘルパーで `livevideoList.json` のみを取得して返す（RTDB の読み取り・Firestore・新規外部 API は使わない）。
+      - 数値文字列（`concurrent_viewers` 等）の正規化、`videoID` / `videoId` のキー揺れ吸収は、既存ヘルパー（`toNumber` など）を再利用して配信タブ側と同じ結果になるようにする。重複実装しない。
+      - レスポンスヘッダー: `Cache-Control: public, s-maxage=60, stale-while-revalidate=120`。レスポンスに `fetchedAt`（ISO8601 UTC）を含める。
+      - 取得失敗時は `GcsFetchError` を捕捉し、ステータス 502 と `{ error: "fetch_failed" }` を返す。内部のエラー詳細・URL はクライアントに漏らさない。
+    - `lib/useLivePolling.ts`（クライアント専用フック）:
+      - `useLivePolling<T>(options: { initialData: T; initialFetchedAt: string; enabled: boolean; intervalMs?: number }): { data: T; fetchedAt: Date; isRefreshing: boolean; isError: boolean; refresh: () => Promise<void> }`
+      - 既定の間隔は 60 秒。`enabled` が `true`（＝「配信中」または「今日の配信」タブ表示中）、かつ `document.visibilityState === "visible"` の間のみポーリングする。それ以外のタブ・バックグラウンドでは停止する。
+      - タブが再び visible になった時、または `online` イベント発火時、最終取得から 60 秒以上経過していれば即時に再取得する。
+      - 失敗時は前回データを保持したまま `isError = true` とし、指数バックオフ（60 → 120 → 240 秒、上限 5 分）で再試行する。成功したらリセットする。
+      - アンマウント時に `AbortController` と `setTimeout` / イベントリスナーを確実に破棄し、競合したレスポンス（古いリクエストの後着）で新しいデータを上書きしないこと。
+      - `any` は使わず、レスポンス型は `types/index.ts` の既存 Video 型を再利用する。追加パッケージ（SWR 等）は導入しない。
+    - `components/LiveRefreshBar.tsx`（新規。クライアントコンポーネント）:
+      - 配信タブ上部に `最終更新 N分前`（1 分未満は `たった今`）と、lucide-react の `RefreshCw` アイコンによる手動更新ボタン（`aria-label="配信情報を更新"`、タップ領域 44px 以上）を表示する。
+      - 相対時間は 30 秒ごとに再計算する。更新中は `RefreshCw` を回転させる（`prefers-reduced-motion` の場合は回転させず、`更新中…` のテキスト表示にする）。
+      - 失敗時は `更新に失敗しました。前回のデータを表示中` を `AlertTriangle` アイコン付きで表示する（再試行は自動、ボタンでも可能）。
+      - ステータス文言は `aria-live="polite"` の領域に置く。ただし 60 秒ごとの成功更新は読み上げない（成功時は文言を変えず、失敗時のみ通知する）。
+    - `components/StreamTabs.tsx`:
+      - 初期データはサーバー（ISR）から受け取った値を `initialData` として使い、初回表示は現状と同じ速さを維持する。
+      - バックグラウンド更新中はスケルトン（P0-4）や全体スピナーを出さない。リストのちらつき・スクロール位置のジャンプ・レイアウトシフトを起こさないよう、`videoID` をキーにして差分更新する。
+      - 「配信中」タブのラベルに件数バッジ `配信中 (N)` を表示する（0 件ならバッジなし）。件数は選択事務所フィルター適用後の値とする。
+      - 更新で配信が終了した動画は「配信中」から自然に消え、「過去アーカイブ」側へ振り分けられる（既存の `comparisonDay` / `actualEndTime` 判定ロジックを再利用し、判定を二重実装しない）。
+      - 「過去アーカイブ」「明日」「明日以降」タブではポーリングを行わない（`enabled = false`）。
+    - 範囲外: WebSocket / SSE、プッシュ通知、YouTube API の直接利用、ニュース・ランキングの自動更新、広告。
+    - `FRONTEND_SPEC.md` の「配信タブ」節に、更新間隔・停止条件（非表示/対象外タブ）・バックオフ・`/api/streams` の仕様（キャッシュヘッダー含む）・`LiveRefreshBar` / `useLivePolling` を追記する。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。
+    - `npm run build` が成功し、hydration エラー／警告がコンソールに出ない。
+    - `/api/streams` が 200 で JSON（`fetchedAt` を含む）を返し、レスポンスヘッダーに `s-maxage=60` が含まれる。GCS 取得失敗を擬似的に起こすと 502 が返り、内部情報が漏れない。
+    - 「配信中」タブを開いたまま約 60 秒待つと、Network タブで `/api/streams` が定期的に呼ばれ、リストと「最終更新」表示が更新される。
+    - 別ブラウザタブへ切り替えている間はリクエストが発生せず、戻ると（60 秒以上経過していれば）即座に再取得される。「過去アーカイブ」タブ表示中は発生しない。
+    - 手動更新ボタンで即時更新され、更新中は回転（または `更新中…`）が表示される。オフラインにすると失敗表示になり、復帰後に自動で回復する。
+    - 更新中にスケルトンやちらつきが出ず、スクロール位置が維持される。ページ遷移直後にアンマウントしてもコンソールにエラー／警告（unmounted の state 更新など）が出ない。
+    - 375px / 1280px の両方で見た目が崩れず、横スクロールが発生しない。ダークモードでも崩れない。
+    - `FRONTEND_SPEC.md` が更新されている。
 
 ### P2: 差別化（競合に無い体験）
 - [ ] **P2-1. 順位変動（前週比 ▲3 / ▼2 / NEW）**
