@@ -11,9 +11,9 @@ function stateOf(ids: string[], selected: Set<string>): State {
 }
 
 const circle: Record<State, string> = {
-  all: "border-blue-600 bg-blue-600 text-white",
-  some: "border-blue-300 bg-blue-200",
-  none: "border-zinc-400 bg-zinc-200 dark:bg-zinc-700",
+  all: "border-violet-500 bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white shadow-sm shadow-violet-300/60 dark:shadow-violet-900/30",
+  some: "border-sky-400 bg-gradient-to-br from-sky-200 to-violet-200 text-sky-700 dark:from-sky-900/50 dark:to-violet-900/40 dark:text-sky-200",
+  none: "border-zinc-300 bg-white text-zinc-400 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-500",
 };
 
 /** 検索・事務所の展開/折りたたみ・事務所ごとの一括トグルを持つ選択 UI */
@@ -95,9 +95,10 @@ export function OfficeSelector({
                     }
                     aria-label={`${o.name}を全員選択/解除`}
                     onClick={() => toggleIds(ids)}
-                    className={`flex size-6 shrink-0 items-center justify-center rounded-full border text-xs ${circle[stateOf(ids, sel)]}`}
+                    className={`flex size-6 shrink-0 items-center justify-center rounded-full border text-xs transition-all hover:scale-105 ${circle[stateOf(ids, sel)]}`}
                   >
                     {stateOf(ids, sel) === "all" && "✓"}
+                    {stateOf(ids, sel) === "some" && "−"}
                   </button>
                   <button
                     type="button"
@@ -115,12 +116,23 @@ export function OfficeSelector({
                   <ul className="pb-2 pl-9">
                     {o.members.map((m) => (
                       <li key={m.channelId}>
-                        <label className="flex cursor-pointer items-center gap-2 py-1 text-sm">
+                        <label className="group flex cursor-pointer items-center gap-2 py-1 text-sm">
                           <input
                             type="checkbox"
                             checked={sel.has(m.channelId)}
                             onChange={() => toggleIds([m.channelId])}
+                            className="peer sr-only"
                           />
+                          <span
+                            aria-hidden
+                            className={`flex size-5 shrink-0 items-center justify-center rounded-md border text-[11px] transition-all ${
+                              sel.has(m.channelId)
+                                ? "border-violet-500 bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white shadow-sm shadow-violet-300/60 dark:shadow-violet-900/30"
+                                : "border-zinc-300 bg-white text-transparent group-hover:border-violet-300 dark:border-zinc-600 dark:bg-zinc-900"
+                            }`}
+                          >
+                            ✓
+                          </span>
                           <span className="truncate">{m.name}</span>
                         </label>
                       </li>
