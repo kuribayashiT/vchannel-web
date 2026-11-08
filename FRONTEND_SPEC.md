@@ -34,7 +34,7 @@ Cloud Functions が定期更新する。アプリは 1 時間 TTL でキャッ�
 | ファイル | 内容 | 使用画面 |
 |---|---|---|
 | `officedataList.json` | `{ "<事務所名>": [VTuber, ...] }` | VTuber / 絞り込み / オンボーディング |
-| `livevideoList.json` | `[Video, ...]`（配信中・予定・過去すべて） | 配信タブ全般 |
+| `livevideoList.json` | `[Video, ...]`（配信中の動画） | 配信タブ全般 |
 | `allvideos.json` | `[Video, ...]` | お気に入り、VTuber 詳細の動画一覧 |
 | `news.json` | `[News, ...]` | ニュース |
 | `eventList.json` | `[ { "<M/D>": [Event, ...] }, ... ]` | イベントカレンダー |
@@ -132,7 +132,7 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 | タブ | 抽出条件（`comparisonDay` をローカル時刻に変換） | 表示 | 空表示 |
 |---|---|---|---|
 | 過去アーカイブ | 今日より前 | 新しい順の一覧（30 日制限はコード上なし） | `配信済みの動画はありません` |
-| 配信中 | 現在ライブ中（`actualStartTime` あり・`actualEndTime` 空）。**`livevideoList.json` のみから抽出** | 同時視聴者数 `concurrent_viewers` 付き | `配信中の動画はありません` |
+| 配信中 | `livevideoList.json` の全動画（選択チャンネルで絞り込み、開始・終了時刻では絞り込まない） | JSON の順序で一覧表示、同時視聴者数 `concurrent_viewers` 付き | `配信中の動画はありません` |
 | 今日の配信 | 今日 | **0〜23 時の時間帯別グルーピング** | `配信予定の動画はありません` |
 | 明日の配信 | 明日 | 同上（時間帯別） | 同上 |
 | 明日以降の配信 | 2 日後以降 | 日付順 | 同上／エラー `動画の読み込みに失敗しました。` |

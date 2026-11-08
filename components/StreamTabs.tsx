@@ -6,7 +6,6 @@ import {
   STREAM_TABS,
   groupByHour,
   groupByTab,
-  isLive,
   type StreamTab,
 } from "@/lib/stream";
 import { VideoCard } from "@/components/VideoCard";
@@ -52,12 +51,7 @@ function StreamTabsInner({ videos }: { videos: Video[] }) {
   }, [videos, channelIds]);
 
   const current = STREAM_TABS.find((t) => t.key === tab)!;
-  let list = groups[tab];
-
-  // 「配信中」タブではアーカイブを除外し、実際に配信中の動画のみを表示
-  if (tab === "live") {
-    list = list.filter(isLive);
-  }
+  const list = groups[tab];
 
   return (
     <div>

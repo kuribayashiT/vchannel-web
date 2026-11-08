@@ -43,17 +43,11 @@ function dayDiff(a: string, b: string): number {
   return Math.round((Date.parse(a) - Date.parse(b)) / 86_400_000);
 }
 
-export function isLive(v: Video): boolean {
-  return v.actualStartTime !== "" && v.actualEndTime === "";
-}
-
 /**
  * comparisonDay の JST 暦日で今日/明日/以降/過去に振り分ける。
- * 配信中は日付に関係なく "live"（live タブ用）。
  */
 export function categorize(v: Video, now: Date = new Date()): StreamTab[] {
   const tabs: StreamTab[] = [];
-  if (isLive(v)) tabs.push("live");
   const day = jstDay(v.comparisonDay);
   const today = jstDay(now);
   if (!day || !today) return tabs;
@@ -71,7 +65,7 @@ export function groupByTab(
 ): Record<StreamTab, Video[]> {
   const out: Record<StreamTab, Video[]> = {
     past: [],
-    live: [],
+    live: [...videos],
     today: [],
     tomorrow: [],
     later: [],
@@ -81,7 +75,7 @@ export function groupByTab(
   }
   const time = (v: Video) => Date.parse(v.comparisonDay) || 0;
   out.past.sort((a, b) => time(b) - time(a));
-  for (const t of ["live", "today", "tomorrow", "later"] as const) {
+  for (const t of ["today", "tomorrow", "later"] as const) {
     out[t].sort((a, b) => time(a) - time(b));
   }
   return out;
