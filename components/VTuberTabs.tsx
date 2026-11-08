@@ -4,6 +4,7 @@ import { smallAvatar } from "@/lib/url";
 import { useEffect, useMemo, useState } from "react";
 import { VideoCard } from "@/components/VideoCard";
 import { useSelectedChannels } from "@/hooks/useSelection";
+import { formatCompact, formatNumber } from "@/lib/format";
 import type { VTuberDetail, VTuberIndexItem } from "@/types";
 
 function SubscriberChart({ data }: { data: VTuberDetail["transition"] }) {
@@ -34,8 +35,8 @@ function SubscriberChart({ data }: { data: VTuberDetail["transition"] }) {
         <polyline points={pts} fill="none" stroke="#2563eb" strokeWidth="2" />
       </svg>
       <div className="flex justify-between text-xs text-zinc-500">
-        <span>{min.toLocaleString()}</span>
-        <span>{max.toLocaleString()}</span>
+        <span title={formatNumber(min)}>{formatCompact(min)}</span>
+        <span title={formatNumber(max)}>{formatCompact(max)}</span>
       </div>
     </div>
   );
@@ -117,8 +118,11 @@ export function Detail({ channelId }: { channelId: string }) {
             className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800"
           >
             <dt className="text-xs text-zinc-500">{label}</dt>
-            <dd className="font-bold tabular-nums">
-              {(v as number).toLocaleString()}
+            <dd
+              className="font-bold tabular-nums"
+              title={formatNumber(v as number)}
+            >
+              {formatCompact(v as number)}
             </dd>
           </div>
         ))}

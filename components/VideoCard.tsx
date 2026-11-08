@@ -3,6 +3,7 @@
 import { Star } from "lucide-react";
 import { useFavorites } from "@/hooks/useFavorites";
 import { playVideo } from "@/hooks/usePlayer";
+import { formatCompact } from "@/lib/format";
 import type { Video } from "@/types";
 
 const timeFmt = new Intl.DateTimeFormat("ja-JP", {
@@ -49,8 +50,11 @@ export function VideoCard({ v, live = false }: { v: Video; live?: boolean }) {
         )}
         <div className="space-y-1 p-3">
           {live && (
-            <span className="inline-block animate-pulse rounded bg-red-600 px-2 py-0.5 text-xs font-bold text-white">
-              <span aria-hidden className="mr-1 inline-block size-2 rounded-full bg-white" />配信中 {v.concurrentViewers.toLocaleString()}人
+            <span
+              className="inline-block animate-pulse rounded bg-red-600 px-2 py-0.5 text-xs font-bold text-white"
+              title={`${v.concurrentViewers.toLocaleString()}人が視聴中`}
+            >
+              <span aria-hidden className="mr-1 inline-block size-2 rounded-full bg-white" />配信中 {formatCompact(v.concurrentViewers)}人
             </span>
           )}
           <p className="line-clamp-2 text-sm font-medium">{v.title}</p>
