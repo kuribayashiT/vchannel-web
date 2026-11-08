@@ -7,7 +7,9 @@ import {
   DEFAULT_AUTHOR,
   MAX_AUTHOR,
   MAX_CONTENT,
+  groupPostsByParent,
   type ChatPost,
+  type ChatPostGroup,
   type ChatThread,
 } from "@/lib/chat";
 import type { OfficeSummary } from "@/lib/offices";
@@ -221,24 +223,36 @@ function PostItem({
   refs,
   onReply,
   onJumpToPost,
+  variant = "parent",
 }: {
   post: ChatPost;
   isNew: boolean;
   refs: ChatPost[];
   onReply: (postNo: number) => void;
   onJumpToPost: (postNo: number) => void;
+  variant?: "parent" | "reply";
 }) {
   const [pickedReaction, setPickedReaction] = useState<string | null>(null);
+  const compact = variant === "reply";
 
   return (
     <li
       id={`post-${post.postNo}`}
-      className="rounded-2xl border border-zinc-200 bg-white/90 p-3 shadow-sm transition-colors dark:border-zinc-800 dark:bg-zinc-900/80"
+      className={`rounded-2xl border bg-white/90 p-3 shadow-sm transition-colors dark:bg-zinc-900/80 ${
+        compact
+          ? "border-violet-100 dark:border-violet-900/40"
+          : "border-zinc-200 dark:border-zinc-800"
+      }`}
     >
-      <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+      <div className={`mb-2 flex flex-wrap items-center gap-2 text-xs text-zinc-500`}>
         <span className="rounded-full bg-violet-100 px-2 py-0.5 font-bold text-violet-700 dark:bg-violet-900/50 dark:text-violet-200">
           No.{post.postNo}
         </span>
+        {compact && (
+          <span className="rounded-full bg-blue-100 px-2 py-0.5 font-bold text-blue-700 dark:bg-blue-900/50 dark:text-blue-200">
+            返信
+          </span>
+        )}
         <span className="font-bold text-zinc-800 dark:text-zinc-200">
           {post.author || DEFAULT_AUTHOR}
         </span>
@@ -277,7 +291,7 @@ function PostItem({
 
       <Body text={post.content} onJumpToPost={onJumpToPost} />
 
-      <div className="mt-2 flex flex-wrap gap-1.5">
+      <div className={`mt-2 flex flex-wrap gap-1.5`}>
         {QUICK_REACTIONS.map((emoji) => (
           <button
             key={emoji}
@@ -308,9 +322,16 @@ function ThreadView({
   const [failed, setFailed] = useState(false);
   const [sheet, setSheet] = useState<string | null>(null);
   const [baselinePostNo, setBaselinePostNo] = useState<number | null>(null);
+  const [expandedParents, setExpandedParents] = useState<Set<number>>(
+    () => new Set(),
+  );
 
   const byPostNo = useMemo(
     () => new Map((posts ?? []).map((p) => [p.postNo, p])),
+    [posts],
+  );
+  const groups = useMemo<ChatPostGroup[]>(
+    () => groupPostsByParent(posts ?? []),
     [posts],
   );
 
@@ -353,20 +374,72 @@ function ThreadView({
           <p>いちばん最初のコメントをしてみよう！</p>
         </div>
       )}
-      <ul className="space-y-3 pb-24">
-        {posts?.map((p) => {
-          const refs = parseReplyNos(p.content)
+      <ul className="space-y-4 pb-24">
+        {groups.map((g) => {
+          const parent = g.parent;
+          const parentRefs = parseReplyNos(parent.content)
             .map((no) => byPostNo.get(no))
             .flatMap((row) => (row ? [row] : []));
+          const expanded = expandedParents.has(parent.postNo);
+          const foldable = g.replies.length > 2;
+          const visibleReplies =
+            foldable && !expanded ? g.replies.slice(0, 2) : g.replies;
+
           return (
-            <PostItem
-              key={p.id}
-              post={p}
-              isNew={baselinePostNo !== null && p.postNo > baselinePostNo}
-              refs={refs}
-              onReply={(postNo) => setSheet(`>>${postNo} `)}
-              onJumpToPost={jumpToPost}
-            />
+            <li key={parent.id} className="space-y-2">
+              <PostItem
+                post={parent}
+                isNew={baselinePostNo !== null && parent.postNo > baselinePostNo}
+                refs={parentRefs}
+                onReply={(postNo) => setSheet(`>>${postNo} `)}
+                onJumpToPost={jumpToPost}
+              />
+              {g.replies.length > 0 && (
+                <div className="ml-4 rounded-r-2xl border-l-2 border-violet-200 bg-violet-50/50 pl-3 dark:border-violet-900/50 dark:bg-violet-950/10">
+                  <div className="space-y-2 py-2">
+                    {visibleReplies.map((reply) => {
+                      const refs = parseReplyNos(reply.content)
+                        .map((no) => byPostNo.get(no))
+                        .flatMap((row) => (row ? [row] : []));
+                      return (
+                        <PostItem
+                          key={reply.id}
+                          post={reply}
+                          variant="reply"
+                          isNew={
+                            baselinePostNo !== null &&
+                            reply.postNo > baselinePostNo
+                          }
+                          refs={refs}
+                          onReply={(postNo) => setSheet(`>>${postNo} `)}
+                          onJumpToPost={jumpToPost}
+                        />
+                      );
+                    })}
+                    {foldable && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedParents((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(parent.postNo)) next.delete(parent.postNo);
+                            else next.add(parent.postNo);
+                            return next;
+                          })
+                        }
+                        className="rounded-full border border-violet-300 bg-white px-3 py-1 text-xs font-medium text-violet-700 hover:bg-violet-50 dark:border-violet-700 dark:bg-zinc-900 dark:text-violet-300 dark:hover:bg-violet-950/20"
+                      >
+                        {expanded
+                          ? "返信を折りたたむ"
+                          : `返信をさらに表示（+${
+                              g.replies.length - visibleReplies.length
+                            }件）`}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </li>
           );
         })}
       </ul>

@@ -17,6 +17,11 @@ export interface ChatPost {
   createdAt: string | null;
 }
 
+export interface ChatPostGroup {
+  parent: ChatPost;
+  replies: ChatPost[];
+}
+
 export const MAX_CONTENT = 500;
 export const MAX_AUTHOR = 20;
 export const DEFAULT_AUTHOR = "名無しさん";
@@ -25,6 +30,44 @@ export const DEFAULT_AUTHOR = "名無しさん";
 export function extractParentNo(content: string): number {
   const nums = [...content.matchAll(/>>(\d{1,6})/g)].map((m) => Number(m[1]));
   return nums.length ? Math.min(...nums) : 0;
+}
+
+/**
+ * 投稿を「親コメント＋返信群」にまとめる。返信の返信も最上位の親に束ねる。
+ * 参照先が存在しない/不正な parentNo は親コメントとして扱う。
+ */
+export function groupPostsByParent(posts: ChatPost[]): ChatPostGroup[] {
+  const ordered = [...posts].sort((a, b) => a.postNo - b.postNo);
+  const byNo = new Map(ordered.map((p) => [p.postNo, p]));
+  const roots: ChatPost[] = [];
+  const repliesByRoot = new Map<number, ChatPost[]>();
+
+  const rootNoOf = (post: ChatPost): number => {
+    let current = post;
+    const seen = new Set<number>();
+    while (current.parentNo > 0 && byNo.has(current.parentNo)) {
+      if (seen.has(current.parentNo)) break;
+      seen.add(current.parentNo);
+      const next = byNo.get(current.parentNo);
+      if (!next) break;
+      current = next;
+    }
+    return current.postNo;
+  };
+
+  for (const post of ordered) {
+    const rootNo = rootNoOf(post);
+    if (rootNo === post.postNo) {
+      roots.push(post);
+      continue;
+    }
+    repliesByRoot.set(rootNo, [...(repliesByRoot.get(rootNo) ?? []), post]);
+  }
+
+  return roots.map((parent) => ({
+    parent,
+    replies: repliesByRoot.get(parent.postNo) ?? [],
+  }));
 }
 
 export function validatePost(
