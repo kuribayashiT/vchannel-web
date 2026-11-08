@@ -148,13 +148,14 @@ jobs:
           
           CHANGED_FILES=$(git diff --name-only origin/main...HEAD || git diff --name-only HEAD~1 HEAD)
           
+          # それぞれ異なるデリミタを使用して干渉を完全に防止
           {
-            echo "summary_content<<EOF"
+            echo "summary_content<<EOF_SUMMARY"
             cat task_summary.txt
-            echo "EOF"
-            echo "changed_files<<EOF"
+            echo "EOF_SUMMARY"
+            echo "changed_files<<EOF_FILES"
             echo "$CHANGED_FILES"
-            echo "EOF"
+            echo "EOF_FILES"
           } >> $GITHUB_OUTPUT
 
       - name: Create Pull Request for Daily Task
