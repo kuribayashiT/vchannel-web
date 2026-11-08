@@ -3,7 +3,12 @@
 import { smallAvatar } from "@/lib/url";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState, useSyncExternalStore } from "react";
+import {
+  useMemo,
+  useState,
+  useSyncExternalStore,
+  useTransition,
+} from "react";
 import { SafeImage } from "@/components/SafeImage";
 import { useSelectedChannels } from "@/hooks/useSelection";
 import { formatCompact, formatNumber } from "@/lib/format";
@@ -265,9 +270,15 @@ export function RankingTabs({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [isPending, startTransition] = useTransition();
 
-  // タブ・期間の状態は URL（クエリ）が唯一の情報源。戻る/進む・リロードにも追従する
-  const view = useMemo(() => parseRankingQuery(searchParams), [searchParams]);
+  const queryView = useMemo(() => parseRankingQuery(searchParams), [searchParams]);
+  const [optimisticView, setOptimisticView] = useState<RankingViewState | null>(
+    null,
+  );
+  const [pendingKey, setPendingKey] = useState<string | null>(null);
+  const view = isPending && optimisticView ? optimisticView : queryView;
+
   const tab = toRankingTab(view.tab);
   const period: GrowthPeriod = view.period;
   const viewKey = `${view.tab}:${view.period}`;
@@ -294,8 +305,13 @@ export function RankingTabs({
 
   // 履歴を汚さないよう、タブ・期間の切替はどちらも replace で URL を更新する
   const navigate = (next: RankingViewState) => {
+    if (next.tab === view.tab && next.period === view.period) return;
+    setOptimisticView(next); // 先に UI を切り替えて押下レスポンスを上げる
+    setPendingKey(`${next.tab}:${next.period}`);
     const q = buildRankingQuery(next);
-    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+    startTransition(() => {
+      router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+    });
   };
 
   const changePeriod = (p: GrowthPeriod) => {
@@ -320,6 +336,7 @@ export function RankingTabs({
             role="tab"
             aria-selected={t.key === tab}
             onClick={() => changeTab(t.key)}
+            aria-busy={isPending && pendingKey === `${fromRankingTab(t.key)}:week`}
             className={`shrink-0 rounded-full px-4 py-2 text-sm ${
               t.key === tab
                 ? "bg-blue-600 text-white"
@@ -327,6 +344,9 @@ export function RankingTabs({
             }`}
           >
             {t.label}
+            {isPending && pendingKey === `${fromRankingTab(t.key)}:week` && (
+              <span className="ml-1 inline-block animate-pulse">…</span>
+            )}
           </button>
         ))}
       </div>
@@ -352,6 +372,7 @@ export function RankingTabs({
                 role="radio"
                 aria-checked={period === key}
                 onClick={() => changePeriod(key)}
+                aria-busy={isPending && pendingKey === `growth:${key}`}
                 className={`rounded-full px-4 py-1 text-sm ${
                   period === key
                     ? "bg-blue-600 text-white"
@@ -359,6 +380,9 @@ export function RankingTabs({
                 }`}
               >
                 {label}
+                {isPending && pendingKey === `growth:${key}` && (
+                  <span className="ml-1 inline-block animate-pulse">…</span>
+                )}
               </button>
             ))}
           </div>
