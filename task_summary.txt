@@ -1,2 +1,2 @@
 ### 🚀 本日の自動実装成果
-- **更新ファイル**: `components/SafeImage.tsx`
+- **更新ファイル**: `components/AppShell.tsx`
