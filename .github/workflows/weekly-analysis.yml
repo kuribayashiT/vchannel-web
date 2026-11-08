@@ -2,9 +2,8 @@ name: Daily AI Autonomous Dev & PR Pipeline
 
 on:
   schedule:
-    # 毎日午前9時（JST = UTC 0:00）に自動実行
     - cron: '0 0 * * *'
-  workflow_dispatch: # 手動でもいつでも実行可能
+  workflow_dispatch:
 
 jobs:
   daily-dev:
@@ -91,7 +90,7 @@ jobs:
           attempt=1
           success=false
           
-          while [ $attempt -le$MAX_RETRIES ]; do
+          while [ $attempt -le $MAX_RETRIES ]; do
             echo "=== ビルド検証 試行回数: $attempt / $MAX_RETRIES ==="
             
             if npx tsc --noEmit && npm run build; then
@@ -142,7 +141,6 @@ jobs:
         if: steps.git-check.outputs.changed == 'true'
         id: pr-body
         run: |
-          # task_summary.txt がなければデフォルトのサマリーを作成
           if [ ! -f "task_summary.txt" ]; then
             echo "### 🚀 本日の自動実装成果" > task_summary.txt
             echo "- 自動開発パイプラインによるコード実装およびビルド検証完了" >> task_summary.txt
@@ -150,7 +148,6 @@ jobs:
           
           CHANGED_FILES=$(git diff --name-only origin/main...HEAD || git diff --name-only HEAD~1 HEAD)
           
-          # GitHub Actionsのマルチライン出力の安全な書き方（EOF方式で直接cat）
           {
             echo "summary_content<<EOF"
             cat task_summary.txt
@@ -174,4 +171,10 @@ jobs:
             
             ${{ steps.pr-body.outputs.summary_content }}
             
-            ### 📂
+            ### 📂 変更されたファイル一覧
+            \`\`\`
+            ${{ steps.pr-body.outputs.changed_files }}
+            \`\`\`
+            
+            実装された機能のコード差分を確認し、問題なければマージしてください。
+          delete-branch: true
