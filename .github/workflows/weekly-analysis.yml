@@ -154,7 +154,8 @@ jobs:
 
             let changedFiles = "";
             try {
-              changedFiles = cp.execSync("git diff --name-only origin/main...HEAD || git diff --name-only HEAD~1 HEAD", { encoding: "utf8" });
+              // 直近のコミット(HEAD)に含まれる変更ファイル一覧を確実に取得
+              changedFiles = cp.execSync("git show --name-only --pretty=\"\" HEAD", { encoding: "utf8" }).trim();
             } catch (e) {
               changedFiles = "";
             }
