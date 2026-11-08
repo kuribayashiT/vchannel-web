@@ -20,7 +20,7 @@
 > **前提（人手作業）**: ✅ 2026-11-08 作成済み。Firebase Console で複合インデックス `posts`: `threadId` 昇順 + `postNo` **降順**（ID: `CICAgJim14AK`、2 タスク共通）を作成。既存の `threadId` + `createdAt` インデックスは Flutter アプリが使用中のため削除しないこと。
 > ⚠ `backend-repo/firestore.rules` / `firestore.indexes.json` は本番と不一致（期限切れルール）のため、**`firebase deploy --only firestore` は絶対に実行しない**こと。本番ルールは Console 側が正。
 
-- [ ] **CHAT-1. 投稿一覧の差分取得・ページング（全件取得＋15秒ごとの全件ポーリングを廃止）**
+- [x] **CHAT-1. 投稿一覧の差分取得・ページング（全件取得＋15秒ごとの全件ポーリングを廃止）**
   - **対象ファイル**: `lib/firestore.ts`, `app/api/chat/posts/route.ts`, `components/ChatBoard.tsx`, `lib/chat.ts`
   - **背景**:
     - 現状の `listPosts` は `orderBy` なしで `limit: 1000` を取得し、取得後に並べ替えている。1000 件を超えたスレッドでは**どの 1000 件が返るか不定で、最新レスが欠落**する。
@@ -288,45 +288,4 @@
       - 時間帯グループが 3 つ未満のときは意味が薄いためナビ自体を表示しない。
     - `components/StreamTabs.tsx`:
       - 「今日の配信」「明日の配信」の描画時のみ `HourJumpNav` を挿入し、各時間帯見出しに `id` を付与する。他のタブ（過去アーカイブ・配信中・明日以降）の見た目・挙動は変えない。
-      - 「今日の配信」では、現在の JST の時の見出しに `いま` バッジを付け、現在時刻より前の時間帯の見出しは文字色を薄くして「過去の時間帯」と分かるようにする。ただしカード本体は薄くせず、タップ操作は従来通り可能にする。バッジ・薄表示の判定は 1 分ごとに再計算する（`setInterval` はアンマウント時に必ず破棄する）。
-      - タブ表示時に自動でスクロールしない（意図しないスクロールジャンプを避けるため）。ジャンプはあくまでユーザー操作（`いま` チップなど）のみ。
-      - P1-9（ライブ・ポーリング）が導入済みの場合、更新でリストが差し替わってもスクロール位置・アクティブチップが維持され、ナビのチップと件数のみが差分更新されること（`videoID` キーを維持し、ちらつき・レイアウトシフトを起こさない）。未導入でも単体で動作すること。
-      - 選択事務所フィルター適用後のデータでグルーピング・件数表示を行う（フィルターで 0 件になった時間帯のチップは消える）。
-    - 範囲外: 週間タイムテーブル（グリッド表示）、配信カード自体の改修（P2-3）、通知、推し（P1-8）による強調、URL ハッシュ同期、広告。
-    - 追加パッケージは不要（lucide-react は導入済み前提。未導入なら P0-1 を先に完了させる）。`FRONTEND_SPEC.md` の「配信タブ」節（5.2）に、`lib/streamTimeline.ts` の各関数、`HourJumpNav` の UI ルール（表示条件・sticky・ハイライト・`いま` チップ・アクセシビリティ）、見出しの `いま` バッジ／過去時間帯の薄表示ルール、JST 基準の時間帯判定を追記する。
-  - **完了条件**:
-    - `npx tsc --noEmit` がエラーなし。
-    - `npm run build` が成功し、hydration エラー／警告がコンソールに出ない。
-    - 「今日の配信」でチップ列が表示され、`21時 (12)` のように件数が付く。チップ押下でその時間帯の見出しへスクロールし、見出しがヘッダー／ナビに隠れない。
-    - `いま` チップで現在（またはそれ以降で最も近い）時間帯へジャンプできる。「明日の配信」には `いま` チップが無い。該当グループが無ければ `いま` チップは出ない。
-    - 手動でスクロールすると、表示中の時間帯のチップがハイライトされ、チップ列が追従する。
-    - ブラウザのタイムゾーンを UTC など別の値に変更しても、時間帯の振り分けが JST のままである。
-    - 現在時刻より前の時間帯の見出しが薄く表示され、現在の時間帯に `いま` バッジが出る。時間経過で更新される。タブ切替・ページ遷移後に `setInterval` / `IntersectionObserver` が破棄され、コンソールにエラー／警告が出ない。
-    - 時間帯グループが 3 つ未満の場合はナビが表示されず、配信が 0 件の場合は従来の空表示（`配信予定の動画はありません`）のままである。
-    - 他タブ（過去アーカイブ・配信中・明日以降）の見た目・挙動が変わっていない。`prefers-reduced-motion` 時にスムーズスクロールしない。
-    - 375px / 1280px の両方で見た目が崩れず、ページ全体の横スクロールが発生しない（チップ列のみ内部スクロール可）。ダークモードでも崩れない。
-    - `FRONTEND_SPEC.md` が更新されている。
-- [ ] **P1-12. VTuber 詳細ページの SEO 強化（動的メタデータ・構造化データ・パンくず・sitemap／robots）**
-  - **対象ファイル**:
-    `lib/seo.ts`（新規）
-    `components/JsonLd.tsx`（新規）
-    `components/Breadcrumbs.tsx`（新規）
-    `app/vtuber/[channelId]/page.tsx`
-    `app/sitemap.ts`（既存があれば拡張、無ければ新規）
-    `app/robots.ts`（新規。既存の `public/robots.txt` がある場合は `robots.ts` に一本化して重複を避ける）
-    `FRONTEND_SPEC.md`
-  - **仕様**:
-    - **背景**: 競合 data.vmato.jp のような統計サイトは「◯◯ 登録者数」「◯◯ 推移」といった VTuber 名での検索流入が主な集客源である。Vちゃんねるには VTuber 詳細ページ（`/vtuber/[channelId]`）があるが、全ページ共通のタイトル／description のままで、構造化データも sitemap への掲載もないため、VTuber 名で検索しても上位に出にくく、検索経由の新規ユーザーを取りこぼしている。詳細ページを検索エンジンに正しく伝え、検索結果・SNS 共有時のカード表示を改善し、新規流入を増やす。サーバーコストは増やさず、取得済みの `officedataList.json` のみで完結させる（新規 API・RTDB 読み取りは作らない）。
-    - `lib/seo.ts`（副作用のない純関数のみ。`any` 禁止、型は `types/index.ts` の既存 VTuber 型を再利用）:
-      - `getSiteUrl(): string` — 環境変数 `NEXT_PUBLIC_SITE_URL` を優先し、未設定時は本番 URL の固定値にフォールバックする。末尾スラッシュは除去する。
-      - `buildVTuberTitle(v): string` — 例: `{name}の登録者数推移・配信予定 | Vちゃんねる`。
-      - `buildVTuberDescription(v): string` — 名前・事務所・登録者数（`lib/format.ts` の短縮表記を再利用）・動画本数を含む日本語の説明文。120 字以内に収め、欠損値（`0` / 空 / `NaN`）の項目は文から省く。数値は必ず `toNumber` で変換する。
-      - `buildVTuberJsonLd(v, siteUrl): object 相当の型付きオブジェクト` — schema.org `Person`（`name`, `url`, `image`, `affiliation`（事務所が空なら省略）, `sameAs`（YouTube チャンネル URL、`twitterID` / `twitterName` があれば X(Twitter) URL））。`image` / `sameAs` は `safeHttpUrl` を通し、不正な URL は除外する。戻り値の型は明示的に定義し、`any` は使わない。
-      - `buildBreadcrumbJsonLd(items: { name: string; path: string }[], siteUrl): 型付きオブジェクト` — schema.org `BreadcrumbList`。
-      - `serializeJsonLd(data): string` — `JSON.stringify` 後に `<` を `\u003c` へエスケープし、`<script>` 内での XSS／タグ破りを防ぐ。
-    - `components/JsonLd.tsx`: `serializeJsonLd` の結果を `<script type="application/ld+json">` として出力する Server Component。
-    - `components/Breadcrumbs.tsx`: `ホーム › VTuber › {name}` 形式のパンくず（`<nav aria-label="パンくずリスト">`、現在地は `aria-current="page"`）。見た目は控えめにし、既存レイアウトを崩さない。同じ内容を `BreadcrumbList` として JSON-LD にも出力する。
-    - `app/vtuber/[channelId]/page.tsx`:
-      - `generateMetadata` で title / description / `alternates.canonical`（`/vtuber/{channelId}`）/ `openGraph`（`type: "profile"`, 画像は `channelThumbnail`。不正 URL ならサイト既定画像）/ `twitter` カード（`summary`）を返す。該当 VTuber が存在しない場合は `robots: { index: false }` とし、既存の 404 挙動は維持する。
-      - `channelId` はキー揺れ（`channeID` / `channelId` / `youtubeChId`）を既存ヘルパーで吸収して照合する。
-    - `app/sitemap.ts`: トップ・ランキング・ニュースなどの
+      - 「今日の配信」では、現在の JST の時の見出しに `いま` バッジを付け、現在時刻より前の時間帯の見出しは文字色を薄くして「過去の時間帯」と分かるようにする。ただしカード本体は薄くせず、タップ操作は従来通り可能にする。バッジ・薄表示の判定は 1 分ごとに再計算する（`setInterval` はアンマウント時に必ず破棄
