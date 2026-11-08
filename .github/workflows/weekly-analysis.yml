@@ -141,22 +141,32 @@ jobs:
         if: steps.git-check.outputs.changed == 'true'
         id: pr-body
         run: |
-          if [ ! -f "task_summary.txt" ]; then
-            echo "### 🚀 本日の自動実装成果" > task_summary.txt
-            echo "- 自動開発パイプラインによるコード実装およびビルド検証完了" >> task_summary.txt
-          fi
-          
-          CHANGED_FILES=$(git diff --name-only origin/main...HEAD || git diff --name-only HEAD~1 HEAD)
-          
-          # それぞれ異なるデリミタを使用して干渉を完全に防止
-          {
-            echo "summary_content<<EOF_SUMMARY"
-            cat task_summary.txt
-            echo "EOF_SUMMARY"
-            echo "changed_files<<EOF_FILES"
-            echo "$CHANGED_FILES"
-            echo "EOF_FILES"
-          } >> $GITHUB_OUTPUT
+          node -e '
+            const fs = require("fs");
+            const cp = require("child_process");
+
+            let summary = "";
+            if (fs.existsSync("task_summary.txt")) {
+              summary = fs.readFileSync("task_summary.txt", "utf8");
+            } else {
+              summary = "### 🚀 本日の自動実装成果\n- 自動開発パイプラインによるコード実装およびビルド検証完了";
+            }
+
+            let changedFiles = "";
+            try {
+              changedFiles = cp.execSync("git diff --name-only origin/main...HEAD || git diff --name-only HEAD~1 HEAD", { encoding: "utf8" });
+            } catch (e) {
+              changedFiles = "";
+            }
+
+            const outPath = process.env.GITHUB_OUTPUT;
+            if (outPath) {
+              const delim = "ghdelim_" + Math.random().toString(36).substring(2);
+              let outputContent = `summary_content<<${delim}\n${summary}\n${delim}\n`;
+              outputContent += `changed_files<<${delim}\n${changedFiles}\n${delim}\n`;
+              fs.writeFileSync(outPath, outputContent, { flag: "a", encoding: "utf8" });
+            }
+          '
 
       - name: Create Pull Request for Daily Task
         if: steps.git-check.outputs.changed == 'true'
