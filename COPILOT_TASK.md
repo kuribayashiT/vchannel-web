@@ -1,6 +1,6 @@
 # COPILOT_TASK: ランキングへの「登録者 急上昇」タブ追加および UI 改善バックログ
 
-> 最終更新: 2026-11-10 / 担当: プロダクトデザイナー → 実装: GitHub Copilot
+> 最終更新: 2026-11-11 / 担当: プロダクトデザイナー → 実装: GitHub Copilot
 
 ---
 
@@ -20,7 +20,7 @@
   - 対象ファイル: `components/AppShell.tsx`, `components/BottomNav.tsx`, `package.json`
 - [x] **P0-2. 数値の短縮表記ユーティリティ**
   - 対象ファイル: 新規 `lib/format.ts`、`components/RankingTabs.tsx`, `components/GrowthTop3.tsx`, `components/VTuberTabs.tsx`, `components/VideoCard.tsx`
-- [ ] **P0-3. 画像のフォールバック（壊れ画像アイコンを根絶）**
+- [x] **P0-3. 画像のフォールバック（壊れ画像アイコンを根絶）**
   - 対象ファイル: 新規 `components/SafeImage.tsx`、`app/news/page.tsx`, `components/VideoCard.tsx`, `components/RankingTabs.tsx`, `components/GrowthTop3.tsx`, `components/VTuberTabs.tsx`
 - [ ] **P0-4. スケルトンローディング**
   - 対象ファイル: 新規 `components/Skeleton.tsx`、新規 `app/loading.tsx`, `app/ranking/loading.tsx`, `app/news/loading.tsx`, `components/StreamTabs.tsx`, `components/VTuberTabs.tsx`, `app/vtuber/[channelId]/page.tsx`
@@ -244,37 +244,25 @@
     - 他タブ（過去アーカイブ・配信中・明日以降）の見た目・挙動が変わっていない。`prefers-reduced-motion` 時にスムーズスクロールしない。
     - 375px / 1280px の両方で見た目が崩れず、ページ全体の横スクロールが発生しない（チップ列のみ内部スクロール可）。ダークモードでも崩れない。
     - `FRONTEND_SPEC.md` が更新されている。
-
-### P2: 差別化（競合に無い体験）
-- [ ] **P2-1. 順位変動（前週比 ▲3 / ▼2 / NEW）**
-  - 対象ファイル: `lib/ranking.ts`, `types/index.ts`, `components/RankingTabs.tsx`
-- [ ] **P2-2. ランキングの OGP 画像（SNS シェア用）**
-  - 対象ファイル: 新規 `app/ranking/opengraph-image.tsx`, `app/vtuber/[channelId]/opengraph-image.tsx`
-- [ ] **P2-3. 配信カードの強化（データと配信を繋ぐ）**
-  - 対象ファイル: `components/VideoCard.tsx`, `components/StreamTabs.tsx`
-- [ ] **P2-4. テーマ切替とデザイントークン整理**
-  - 対象ファイル: `app/globals.css`, `app/layout.tsx`, `components/SettingsList.tsx`
-- [ ] **P2-5. 誕生日・記念日カレンダー（要バックエンド確認）**
-  - 対象ファイル: `app/events/page.tsx`, `components/EventCalendar.tsx`, `backend-repo/functions/`
-
----
-
-## 📌 Copilot への共通実装指示プロンプトテンプレート
-
-text
-あなたは Next.js (App Router) + TypeScript + Tailwind CSS v4 のフロントエンドエンジニアです。
-リポジトリ直下の COPILOT_TASK.md の「UI改善バックログ」から、タスク【P0-1】を実装してください。
-必ず「共通デザインルール」と該当タスクの「仕様」「完了条件」を読んでから着手すること。
-
-## 制約
-- 追加してよい npm パッケージは lucide-react のみ。グラフは自前SVG。
-- any は使わない。既存の型・ヘルパー（toNumber, toArray, GcsFetchError, useSelectedChannels, smallAvatar, safeHttpUrl）を再利用する。
-- Server Component で済むものはクライアント化しない。localStorage 依存の処理はクライアント側のみで行う。
-- スマホ幅（375px）で横スクロールが発生しないこと。ダークモードでも崩れないこと。
-- タスクの範囲外のファイルの見た目・挙動を変えない。
-
-## 完了条件（必ず自分で実行して確認）
-- npx tsc --noEmit がエラーなし
-- npm run build が成功
-- npm run dev で該当ページを 375px / 1280px の両方で目視確認し、タスクの「完了条件」を満たす
-- 完了したら COPILOT_TASK.md の該当タスク見出しに ✅ を付ける
+- [ ] **P1-12. VTuber 詳細ページの SEO 強化（動的メタデータ・構造化データ・パンくず・sitemap／robots）**
+  - **対象ファイル**:
+    `lib/seo.ts`（新規）
+    `components/JsonLd.tsx`（新規）
+    `components/Breadcrumbs.tsx`（新規）
+    `app/vtuber/[channelId]/page.tsx`
+    `app/sitemap.ts`（既存があれば拡張、無ければ新規）
+    `app/robots.ts`（新規。既存の `public/robots.txt` がある場合は `robots.ts` に一本化して重複を避ける）
+    `FRONTEND_SPEC.md`
+  - **仕様**:
+    - **背景**: 競合 data.vmato.jp のような統計サイトは「◯◯ 登録者数」「◯◯ 推移」といった VTuber 名での検索流入が主な集客源である。Vちゃんねるには VTuber 詳細ページ（`/vtuber/[channelId]`）があるが、全ページ共通のタイトル／description のままで、構造化データも sitemap への掲載もないため、VTuber 名で検索しても上位に出にくく、検索経由の新規ユーザーを取りこぼしている。詳細ページを検索エンジンに正しく伝え、検索結果・SNS 共有時のカード表示を改善し、新規流入を増やす。サーバーコストは増やさず、取得済みの `officedataList.json` のみで完結させる（新規 API・RTDB 読み取りは作らない）。
+    - `lib/seo.ts`（副作用のない純関数のみ。`any` 禁止、型は `types/index.ts` の既存 VTuber 型を再利用）:
+      - `getSiteUrl(): string` — 環境変数 `NEXT_PUBLIC_SITE_URL` を優先し、未設定時は本番 URL の固定値にフォールバックする。末尾スラッシュは除去する。
+      - `buildVTuberTitle(v): string` — 例: `{name}の登録者数推移・配信予定 | Vちゃんねる`。
+      - `buildVTuberDescription(v): string` — 名前・事務所・登録者数（`lib/format.ts` の短縮表記を再利用）・動画本数を含む日本語の説明文。120 字以内に収め、欠損値（`0` / 空 / `NaN`）の項目は文から省く。数値は必ず `toNumber` で変換する。
+      - `buildVTuberJsonLd(v, siteUrl): object 相当の型付きオブジェクト` — schema.org `Person`（`name`, `url`, `image`, `affiliation`（事務所が空なら省略）, `sameAs`（YouTube チャンネル URL、`twitterID` / `twitterName` があれば X(Twitter) URL））。`image` / `sameAs` は `safeHttpUrl` を通し、不正な URL は除外する。戻り値の型は明示的に定義し、`any` は使わない。
+      - `buildBreadcrumbJsonLd(items: { name: string; path: string }[], siteUrl): 型付きオブジェクト` — schema.org `BreadcrumbList`。
+      - `serializeJsonLd(data): string` — `JSON.stringify` 後に `<` を `\u003c` へエスケープし、`</script>` インジェクションを防ぐ。
+    - `components/JsonLd.tsx`（Server Component）: `<script type="application/ld+json">` を出力する。中身は必ず `serializeJsonLd` 経由とする。
+    - `components/Breadcrumbs.tsx`（Server Component）:
+      - `ホーム > VTuber > {name}` を `<nav aria-label="パンくずリスト">` ＋ `<ol>` で表示する。最後の要素は `aria-current="page"` でリンクにしない。
+      -
