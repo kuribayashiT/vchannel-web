@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SafeImage } from "@/components/SafeImage";
 import { GcsFetchError, getNews } from "@/lib/gcs";
 import { safeHttpUrl } from "@/lib/url";
 import type { News } from "@/types";
@@ -8,18 +9,20 @@ export const metadata = { title: "ニュース" };
 function NewsCard({ n }: { n: News }) {
   const url = safeHttpUrl(n.url);
   const videoUrl = n.videoUrl ? safeHttpUrl(n.videoUrl) : null;
+  const imageSrc =
+    n.urlToImage && safeHttpUrl(n.urlToImage)
+      ? `/api/news-image?u=${encodeURIComponent(n.urlToImage)}`
+      : null;
   const body = (
     <div className="flex gap-3">
-      {n.urlToImage && safeHttpUrl(n.urlToImage) && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={`/api/news-image?u=${encodeURIComponent(n.urlToImage)}`}
-          alt=""
-          loading="lazy"
-          referrerPolicy="no-referrer"
-          className="h-20 w-32 shrink-0 rounded object-cover"
-        />
-      )}
+      <SafeImage
+        src={imageSrc}
+        alt=""
+        variant="thumbnail"
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        className="h-20 w-32 shrink-0 rounded object-cover"
+      />
       <div className="min-w-0 flex-1 space-y-1">
         <p className="text-xs text-blue-600">{n.channel || "ブログ記事"}</p>
         <p className="line-clamp-2 text-sm font-medium">{n.title}</p>
