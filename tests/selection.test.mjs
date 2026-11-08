@@ -45,6 +45,12 @@ test("first visit renders content without an onboarding dialog", () => {
   assert.doesNotMatch(html, /role="dialog"|ようこそ！|事務所を変更/);
 });
 
+test("shared shell does not render the metrics footer", () => {
+  const html = renderShell(false, []);
+  assert.doesNotMatch(html, /<footer|指標について|フッターナビゲーション/);
+  assert.match(html, /本文/);
+});
+
 test("filter menu keeps the existing selection and has no separate edit button", () => {
   const html = renderShell(true, ["a"]);
   assert.match(html, /data-testid="selector">事務所A:a/);

@@ -88,8 +88,7 @@
   - 対象ファイル: 新規 `components/Skeleton.tsx`、新規 `app/loading.tsx`, `app/ranking/loading.tsx`, `app/news/loading.tsx`, `components/StreamTabs.tsx`, `components/VTuberTabs.tsx`, `app/vtuber/[channelId]/page.tsx`
 - [x] **P0-5. セクション見出しコンポーネント**
   - 対象ファイル: 新規 `components/SectionHeader.tsx`、各 `app/*/page.tsx`
-- [ ] **P0-6. フッター（指標の定義・注意書き）**
-  - 対象ファイル: 新規 `components/SiteFooter.tsx`、`components/AppShell.tsx`
+- **P0-6. フッター（指標の定義・注意書き）**: 共通表示は不要のため中止。
 
 ### P1: 競合と同等の機能を揃える
 - [ ] **P1-1. トップページにヒーロー＋「いま注目のVTuber」カード**

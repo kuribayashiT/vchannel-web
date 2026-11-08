@@ -49,79 +49,6 @@ function SideMenu({
   );
 }
 
-const FOOTER_METRICS: { term: string; desc: string }[] = [
-  {
-    term: "登録者数・増加数",
-    desc: "YouTube が公開する登録者数（概数）をもとにしています。増加数・増加率は日次の記録の差分から算出する目安です。",
-  },
-  {
-    term: "同時視聴者数",
-    desc: "配信中の動画について、データ取得時点の同時視聴者数を表示します。数分おきに更新されるため、実際の人数とは差が出ることがあります。",
-  },
-  {
-    term: "週間同時視聴者数ランキング",
-    desc: "直近 7 日間に配信された動画の同時視聴者数をもとに集計しています。",
-  },
-  {
-    term: "データの更新頻度",
-    desc: "配信情報は約 5 分、ランキング・ニュースなどは 1 時間程度を目安に更新します。",
-  },
-];
-
-const FOOTER_LINKS: { href: string; label: string }[] = [
-  { href: "/ranking", label: "ランキング" },
-  { href: "/news", label: "ニュース" },
-  { href: "/events", label: "イベントカレンダー" },
-  { href: "/settings", label: "設定・アプリ情報" },
-];
-
-/** 指標の定義・データ出典・注意書きを表示するフッター */
-function SiteFooter() {
-  return (
-    <footer className="mt-8 border-t border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/50">
-      <div className="mx-auto w-full max-w-6xl space-y-5 px-4 py-6 text-xs leading-relaxed text-zinc-500 md:px-6 dark:text-zinc-400">
-        <section aria-labelledby="footer-metrics">
-          <h2
-            id="footer-metrics"
-            className="mb-2 text-sm font-bold text-zinc-700 dark:text-zinc-200"
-          >
-            指標について
-          </h2>
-          <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
-            {FOOTER_METRICS.map((m) => (
-              <div key={m.term}>
-                <dt className="font-medium text-zinc-700 dark:text-zinc-300">
-                  {m.term}
-                </dt>
-                <dd>{m.desc}</dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-        <p>
-          当サイトは YouTube などの公開情報をもとにした非公式のファンサイトです。
-          掲載データの正確性・完全性は保証できません。各 VTuber・事務所・配信プラットフォームとは関係ありません。
-        </p>
-        <nav aria-label="フッターナビゲーション">
-          <ul className="flex flex-wrap gap-x-4 gap-y-2">
-            {FOOTER_LINKS.map((l) => (
-              <li key={l.href}>
-                <Link
-                  href={l.href}
-                  className="text-blue-600 underline-offset-2 hover:underline dark:text-blue-400"
-                >
-                  {l.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
-        <p className="text-[11px]">© Vちゃんねる</p>
-      </div>
-    </footer>
-  );
-}
-
 export function AppShell({
   offices,
   children,
@@ -181,7 +108,6 @@ export function AppShell({
       </header>
       <div className="flex min-h-0 flex-1 flex-col pb-16 md:pb-0">
         {children}
-        <SiteFooter />
       </div>
       <YouTubePlayer />
       <Suspense fallback={null}>
