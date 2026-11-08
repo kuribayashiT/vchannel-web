@@ -154,10 +154,14 @@ jobs:
 
             let changedFiles = "";
             try {
-              // 直近のコミット(HEAD)に含まれる変更ファイル一覧を確実に取得
-              changedFiles = cp.execSync("git show --name-only --pretty=\"\" HEAD", { encoding: "utf8" }).trim();
+              // main ブランチとの差分、または直近コミットの実ファイル名のみを正確に取得し、不要な空白や task_summary.txt を除外することも可能
+              changedFiles = cp.execSync("git diff --name-only origin/main HEAD || git diff --name-only HEAD~1 HEAD", { encoding: "utf8" }).trim();
             } catch (e) {
-              changedFiles = "";
+              try {
+                changedFiles = cp.execSync("git show --name-only --pretty='' HEAD", { encoding: "utf8" }).trim();
+              } catch (err) {
+                changedFiles = "";
+              }
             }
 
             const outPath = process.env.GITHUB_OUTPUT;
