@@ -143,7 +143,6 @@ jobs:
         run: |
           node -e '
             const fs = require("fs");
-            const cp = require("child_process");
 
             let summary = "";
             if (fs.existsSync("task_summary.txt")) {
@@ -152,19 +151,10 @@ jobs:
               summary = "### 🚀 本日の自動実装成果\n- 自動開発パイプラインによるコード実装およびビルド検証完了";
             }
 
-            let changedFiles = "";
-            try {
-              // 直近のコミット（HEAD）に含まれるファイル一覧を直接取得する
-              changedFiles = cp.execSync("git diff-tree --no-commit-id --name-only -r HEAD", { encoding: "utf8" }).trim();
-            } catch (e) {
-              changedFiles = "";
-            }
-
             const outPath = process.env.GITHUB_OUTPUT;
             if (outPath) {
               const delim = "ghdelim_" + Math.random().toString(36).substring(2);
               let outputContent = `summary_content<<${delim}\n${summary}\n${delim}\n`;
-              outputContent += `changed_files<<${delim}\n${changedFiles}\n${delim}\n`;
               fs.writeFileSync(outPath, outputContent, { flag: "a", encoding: "utf8" });
             }
           '
@@ -182,11 +172,6 @@ jobs:
             毎日の定期実行により、AIが `AGENTS.md` および `FRONTEND_SPEC.md` の仕様に沿って1案件を実装し、ビルド検証を通過させました。
             
             ${{ steps.pr-body.outputs.summary_content }}
-            
-            ### 📂 変更されたファイル一覧
-            \`\`\`
-            ${{ steps.pr-body.outputs.changed_files }}
-            \`\`\`
             
             実装された機能のコード差分を確認し、問題なければマージしてください。
           delete-branch: true

@@ -50,7 +50,17 @@ Cloud Functions が定期更新する。アプリは 1 時間 TTL でキャッ�
 - `posts` コレクション：`threadId`, `content`, `author`, `postNo`, `parentNo`, `createdAt`（serverTimestamp）, （Bot 投稿の判別フィールドあり）
 - クエリ: `posts where threadId == X order by createdAt asc`（realtime snapshots）
 - 書き込み: `posts` に追加し、`threads/{id}` の `lastUpdated` / `postCount(+1)` を更新。`postNo` は既存件数+1、`>>N` アンカーの最小値を `parentNo` に格納。
-- ⚠ リポジトリ内 `firestore.rules` は 2022-03-07 で期限切れの全開放ルールのまま。**本番ルールを必ず確認**すること（Console 側で更新済みの可能性あり）。無認証・全開放の書き込みは荒らし・課金リスクあり。Next.js 版では Route Handler 経由で書き込み＋入力検証／レート制限を推奨。
+- **本番ルール（2026-11-08 Console で確認）**: `threads` / `posts` は read 公開。
+  - `threads`: update は `lastUpdated == request.time` かつ `postCount` +1 のみ許可。create / delete は不可。
+  - `posts`: create のみ許可。主な条件は以下のとおり。update / delete は不可。
+    - フィールドは `threadId`, `content`, `author`, `postNo`, `parentNo`, `createdAt`, `isBot` に限定する。
+    - `content` は 1〜500 字、`author` は 20 字以内。
+    - `createdAt == request.time`。
+    - `isBot` は false または省略。
+  - その他のコレクションは全拒否。
+- ⚠ リポジトリ内 `backend-repo/firestore.rules` は 2022 年の期限切れルールのままで、本番と一致していない。**`firebase deploy --only firestore` を実行すると本番ルールが上書きされるため禁止**。本番ルールは Console 側が正。
+- ⚠ 既知の不整合: Flutter アプリは投稿後に thread の `lastUpdated` だけを更新しようとし、ルールで拒否されている（エラーは握りつぶし）。このため Flutter からの投稿分は `postCount` と `lastUpdated` に反映されず、**`postCount` は実際のレス数より小さい**。採番には `postCount` を使わないこと。
+- `postNo` はルール上 `>= 1` のみの検証で、一意性は保証されない（COPILOT_TASK CHAT-2 で Web 側を改善予定）。
 
 ### 2.3 Realtime Database
 - 読み取りは `officeMapping` のみ（Firestore の事務所名 → 表示名の変換表、約 600B）。`office` ノードは管理画面が REST で読む。

@@ -15,6 +15,68 @@
 
 上から順に着手すること（P0 → P1 → P2）。1タスク = 1PR を目安とし、実装完了時は `[ ]` を `[x]`（または ✅）に更新すること。
 
+### P0-CHAT: 掲示板の動作改善（最優先・下記 P0 より先に着手）
+
+> **前提（人手作業）**: ✅ 2026-11-08 作成済み。Firebase Console で複合インデックス `posts`: `threadId` 昇順 + `postNo` **降順**（ID: `CICAgJim14AK`、2 タスク共通）を作成。既存の `threadId` + `createdAt` インデックスは Flutter アプリが使用中のため削除しないこと。
+> ⚠ `backend-repo/firestore.rules` / `firestore.indexes.json` は本番と不一致（期限切れルール）のため、**`firebase deploy --only firestore` は絶対に実行しない**こと。本番ルールは Console 側が正。
+
+- [ ] **CHAT-1. 投稿一覧の差分取得・ページング（全件取得＋15秒ごとの全件ポーリングを廃止）**
+  - **対象ファイル**: `lib/firestore.ts`, `app/api/chat/posts/route.ts`, `components/ChatBoard.tsx`, `lib/chat.ts`
+  - **背景**:
+    - 現状の `listPosts` は `orderBy` なしで `limit: 1000` を取得し、取得後に並べ替えている。1000 件を超えたスレッドでは**どの 1000 件が返るか不定で、最新レスが欠落**する。
+    - `ThreadView` は 15 秒ごとにスレッドの全件を再取得している。閲覧者 1 人あたり「レス数 × 4 回/分」の Firestore 読み取りが発生し、課金面でも非効率。
+  - **仕様**:
+    - `lib/firestore.ts`
+      - `listPosts(threadId, opts: { before?: number; after?: number; limit?: number })` に変更する。
+      - クエリは `where threadId == X` + `orderBy postNo DESC` + `limit`（既定 50、最大 100）。
+        - `before` 指定時は `postNo < before` を追加する。
+        - `after` 指定時は `postNo > after` を追加する。
+      - 戻り値は**昇順に反転**して返す（UI 側は従来どおり古い順に表示）。
+      - 昇順のインデックスは作らない。前提の降順インデックス 1 本で両方向を賄う。
+    - `app/api/chat/posts/route.ts` の GET
+      - クエリ `before` / `after` / `limit` を受け付ける。
+      - いずれも正の整数のみ許可し、不正値は 400 を返す。
+      - `before` と `after` の同時指定も 400 を返す。
+      - レスポンスは `{ posts: ChatPost[]; hasMore: boolean }` とする。`hasMore` は `before` 方向にまだ古いレスがあるか（取得件数 == limit で判定）。
+    - `components/ChatBoard.tsx`（`ThreadView`）
+      - 初回は最新 50 件を取得する。
+      - リストの先頭に「以前のレスを読み込む」ボタンを置く（`hasMore` が true の間だけ表示）。押したら `before = 表示中の最小 postNo` で取得し、先頭に追加する。
+      - ポーリングは `after = 表示中の最大 postNo` で**新着分だけ**を取得し、末尾に追加する。`id` で重複を除外する。
+      - タブが非表示（`document.visibilityState === "hidden"`）の間はポーリングを止める。復帰時に即座に 1 回取得する。
+      - 投稿成功時（`onPosted`）も新着の差分取得を呼ぶ。
+      - スレッド切り替え時は state を初期化する。
+    - `any` は使わない。新規の追加パッケージは不要。
+  - **完了条件**:
+    - `npx tsc --noEmit` / `npm run build` がエラーなし。
+    - 50 件超のスレッドで最新 50 件が表示され、「以前のレスを読み込む」で過去分を遡れる。
+    - 新規投稿・他者の投稿が 15 秒以内に末尾へ追加され、重複表示されない。
+    - `?after=abc` や `?before=1&after=2` は 400 を返す。
+    - `FRONTEND_SPEC.md` の 2.2 / 5.6 節に、API パラメータとポーリング方針を追記する。
+
+- [ ] **CHAT-2. Web 投稿の postNo 採番を「件数+1」から「最大 postNo+1（楽観ロック付き）」に変更**
+  - **対象ファイル**: `lib/firestore.ts`, `app/api/chat/posts/route.ts`
+  - **背景**:
+    - 現状は `countPosts()+1` で採番している。同時投稿で**同じレス番号が重複**し、`>>N` アンカーが壊れる。
+    - スレッドの `postCount` は採番に使えない。Flutter アプリが `postCount` を増やしておらず（ルールで thread 更新が拒否されている）、実際のレス数より小さくなっているため。
+  - **仕様**:
+    - `addPost` を次の手順に変更する。
+      1. `threads/{threadId}` を GET し、`updateTime` を控える。
+      2. `posts where threadId == X orderBy postNo DESC limit 1` で最大 postNo を取得し、`postNo = max + 1`（0 件なら 1）とする（CHAT-1 と同じインデックスを使う）。
+      3. 既存どおり `:commit` で「post の作成」と「thread の `lastUpdated` / `postCount` +1」を書き込む。その際、thread 側の write の `currentDocument` を `{ updateTime: 手順1の値 }` に変更する。
+    - 手順 3 の結果ごとの扱い:
+      - **`FAILED_PRECONDITION`（HTTP 400）**: 他の投稿が先にコミットされたと判断する。手順 1 からやり直し、最大 3 回までリトライする。
+      - **3 回とも失敗した場合**: 409 を返す。UI には「混み合っています。もう一度お試しください」と表示する。
+      - **それ以外のエラー**: 従来どおり 502 を返す。
+      - 上記を判別するため、`call()` はステータスコードを持つ Error を投げるようにする。
+    - Firestore ルール（Console 側で確認済み）とは両立する。thread は `lastUpdated` = REQUEST_TIME と `postCount` +1 のみの更新、post は既存フィールドのみで、新しいフィールドは追加しない。
+    - `countPosts()` は不要になるので削除する。
+    - **残存リスク（仕様として許容）**: Flutter アプリからの投稿は thread を更新しないため、楽観ロックでは検知できない。Web と Flutter が同時に投稿した場合の重複は残る。根本対策は Flutter 側の修正と、posts ルールへの `postNo == getAfter(thread).postCount` の追加で、別タスクとする。
+  - **完了条件**:
+    - `npx tsc --noEmit` / `npm run build` がエラーなし。
+    - Web から投稿すると、スレッド内の最大 postNo + 1 で採番される。
+    - 2 つのタブからほぼ同時に投稿しても、Web 同士では postNo が重複しない。
+    - `FRONTEND_SPEC.md` 2.2 節の「書き込み」の記述を更新する。
+
 ### P0: 見た目の底上げ（低コスト・効果大）
 - [x] **P0-1. 絵文字アイコンを SVG アイコンに置き換え、BottomNav にアイコンを付ける**
   - 対象ファイル: `components/AppShell.tsx`, `components/BottomNav.tsx`, `package.json`
