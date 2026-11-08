@@ -1,6 +1,7 @@
 "use client";
 
 import { Star } from "lucide-react";
+import { SafeImage } from "@/components/SafeImage";
 import { useFavorites } from "@/hooks/useFavorites";
 import { playVideo } from "@/hooks/usePlayer";
 import { formatCompact } from "@/lib/format";
@@ -38,16 +39,14 @@ export function VideoCard({ v, live = false }: { v: Video; live?: boolean }) {
         }}
         className="block"
       >
-        {v.thumbnail && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={v.thumbnail}
-            alt=""
-            loading="lazy"
-            referrerPolicy="no-referrer"
-            className="aspect-video w-full object-cover"
-          />
-        )}
+        <SafeImage
+          src={v.thumbnail}
+          alt=""
+          variant="thumbnail"
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          className="aspect-video w-full object-cover"
+        />
         <div className="space-y-1 p-3">
           {live && (
             <span
