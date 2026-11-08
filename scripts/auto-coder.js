@@ -45,7 +45,8 @@ async function main() {
     "## 📂 既存のソースコード（参考コンテキスト）\n" + sourceCodeContext + "\n\n" +
     "## 🛑 絶対守るべきルール（禁止事項・制限）\n" +
     "1. AGENTS.md, FRONTEND_SPEC.md, COPILOT_TASK.md などのマークダウン（.md）ファイルは、**絶対に新規作成・変更・出力してはなりません**。変更は app/ や components/ などのソースコード（.ts, .tsx）のみに限定してください。\n" +
-    "2. 外部仕様書やJSONのデータをそのまま出力に含めないでください。\n\n" +
+    "2. 一度の実行で変更・作成するファイルは**必ず1ファイルのみ**にしてください。複数ファイルを同時に出力しては絶対いけません。\n" +
+    "3. 外部仕様書やJSONのデータをそのまま出力に含めないでください。\n\n" +
     "## ⚠️ コーディングの絶対ルール（型エラー・ビルドエラー防止のため必須）\n" +
     "- Next.js の Server Component / API Route / Page を作成・修正する際は、**絶対にグローバル型（`RouteContext`, `PageProps`, `LayoutProps` 等）に頼らず、必ずファイル内で次のように型を明示的に定義**してください：\n" +
     "  - RouteContext: `type RouteContext = { params: Promise<{ channelId: string }> };`\n" +
@@ -54,8 +55,8 @@ async function main() {
     "- 存在しないモジュールや関数を勝手に捏造してインポートしないでください（`lucide-react` などの実在するアイコンのみ使用可）。\n" +
     "- 既存のコードを破壊せず、確実に `tsc --noEmit` および `npm run build` が通る完璧なコードを出力してください。\n\n" +
     "## 出力形式\n" +
-    "変更・新規作成するソースコードファイルごとに、以下のJSON配列の形式（コードブロックなしのプレーンなJSON）で出力してください。それ以外の解説文は一切不要です。\n\n" +
-    "[\n  {\n    \"filePath\": \"app/vtuber/[channelId]/page.tsx\",\n    \"content\": \"修正・新規作成後のファイルの中身全体...\"\n  }\n]";
+    "修正・新規作成するソースコード**1ファイルのみ**を、以下のJSONオブジェクトの形式（コードブロックなしのプレーンなJSON）で出力してください。配列ではなく単一のオブジェクトにしてください。それ以外の解説文は一切不要です。\n\n" +
+    "{\n  \"filePath\": \"app/vtuber/[channelId]/page.tsx\",\n  \"content\": \"修正・新規作成後のファイルの中身全体...\"\n}";
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -93,28 +94,26 @@ async function main() {
   }
 
   try {
-    const jsonMatch = textOutput.match(/\[[\s\S]*\]/);
+    const jsonMatch = textOutput.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      throw new Error('有効なJSON配列が見つかりませんでした');
+      throw new Error('有効なJSONオブジェクトが見つかりませんでした');
     }
-    const changes = JSON.parse(jsonMatch[0]);
+    const change = JSON.parse(jsonMatch[0]);
 
-    const updatedFiles = [];
-    for (const change of changes) {
-      if (change.filePath && change.content) {
-        const dir = path.dirname(change.filePath);
-        if (!fs.existsSync(dir)) {
-          fs.mkdirSync(dir, { recursive: true });
-        }
-        fs.writeFileSync(change.filePath, change.content, 'utf8');
-        console.log(`Successfully generated/updated: ${change.filePath}`);
-        updatedFiles.push(change.filePath);
+    if (change.filePath && change.content) {
+      const dir = path.dirname(change.filePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
       }
-    }
+      fs.writeFileSync(change.filePath, change.content, 'utf8');
+      console.log(`Successfully generated/updated: ${change.filePath}`);
 
-    // 💡 ワークフロー側のPR本文用サマリーファイルを出力
-    const summaryText = `### 🚀 本日の自動実装成果\n- **更新ファイル数**: ${updatedFiles.length} 件\n- **対象ファイル**:\n${updatedFiles.map(f => `  - \`${f}\``).join('\n')}`;
-    fs.writeFileSync('task_summary.txt', summaryText, 'utf8');
+      // ワークフロー側のPR本文用サマリーファイルを出力
+      const summaryText = `### 🚀 本日の自動実装成果\n- **更新ファイル**: \`${change.filePath}\``;
+      fs.writeFileSync('task_summary.txt', summaryText, 'utf8');
+    } else {
+      throw new Error('JSONの形式が正しくありません (filePath または content がありません)');
+    }
 
   } catch (e) {
     console.error('Failed to parse AI response or apply code changes:', e);
