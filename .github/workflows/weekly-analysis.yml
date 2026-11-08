@@ -91,7 +91,7 @@ jobs:
           attempt=1
           success=false
           
-          while [ $attempt -le$MAX_RETRIES ]; do
+          while [ "$attempt" -le "$MAX_RETRIES" ]; do
             echo "=== ビルド検証 試行回数: $attempt / $MAX_RETRIES ==="
             
             if npx tsc --noEmit && npm run build; then
