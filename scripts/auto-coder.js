@@ -56,7 +56,7 @@ async function main() {
     "- 既存のコードを破壊せず、確実に `tsc --noEmit` および `npm run build` が通る完璧なコードを出力してください。\n\n" +
     "## 出力形式\n" +
     "修正・新規作成するソースコード**1ファイルのみ**を、以下のJSONオブジェクトの形式（コードブロックなしのプレーンなJSON）で出力してください。配列ではなく単一のオブジェクトにしてください。それ以外の解説文は一切不要です。\n\n" +
-    "{\n  \"filePath\": \"app/vtuber/[channelId]/page.tsx\",\n  \"content\": \"修正・新規作成後のファイルの中身全体...\"\n}";
+    "{\n  \"filePath\": \"app/vtuber/[channelId]/page.tsx\",\n  \"summary\": \"〇〇だった実装を、✕✕に改善しました。\",\n  \"content\": \"修正・新規作成後のファイルの中身全体...\"\n}";
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -108,8 +108,9 @@ async function main() {
       fs.writeFileSync(change.filePath, change.content, 'utf8');
       console.log(`Successfully generated/updated: ${change.filePath}`);
 
-      // ワークフロー側のPR本文用サマリーファイルを出力
-      const summaryText = `### 🚀 本日の自動実装成果\n- **更新ファイル**: \`${change.filePath}\``;
+      // ワークフロー側のPR本文用サマリーファイルに出力（詳細な変更理由・概要を含める）
+      const summaryDescription = change.summary || "コンポーネントの仕様改善・リファクタリングを実施しました。";
+      const summaryText = `### 🚀 本日の自動実装成果\n- **対象ファイル**: \`${change.filePath}\`\n- **改善内容**: ${summaryDescription}`;
       fs.writeFileSync('task_summary.txt', summaryText, 'utf8');
     } else {
       throw new Error('JSONの形式が正しくありません (filePath または content がありません)');
