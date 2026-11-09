@@ -1,17 +1,23 @@
 "use client";
 
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSelectedChannels } from "@/hooks/useSelection";
 import {
   STREAM_TABS,
   groupByHour,
   groupByTab,
+  type StreamCardVideo,
   type StreamTab,
 } from "@/lib/stream";
 import { VideoCard } from "@/components/VideoCard";
-import type { Video } from "@/types";
 
-function Grid({ videos, live }: { videos: Video[]; live: boolean }) {
+function Grid({
+  videos,
+  live,
+}: {
+  videos: StreamCardVideo[];
+  live: boolean;
+}) {
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {videos.map((v) => (
@@ -21,41 +27,65 @@ function Grid({ videos, live }: { videos: Video[]; live: boolean }) {
   );
 }
 
-const noopSubscribe = () => () => {};
+type StreamData = {
+  liveVideos: StreamCardVideo[];
+  allVideos: StreamCardVideo[];
+};
 
-/** 現在時刻に依存するため、プリレンダー時は描画せずマウント後に表示する */
-export function StreamTabs({
-  liveVideos,
-  allVideos,
-}: {
-  liveVideos: Video[];
-  allVideos: Video[];
-}) {
-  const mounted = useSyncExternalStore(
-    noopSubscribe,
-    () => true,
-    () => false,
-  );
-  if (!mounted) {
+export function StreamTabs() {
+  const [data, setData] = useState<StreamData | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/streams")
+      .then((response) => {
+        if (!response.ok) throw new Error("Stream data request failed");
+        return response.json() as Promise<StreamData>;
+      })
+      .then((nextData) => {
+        if (active) setData(nextData);
+      })
+      .catch(() => {
+        if (active) setFailed(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  if (failed) {
+    return (
+      <p className="py-16 text-center text-zinc-500">
+        動画の読み込みに失敗しました。
+      </p>
+    );
+  }
+  if (!data) {
     return (
       <p className="py-16 text-center text-zinc-500">配信予定を読み込み中…</p>
     );
   }
-  return <StreamTabsInner liveVideos={liveVideos} allVideos={allVideos} />;
+  return (
+    <StreamTabsInner
+      liveVideos={data.liveVideos}
+      allVideos={data.allVideos}
+    />
+  );
 }
 
 function StreamTabsInner({
   liveVideos,
   allVideos,
 }: {
-  liveVideos: Video[];
-  allVideos: Video[];
+  liveVideos: StreamCardVideo[];
+  allVideos: StreamCardVideo[];
 }) {
   const [tab, setTab] = useState<StreamTab>("live");
   const { channelIds } = useSelectedChannels();
 
   const groups = useMemo(() => {
-    const filterBySelection = (list: Video[]) =>
+    const filterBySelection = (list: StreamCardVideo[]) =>
       channelIds.length === 0
         ? list
         : list.filter((v) => channelIds.includes(v.channelId));

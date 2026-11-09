@@ -1,13 +1,11 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { getGrowthData } from "@/lib/growth-data";
 import { RankingTabs } from "@/components/RankingTabs";
 import {
   GcsFetchError,
-  getVideoCountRanking,
   getWeeklyLiveViewRanking,
-  getYoutubeSubscriberRanking,
 } from "@/lib/gcs";
+import { toWeeklyRankingRows } from "@/lib/ranking";
 import {
   buildRankingQuery,
   parseRankingQuery,
@@ -35,17 +33,7 @@ export async function generateMetadata({
 }
 
 async function load() {
-  const [weekly, subscribers, videoCounts] = await Promise.all([
-    getWeeklyLiveViewRanking(),
-    getYoutubeSubscriberRanking(),
-    getVideoCountRanking(),
-  ]);
-  // 推移データだけ失敗しても既存タブは表示する
-  const growth = await getGrowthData().catch((e) => {
-    if (!(e instanceof GcsFetchError)) throw e;
-    return null;
-  });
-  return { weekly, subscribers, videoCounts, growth };
+  return toWeeklyRankingRows(await getWeeklyLiveViewRanking());
 }
 
 export default async function RankingPage() {
@@ -67,7 +55,7 @@ export default async function RankingPage() {
             <p className="py-16 text-center text-zinc-500">読み込み中…</p>
           }
         >
-          <RankingTabs {...data} />
+          <RankingTabs weekly={data} />
         </Suspense>
       ) : (
         <p className="py-16 text-center text-zinc-500">

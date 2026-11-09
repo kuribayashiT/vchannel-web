@@ -3,9 +3,9 @@ import { Radio, Sparkles, Trophy, Users } from "lucide-react";
 import { GrowthTop3 } from "@/components/GrowthTop3";
 import { SectionHeader } from "@/components/SectionHeader";
 import { StreamTabs } from "@/components/StreamTabs";
-import { GcsFetchError, getAllVideos, getLiveVideoList } from "@/lib/gcs";
+import { GcsFetchError } from "@/lib/gcs";
 import { getGrowthData } from "@/lib/growth-data";
-import type { SubscriberGrowthItem, Video } from "@/types";
+import type { SubscriberGrowthItem } from "@/types";
 
 const TOP_CANDIDATES = 30;
 
@@ -79,23 +79,7 @@ function Hero() {
 }
 
 export default async function Home() {
-  let liveVideos: Video[] = [];
-  let allVideos: Video[] = [];
-  let failed = false;
   const growthPromise = loadWeeklyGrowth();
-  try {
-    liveVideos = await getLiveVideoList();
-  } catch (e) {
-    if (!(e instanceof GcsFetchError)) throw e;
-    failed = true;
-  }
-  try {
-    allVideos = await getAllVideos();
-  } catch (e) {
-    if (!(e instanceof GcsFetchError)) throw e;
-    allVideos = [];
-  }
-
   const growth = await growthPromise;
 
   return (
@@ -109,13 +93,7 @@ export default async function Home() {
           title="配信"
           icon={Radio}
         />
-        {failed ? (
-          <p className="py-16 text-center text-zinc-500">
-            動画の読み込みに失敗しました。
-          </p>
-        ) : (
-          <StreamTabs liveVideos={liveVideos} allVideos={allVideos} />
-        )}
+        <StreamTabs />
       </section>
     </main>
   );

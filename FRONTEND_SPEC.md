@@ -221,3 +221,6 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 - `rankingTwitterData.json` の UI 利用有無。
 - GCS 公開 JSON の CORS 設定と実際の更新頻度。
 - 現ライブ判定の厳密条件（`livevideoList.json` 生成側 `scheduledLiveDataUpdate` を参照）。
+- トップページではサーバー側で `allvideos.json` を当日〜7日後と過去60件に絞り、カード表示に必要な項目だけをクライアントへ渡す。
+- 各タブ（登録者急上昇を含む）はサーバー側で表示項目だけの上位100件に絞る。追加の事務所別上位30件は含めないため、選択チャンネルの絞り込みはこの上位100件の範囲内となる。
+- 初期表示は週間同時視聴者数のみを読み込み、他のランキングデータはタブ選択時に `/api/ranking` から取得する。

@@ -5,7 +5,7 @@ import { SafeImage } from "@/components/SafeImage";
 import { useFavorites } from "@/hooks/useFavorites";
 import { playVideo } from "@/hooks/usePlayer";
 import { formatCompact } from "@/lib/format";
-import type { Video } from "@/types";
+import type { StreamCardVideo } from "@/lib/stream";
 
 const timeFmt = new Intl.DateTimeFormat("ja-JP", {
   timeZone: "Asia/Tokyo",
@@ -21,7 +21,13 @@ function formatTime(iso: string) {
 }
 
 /** サムネイル押下でページ下部のプレーヤーで再生。右上の★でお気に入りを切り替える */
-export function VideoCard({ v, live = false }: { v: Video; live?: boolean }) {
+export function VideoCard({
+  v,
+  live = false,
+}: {
+  v: StreamCardVideo;
+  live?: boolean;
+}) {
   const { ids, toggle } = useFavorites();
   const fav = ids.includes(v.videoId);
 
@@ -51,9 +57,9 @@ export function VideoCard({ v, live = false }: { v: Video; live?: boolean }) {
           {live && (
             <span
               className="inline-block animate-pulse rounded bg-red-600 px-2 py-0.5 text-xs font-bold text-white"
-              title={`${v.concurrentViewers.toLocaleString()}人が視聴中`}
+              title={`${(v.concurrentViewers ?? 0).toLocaleString()}人が視聴中`}
             >
-              <span aria-hidden className="mr-1 inline-block size-2 rounded-full bg-white" />配信中 {formatCompact(v.concurrentViewers)}人
+              <span aria-hidden className="mr-1 inline-block size-2 rounded-full bg-white" />              配信中 {formatCompact(v.concurrentViewers ?? 0)}人
             </span>
           )}
           <p className="line-clamp-2 text-sm font-medium">{v.title}</p>

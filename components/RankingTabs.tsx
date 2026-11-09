@@ -4,6 +4,7 @@ import { smallAvatar } from "@/lib/url";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
+  useEffect,
   useMemo,
   useState,
   useSyncExternalStore,
@@ -15,11 +16,8 @@ import { formatCompact, formatNumber } from "@/lib/format";
 import {
   RANKING_TABS,
   growthHeading,
-  growthRows,
-  subscriberRows,
-  videoCountRows,
   weeklyHeading,
-  weeklyRows,
+  type RankingOtherData,
   type RankingRow,
   type RankingTab,
 } from "@/lib/ranking";
@@ -29,21 +27,9 @@ import {
   type RankingQueryTab,
   type RankingViewState,
 } from "@/lib/rankingQuery";
-import type {
-  GrowthPeriod,
-  SubscriberGrowthData,
-  Video,
-  VideoCountRankingItem,
-  YoutubeSubscriberRankingItem,
-} from "@/types";
+import type { GrowthPeriod } from "@/types";
 
-interface Props {
-  weekly: Video[];
-  subscribers: YoutubeSubscriberRankingItem[];
-  videoCounts: VideoCountRankingItem[];
-  /** 推移データの取得に失敗したときは null */
-  growth: SubscriberGrowthData | null;
-}
+type Props = { weekly: RankingRow[] };
 
 const PAGE = 100;
 const PODIUM_SIZE = 3;
@@ -261,12 +247,7 @@ function Row({ r, rank }: { r: RankingRow; rank: number }) {
   );
 }
 
-export function RankingTabs({
-  weekly,
-  subscribers,
-  videoCounts,
-  growth,
-}: Props) {
+export function RankingTabs({ weekly }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -282,6 +263,27 @@ export function RankingTabs({
   const tab = toRankingTab(view.tab);
   const period: GrowthPeriod = view.period;
   const viewKey = `${view.tab}:${view.period}`;
+  const [otherData, setOtherData] = useState<RankingOtherData | null>(null);
+  const [rankingDataError, setRankingDataError] = useState(false);
+
+  useEffect(() => {
+    if (tab === "weekly" || otherData || rankingDataError) return;
+    let active = true;
+    fetch("/api/ranking")
+      .then((response) => {
+        if (!response.ok) throw new Error("Ranking data request failed");
+        return response.json() as Promise<RankingOtherData>;
+      })
+      .then((data) => {
+        if (active) setOtherData(data);
+      })
+      .catch(() => {
+        if (active) setRankingDataError(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [tab, otherData, rankingDataError]);
 
   // 表示件数はタブ/期間が変わったら既定値に戻す
   const [limitState, setLimitState] = useState({ key: viewKey, n: PAGE });
@@ -296,12 +298,18 @@ export function RankingTabs({
   );
 
   const rows = useMemo(() => {
-    if (tab === "weekly") return weeklyRows(weekly, channelIds);
-    if (tab === "growth")
-      return growth ? growthRows(growth[period].items, channelIds) : [];
-    if (tab === "subscribers") return subscriberRows(subscribers, channelIds);
-    return videoCountRows(videoCounts, channelIds);
-  }, [tab, period, weekly, growth, subscribers, videoCounts, channelIds]);
+    const source =
+      tab === "weekly"
+        ? weekly
+        : tab === "growth"
+          ? (otherData?.growth?.[period].items ?? [])
+          : tab === "subscribers"
+            ? (otherData?.subscribers ?? [])
+            : (otherData?.videoCounts ?? []);
+    return channelIds.length === 0
+      ? source
+      : source.filter((row) => channelIds.includes(row.channelId));
+  }, [tab, period, weekly, otherData, channelIds]);
 
   // 履歴を汚さないよう、タブ・期間の切替はどちらも replace で URL を更新する
   const navigate = (next: RankingViewState) => {
@@ -353,7 +361,7 @@ export function RankingTabs({
       {tab === "weekly" && mounted && (
         <h2 className="mb-2 text-sm font-bold">{weeklyHeading(new Date())}</h2>
       )}
-      {tab === "growth" && growth && (
+      {tab === "growth" && otherData?.growth && (
         <>
           <div
             role="radiogroup"
@@ -386,14 +394,25 @@ export function RankingTabs({
               </button>
             ))}
           </div>
-          {growth[period].to && (
+          {otherData.growth[period].to && (
             <h2 className="mb-2 text-sm font-bold">
-              {growthHeading(growth[period].from, growth[period].to)}
+              {growthHeading(
+                otherData.growth[period].from,
+                otherData.growth[period].to,
+              )}
             </h2>
           )}
         </>
       )}
-      {tab === "growth" && !growth ? (
+      {tab !== "weekly" && !otherData && !rankingDataError ? (
+        <p className="py-16 text-center text-zinc-500">
+          ランキングを読み込み中…
+        </p>
+      ) : rankingDataError ? (
+        <p className="py-16 text-center text-zinc-500">
+          ランキングの読み込みに失敗しました。
+        </p>
+      ) : tab === "growth" && otherData && !otherData.growth ? (
         <p className="py-16 text-center text-zinc-500">
           急上昇データの読み込みに失敗しました。
         </p>
@@ -409,14 +428,22 @@ export function RankingTabs({
               className="mb-4 grid grid-cols-3 items-end gap-2 sm:gap-3"
             >
               {podium.map((r, i) => (
-                <PodiumCard key={r.key} r={r} rank={i + 1} />
+                <PodiumCard
+                  key={r.videoId ?? r.channelId}
+                  r={r}
+                  rank={i + 1}
+                />
               ))}
             </ol>
           )}
           {rest.length > 0 && (
             <div className="grid gap-x-4 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm md:grid-cols-2 dark:border-zinc-800 dark:bg-zinc-900">
               {rest.map((r, i) => (
-                <Row key={r.key} r={r} rank={podium.length + i + 1} />
+                <Row
+                  key={r.videoId ?? r.channelId}
+                  r={r}
+                  rank={podium.length + i + 1}
+                />
               ))}
             </div>
           )}
@@ -431,7 +458,7 @@ export function RankingTabs({
           )}
         </>
       )}
-      {tab === "growth" && growth && rows.length > 0 && (
+      {tab === "growth" && otherData?.growth && rows.length > 0 && (
         <p className="mt-4 text-xs text-zinc-500">
           ※YouTubeの登録者数は概数で公開されるため、増加数は目安です
         </p>

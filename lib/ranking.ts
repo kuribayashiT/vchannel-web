@@ -7,6 +7,7 @@ import type {
   VideoCountRankingItem,
   YoutubeSubscriberRankingItem,
 } from "@/types";
+import { smallAvatar } from "@/lib/url";
 
 export type RankingTab = "weekly" | "growth" | "subscribers" | "videos";
 
@@ -18,7 +19,6 @@ export const RANKING_TABS: { key: RankingTab; label: string }[] = [
 ];
 
 export interface RankingRow {
-  key: string;
   channelId: string;
   name: string;
   office: string;
@@ -33,69 +33,86 @@ export interface RankingRow {
   spark?: number[];
 }
 
-/** 選択チャンネルで絞り込み（空 = 全件）して値の降順に並べる */
-function rank(rows: RankingRow[], channelIds: string[]): RankingRow[] {
-  const filtered =
-    channelIds.length === 0
-      ? rows
-      : rows.filter((r) => channelIds.includes(r.channelId));
-  return [...filtered].sort((a, b) => b.value - a.value);
+export type RankingGrowthPeriod = Pick<
+  SubscriberGrowthPeriodData,
+  "from" | "to"
+> & { items: RankingRow[] };
+
+export interface RankingPageData {
+  weekly: RankingRow[];
+  subscribers: RankingRow[];
+  videoCounts: RankingRow[];
+  growth: Record<"week" | "month", RankingGrowthPeriod> | null;
 }
 
-export function subscriberRows(
-  items: YoutubeSubscriberRankingItem[],
-  channelIds: string[],
+export type RankingOtherData = Pick<
+  RankingPageData,
+  "subscribers" | "videoCounts" | "growth"
+>;
+
+const RANKING_LIMIT = 100;
+
+function topRankingRows<T>(
+  items: T[],
+  valueOf: (item: T) => number,
+  toRow: (item: T) => RankingRow,
 ): RankingRow[] {
-  return rank(
-    items.map((i) => ({
-      key: i.channelId,
+  return [...items]
+    .sort((a, b) => valueOf(b) - valueOf(a))
+    .slice(0, RANKING_LIMIT)
+    .map(toRow);
+}
+
+export function toSubscriberRankingRows(
+  items: YoutubeSubscriberRankingItem[],
+): RankingRow[] {
+  return topRankingRows(
+    items,
+    (item) => item.youtubeSubscriberCount,
+    (i) => ({
       channelId: i.channelId,
       name: i.name,
       office: i.office,
-      thumbnail: i.channelThumbnail,
+      thumbnail: smallAvatar(i.channelThumbnail),
       value: i.youtubeSubscriberCount,
       unit: "人",
-    })),
-    channelIds,
+    }),
   );
 }
 
-export function videoCountRows(
+export function toVideoCountRankingRows(
   items: VideoCountRankingItem[],
-  channelIds: string[],
 ): RankingRow[] {
-  return rank(
-    items.map((i) => ({
-      key: i.channelId,
+  return topRankingRows(
+    items,
+    (item) => item.videoCount,
+    (i) => ({
       channelId: i.channelId,
       name: i.name,
       office: i.office,
-      thumbnail: i.channelThumbnail,
+      thumbnail: smallAvatar(i.channelThumbnail),
       value: i.videoCount,
       unit: "本",
-    })),
-    channelIds,
+    }),
   );
 }
 
-/** 配信（動画）単位のランキング */
-export function weeklyRows(
+export function toWeeklyRankingRows(
   videos: Video[],
-  channelIds: string[],
 ): RankingRow[] {
-  return rank(
-    videos.map((v) => ({
-      key: v.videoId,
+  return topRankingRows(
+    videos,
+    (video) => video.concurrentViewers,
+    (v) => ({
       channelId: v.channelId,
       name: v.channelTitle,
       office: v.office,
-      thumbnail: v.channelThumbnail,
+      thumbnail: smallAvatar(v.channelThumbnail),
       value: v.concurrentViewers,
       unit: "人",
       sub: v.title,
       videoId: v.videoId,
-    })),
-    channelIds,
+    }),
   );
 }
 
@@ -220,25 +237,27 @@ export function buildGrowthItems(
 }
 
 /** サーバーで並び替え済みのため順序は保つ。選択チャンネルがあれば絞り込む */
-export function growthRows(
-  items: SubscriberGrowthItem[],
-  channelIds: string[],
-): RankingRow[] {
-  const filtered =
-    channelIds.length === 0
-      ? items
-      : items.filter((i) => channelIds.includes(i.channelId));
-  return filtered.map((i) => ({
-    key: i.channelId,
-    channelId: i.channelId,
-    name: i.name,
-    office: i.office,
-    thumbnail: i.thumbnail,
-    value: i.growth,
-    unit: "人",
-    rate: i.rate,
-    spark: i.spark,
-  }));
+export function toGrowthRankingPeriod(
+  period: SubscriberGrowthPeriodData,
+): RankingGrowthPeriod {
+  return {
+    from: period.from,
+    to: period.to,
+    items: topRankingRows(
+      period.items,
+      (item: SubscriberGrowthItem) => item.growth,
+      (item) => ({
+        channelId: item.channelId,
+        name: item.name,
+        office: item.office,
+        thumbnail: smallAvatar(item.thumbnail),
+        value: item.growth,
+        unit: "人",
+        rate: item.rate,
+        spark: item.spark,
+      }),
+    ),
+  };
 }
 
 /** `MM/dd 〜 MM/dd の登録者増加数` */

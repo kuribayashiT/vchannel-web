@@ -2,6 +2,17 @@ import type { Video } from "@/types";
 
 export type StreamTab = "past" | "live" | "today" | "tomorrow" | "later";
 
+export type StreamCardVideo = Pick<
+  Video,
+  | "videoId"
+  | "title"
+  | "channelId"
+  | "channelTitle"
+  | "thumbnail"
+  | "comparisonDay"
+> &
+  Partial<Pick<Video, "concurrentViewers">>;
+
 export const STREAM_TABS: { key: StreamTab; label: string; empty: string }[] = [
   { key: "past", label: "過去アーカイブ", empty: "配信済みの動画はありません" },
   { key: "live", label: "配信中", empty: "配信中の動画はありません" },
@@ -43,10 +54,58 @@ function dayDiff(a: string, b: string): number {
   return Math.round((Date.parse(a) - Date.parse(b)) / 86_400_000);
 }
 
+/** 今日〜7日後の予定と、新しい順の過去アーカイブ最大60件に絞る */
+export function trimStreamVideos(
+  all: Video[],
+  now: Date = new Date(),
+): Video[] {
+  const today = jstDay(now);
+  if (!today) return [];
+  const [year, month, day] = today.split("-").map(Number);
+  const lastUpcomingDay = new Date(
+    Date.UTC(year, month - 1, day + 7),
+  ).toISOString().slice(0, 10);
+  const upcoming: Video[] = [];
+  const past: Video[] = [];
+
+  for (const video of all) {
+    const day = jstDay(video.comparisonDay);
+    if (!day) continue;
+    if (day >= today && day <= lastUpcomingDay) upcoming.push(video);
+    else if (day < today) past.push(video);
+  }
+
+  past.sort(
+    (a, b) => Date.parse(b.comparisonDay) - Date.parse(a.comparisonDay),
+  );
+  return [...upcoming, ...past.slice(0, 60)];
+}
+
+export function toStreamCardVideo(video: Video): StreamCardVideo {
+  return {
+    videoId: video.videoId,
+    title: video.title,
+    channelId: video.channelId,
+    channelTitle: video.channelTitle,
+    thumbnail: video.thumbnail,
+    comparisonDay: video.comparisonDay,
+  };
+}
+
+export function toLiveStreamCardVideo(video: Video): StreamCardVideo {
+  return {
+    ...toStreamCardVideo(video),
+    concurrentViewers: video.concurrentViewers,
+  };
+}
+
 /**
  * comparisonDay の JST 暦日で今日/明日/以降/過去に振り分ける。
  */
-export function categorize(v: Video, now: Date = new Date()): StreamTab[] {
+export function categorize(
+  v: StreamCardVideo,
+  now: Date = new Date(),
+): StreamTab[] {
   const tabs: StreamTab[] = [];
   const day = jstDay(v.comparisonDay);
   const today = jstDay(now);
@@ -60,10 +119,10 @@ export function categorize(v: Video, now: Date = new Date()): StreamTab[] {
 }
 
 export function groupByTab(
-  videos: Video[],
+  videos: StreamCardVideo[],
   now: Date = new Date(),
-): Record<StreamTab, Video[]> {
-  const out: Record<StreamTab, Video[]> = {
+): Record<StreamTab, StreamCardVideo[]> {
+  const out: Record<StreamTab, StreamCardVideo[]> = {
     past: [],
     live: [...videos],
     today: [],
@@ -73,7 +132,7 @@ export function groupByTab(
   for (const v of videos) {
     for (const t of categorize(v, now)) out[t].push(v);
   }
-  const time = (v: Video) => Date.parse(v.comparisonDay) || 0;
+  const time = (v: StreamCardVideo) => Date.parse(v.comparisonDay) || 0;
   out.past.sort((a, b) => time(b) - time(a));
   for (const t of ["today", "tomorrow", "later"] as const) {
     out[t].sort((a, b) => time(a) - time(b));
@@ -83,9 +142,9 @@ export function groupByTab(
 
 /** 0〜23 時（JST）の時間帯別グルーピング。動画のある時間帯のみ */
 export function groupByHour(
-  videos: Video[],
-): { hour: number; videos: Video[] }[] {
-  const map = new Map<number, Video[]>();
+  videos: StreamCardVideo[],
+): { hour: number; videos: StreamCardVideo[] }[] {
+  const map = new Map<number, StreamCardVideo[]>();
   for (const v of videos) {
     const h = jstHourOf(v.comparisonDay);
     if (h === null) continue;
