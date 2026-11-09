@@ -15,6 +15,25 @@
 
 上から順に着手すること（P0 → P1 → P2）。1タスク = 1PR を目安とし、実装完了時は `[ ]` を `[x]`（または ✅）に更新すること。
 
+### P0-GSC: Google Search Console 所有権確認（最優先・P0-AFF より先に着手）
+
+- [x] **GSC-1. Google Search Console の確認用メタタグを追加**
+  - **対象ファイル**: `app/layout.tsx`
+  - **仕様**:
+    - `metadata` の `icons` の直前に以下を追加する。値は秘密情報ではないため、環境変数にせず直書きでよい。
+      ```ts
+      verification: {
+        google: "dlA9QuuEy2gQC1AuuiFp96bz0wPej2D3daAPKi3q890",
+      },
+      ```
+    - 対象プロパティは URL プレフィックス `https://vchannel-web.vercel.app`。
+    - 他の metadata は変更しない。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - ビルド後の HTML の `<head>` に `<meta name="google-site-verification" content="dlA9QuuEy2gQC1AuuiFp96bz0wPej2D3daAPKi3q890"/>` が出力される。
+    - `FRONTEND_SPEC.md` 1章「サイトアイコン」の下に「Search Console 確認タグ」の記述を追加している。
+    - **Push 後、完了報告に「Vercel デプロイ完了後に Search Console で『確認』を押してください」と添える**（確認作業は人手）。
+
 ### P0-CHAT: 掲示板の動作改善（最優先・下記 P0 より先に着手）
 
 > **前提（人手作業）**: ✅ 2026-11-08 作成済み。Firebase Console で複合インデックス `posts`: `threadId` 昇順 + `postNo` **降順**（ID: `CICAgJim14AK`、2 タスク共通）を作成。既存の `threadId` + `createdAt` インデックスは Flutter アプリが使用中のため削除しないこと。
