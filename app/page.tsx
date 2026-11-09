@@ -3,7 +3,7 @@ import { Radio, Sparkles, Trophy, Users } from "lucide-react";
 import { GrowthTop3 } from "@/components/GrowthTop3";
 import { SectionHeader } from "@/components/SectionHeader";
 import { StreamTabs } from "@/components/StreamTabs";
-import { GcsFetchError, getLiveVideoList } from "@/lib/gcs";
+import { GcsFetchError, getAllVideos, getLiveVideoList } from "@/lib/gcs";
 import { getGrowthData } from "@/lib/growth-data";
 import type { SubscriberGrowthItem, Video } from "@/types";
 
@@ -79,14 +79,21 @@ function Hero() {
 }
 
 export default async function Home() {
-  let videos: Video[] = [];
+  let liveVideos: Video[] = [];
+  let allVideos: Video[] = [];
   let failed = false;
   const growthPromise = loadWeeklyGrowth();
   try {
-    videos = await getLiveVideoList();
+    liveVideos = await getLiveVideoList();
   } catch (e) {
     if (!(e instanceof GcsFetchError)) throw e;
     failed = true;
+  }
+  try {
+    allVideos = await getAllVideos();
+  } catch (e) {
+    if (!(e instanceof GcsFetchError)) throw e;
+    allVideos = [];
   }
 
   const growth = await growthPromise;
@@ -107,7 +114,7 @@ export default async function Home() {
             動画の読み込みに失敗しました。
           </p>
         ) : (
-          <StreamTabs videos={videos} />
+          <StreamTabs liveVideos={liveVideos} allVideos={allVideos} />
         )}
       </section>
     </main>

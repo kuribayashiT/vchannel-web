@@ -24,7 +24,13 @@ function Grid({ videos, live }: { videos: Video[]; live: boolean }) {
 const noopSubscribe = () => () => {};
 
 /** 現在時刻に依存するため、プリレンダー時は描画せずマウント後に表示する */
-export function StreamTabs({ videos }: { videos: Video[] }) {
+export function StreamTabs({
+  liveVideos,
+  allVideos,
+}: {
+  liveVideos: Video[];
+  allVideos: Video[];
+}) {
   const mounted = useSyncExternalStore(
     noopSubscribe,
     () => true,
@@ -35,20 +41,28 @@ export function StreamTabs({ videos }: { videos: Video[] }) {
       <p className="py-16 text-center text-zinc-500">配信予定を読み込み中…</p>
     );
   }
-  return <StreamTabsInner videos={videos} />;
+  return <StreamTabsInner liveVideos={liveVideos} allVideos={allVideos} />;
 }
 
-function StreamTabsInner({ videos }: { videos: Video[] }) {
+function StreamTabsInner({
+  liveVideos,
+  allVideos,
+}: {
+  liveVideos: Video[];
+  allVideos: Video[];
+}) {
   const [tab, setTab] = useState<StreamTab>("live");
   const { channelIds } = useSelectedChannels();
 
   const groups = useMemo(() => {
-    const filtered =
+    const filterBySelection = (list: Video[]) =>
       channelIds.length === 0
-        ? videos
-        : videos.filter((v) => channelIds.includes(v.channelId));
-    return groupByTab(filtered);
-  }, [videos, channelIds]);
+        ? list
+        : list.filter((v) => channelIds.includes(v.channelId));
+    const grouped = groupByTab(filterBySelection(allVideos));
+    grouped.live = filterBySelection(liveVideos);
+    return grouped;
+  }, [allVideos, channelIds, liveVideos]);
 
   const current = STREAM_TABS.find((t) => t.key === tab)!;
   const list = groups[tab];
