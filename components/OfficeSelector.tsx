@@ -29,6 +29,10 @@ export function OfficeSelector({
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const sel = useMemo(() => new Set(selected), [selected]);
+  const allIds = useMemo(
+    () => [...new Set(offices.flatMap((o) => o.members.map((m) => m.channelId)))],
+    [offices],
+  );
 
   const q = query.trim().toLowerCase();
   const visible = useMemo(
@@ -70,6 +74,24 @@ export function OfficeSelector({
         placeholder="VTuber名で検索..."
         className="w-full rounded border border-zinc-300 bg-transparent px-3 py-2 text-sm dark:border-zinc-700"
       />
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onChange(allIds)}
+          disabled={allIds.length === 0 || allIds.every((id) => sel.has(id))}
+          className="rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          全選択
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange([])}
+          disabled={selected.length === 0}
+          className="rounded-full border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+        >
+          選択解除
+        </button>
+      </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
         {visible.length === 0 ? (
           <p className="py-8 text-center text-sm text-zinc-500">
@@ -79,6 +101,7 @@ export function OfficeSelector({
           visible.map((o) => {
             const ids = o.members.map((m) => m.channelId);
             const open = q !== "" || expanded.has(o.name);
+            const officeState = stateOf(ids, sel);
             return (
               <div
                 key={o.name}
@@ -89,16 +112,14 @@ export function OfficeSelector({
                     type="button"
                     role="checkbox"
                     aria-checked={
-                      stateOf(ids, sel) === "some"
-                        ? "mixed"
-                        : stateOf(ids, sel) === "all"
+                      officeState === "some" ? "mixed" : officeState === "all"
                     }
                     aria-label={`${o.name}を全員選択/解除`}
                     onClick={() => toggleIds(ids)}
-                    className={`flex size-6 shrink-0 items-center justify-center rounded-full border text-xs transition-all hover:scale-105 ${circle[stateOf(ids, sel)]}`}
+                    className={`flex size-6 shrink-0 items-center justify-center rounded-full border text-xs transition-all hover:scale-105 ${circle[officeState]}`}
                   >
-                    {stateOf(ids, sel) === "all" && "✓"}
-                    {stateOf(ids, sel) === "some" && "−"}
+                    {officeState === "all" && "✓"}
+                    {officeState === "some" && "−"}
                   </button>
                   <button
                     type="button"
@@ -113,28 +134,42 @@ export function OfficeSelector({
                   </button>
                 </div>
                 {open && (
-                  <ul className="pb-2 pl-9">
+                  <ul className="space-y-1 pb-2 pl-9">
                     {o.members.map((m) => (
                       <li key={m.channelId}>
-                        <label className="group flex cursor-pointer items-center gap-2 py-1 text-sm">
-                          <input
-                            type="checkbox"
-                            checked={sel.has(m.channelId)}
-                            onChange={() => toggleIds([m.channelId])}
-                            className="peer sr-only"
-                          />
+                        <button
+                          type="button"
+                          role="checkbox"
+                          aria-checked={sel.has(m.channelId)}
+                          onClick={() => toggleIds([m.channelId])}
+                          className={`group flex w-full items-center gap-2 rounded-full border px-2.5 py-1.5 text-left text-sm transition ${
+                            sel.has(m.channelId)
+                              ? "border-violet-300 bg-gradient-to-r from-violet-100 to-fuchsia-100 text-violet-900 shadow-sm shadow-violet-200/60 dark:border-violet-700 dark:from-violet-900/50 dark:to-fuchsia-900/40 dark:text-violet-100 dark:shadow-none"
+                              : "border-zinc-200 bg-white text-zinc-700 hover:border-violet-300 hover:bg-violet-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-violet-700 dark:hover:bg-violet-950/30"
+                          }`}
+                        >
                           <span
                             aria-hidden
-                            className={`flex size-5 shrink-0 items-center justify-center rounded-md border text-[11px] transition-all ${
+                            className={`flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
                               sel.has(m.channelId)
-                                ? "border-violet-500 bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white shadow-sm shadow-violet-300/60 dark:shadow-violet-900/30"
-                                : "border-zinc-300 bg-white text-transparent group-hover:border-violet-300 dark:border-zinc-600 dark:bg-zinc-900"
+                                ? "bg-white/80 text-violet-700 dark:bg-zinc-900/80 dark:text-violet-200"
+                                : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+                            }`}
+                          >
+                            {m.name.slice(0, 1)}
+                          </span>
+                          <span className="truncate">{m.name}</span>
+                          <span
+                            aria-hidden
+                            className={`ml-auto flex size-5 items-center justify-center rounded-full text-[11px] transition ${
+                              sel.has(m.channelId)
+                                ? "bg-violet-600 text-white"
+                                : "bg-zinc-200 text-transparent dark:bg-zinc-700"
                             }`}
                           >
                             ✓
                           </span>
-                          <span className="truncate">{m.name}</span>
-                        </label>
+                        </button>
                       </li>
                     ))}
                   </ul>
