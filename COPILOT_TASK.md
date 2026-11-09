@@ -89,6 +89,39 @@
 - [x] **P0-5. セクション見出しコンポーネント**
   - 対象ファイル: 新規 `components/SectionHeader.tsx`、各 `app/*/page.tsx`
 - **P0-6. フッター（指標の定義・注意書き）**: 共通表示は不要のため中止。
+- [ ] **P0-7. `/vtuber` の初期表示を速くする（スケルトン表示＋API の CDN キャッシュ）**
+  - **対象ファイル**:
+    `components/VTuberTabs.tsx`
+    `app/api/vtuber/route.ts`
+    `app/api/vtuber/[channelId]/route.ts`
+    `app/vtuber/loading.tsx`（新規）
+    `FRONTEND_SPEC.md`
+  - **背景（2026-11-08 計測）**:
+    - `/vtuber` はページ自体は静的で、データは hydration 後にクライアントから `GET /api/vtuber`（約 377KB / gzip 約 136KB）→ 完了後に `GET /api/vtuber/{先頭のchannelId}`（約 20KB）を**直列に**取得している。ウォームなインスタンスでも 2 本で合計 約 1.5 秒、その間は「Vtuberリストを読み込み中…」の文字だけが表示される。
+    - 両 API は `cache-control: public, max-age=0, must-revalidate` / `x-vercel-cache: MISS` で CDN に一切キャッシュされず、毎回 iad1 の関数が実行される。コールドスタート時は `loadVTubers()` が GCS から `officedataList.json`（約 19MB）を取得・パースするため、数秒以上かかる。
+    - P0-4 で `VTuberTabsSkeleton` / `VTuberDetailSkeleton` は `components/Skeleton.tsx` に作成済みだが、`VTuberTabs.tsx` では使われておらず、テキスト表示のまま。
+  - **仕様**:
+    - **スケルトン表示**（`components/VTuberTabs.tsx`）:
+      - `index.status === "loading"` のとき、テキストの代わりに既存の `VTuberTabsSkeleton` を返す。
+      - `Detail` の読み込み中（`!result || result.id !== channelId`）は、テキストの代わりに既存の `VTuberDetailSkeleton` を返す。タブ列はそのまま表示し続け、タブ切り替え時に詳細部分だけがスケルトンになること（タブ列ごと消えて画面がガタつかないこと）。
+      - エラー／0 件時の文言（`Vtuberリストの取得に失敗しました` / `Vtuberリストがありません（フィルターで事務所を選択してください）`）は変えない。ただし `Detail` の取得失敗文言は現状 `Vtuberリストの取得に失敗しました` になっているので、`VTuberの詳細を取得できませんでした` に直す。
+      - `app/vtuber/loading.tsx` を新規作成し、見出し `VTuber`（`app/vtuber/page.tsx` と同じ `main` / `h1` の構成）＋ `VTuberTabsSkeleton` を表示する。他ページからのクライアント遷移時に空白が出ないようにするため。
+    - **API の CDN キャッシュ**（`app/api/vtuber/route.ts`, `app/api/vtuber/[channelId]/route.ts`）:
+      - 成功レスポンス（200）に `Cache-Control: public, s-maxage=600, stale-while-revalidate=3600` を付ける（`Response.json(body, { headers })`）。データの更新は定期バッチで、鮮度は 1 時間程度で十分（`FRONTEND_SPEC.md` 6 章）。2 回目以降のアクセスは Vercel CDN から返り、コールドスタート（19MB の読み込み）を利用者が待たなくて済むようにする。
+      - 404 / 502 には付けない（`Cache-Control: no-store` を明示する）。失敗結果を CDN に残さないため。
+      - ブラウザ側のキャッシュ（`max-age`）は付けない。CDN でのみキャッシュする。
+    - **詳細のクライアント側キャッシュとプリフェッチ**（`components/VTuberTabs.tsx`）:
+      - 取得済みの `VTuberDetail` をモジュールスコープの `Map<string, VTuberDetail>` に保持し、一度開いたタブに戻ったときは即時に表示する（スケルトンを出さない）。失敗結果は保持しない。
+      - タブボタンの `onPointerEnter` / `onFocus` で、その VTuber の詳細を先読みする（キャッシュ済み・取得中なら何もしない。同じ ID の二重リクエストを出さないよう、取得中の Promise も `Map` で共有する）。
+      - 一覧取得の完了後、表示中の詳細に加えて、次のタブ 1 件分を先読みしておく。
+  - **範囲外**: `/api/vtuber` のレスポンス縮小（選択事務所での絞り込みや項目削減）、Server Component 化によるサーバー側での事前描画、関数リージョンの変更（GCS バケットの所在地を確認してから別タスクで検討）、バックエンド（`backend-repo/functions/`）の変更。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。
+    - `npm run build` が成功する。
+    - `/vtuber` を開くと、データ取得中は文字ではなくタブ列＋詳細のスケルトンが表示され、取得後に実データに置き換わる。スケルトンと実データでレイアウトが大きくずれない（375px / 1280px、ダークモードの両方で確認）。
+    - タブ切り替え時はタブ列が残ったまま詳細部分だけスケルトンになり、一度開いたタブに戻ると即時に表示される。
+    - デプロイ後、`curl -sI https://vchannel-web-a4rd.vercel.app/api/vtuber` を 2 回実行し、2 回目のレスポンスヘッダーに `x-vercel-cache: HIT`（または `STALE`）が出る。`/api/vtuber/{channelId}` も同様。存在しない ID の 404 は `HIT` にならない。
+    - `FRONTEND_SPEC.md` の 5.4 節と 6 章が更新されている。
 
 ### P1: 競合と同等の機能を揃える
 - [x] **P1-1. トップページにヒーロー＋「いま注目のVTuber」カード**
