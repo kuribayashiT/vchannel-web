@@ -22,6 +22,9 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: { default: SITE_TITLE, template: `%s | ${SITE_NAME}` },
   description: SITE_DESCRIPTION,
+  verification: {
+    google: "dlA9QuuEy2gQC1AuuiFp96bz0wPej2D3daAPKi3q890",
+  },
   icons: {
     icon: "/logo.png",
     apple: "/logo.png",

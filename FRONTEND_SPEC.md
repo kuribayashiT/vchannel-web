@@ -17,6 +17,9 @@ Flutter アプリ（`lib/`, v2.22.2）の現行実装を元にまとめた仕様
 ### サイトアイコン
 - ブラウザのタブと iPhone のホーム画面アイコンには `public/logo.png` を使用する。
 
+### Search Console 確認タグ
+- Google Search Console の URL プレフィックス プロパティ `https://vchannel-web.vercel.app` の所有権確認に、`app/layout.tsx` の `metadata.verification.google` を使用する。
+
 ### 移行方針（推奨）
 - 読み取りデータは **公開 JSON（GCS）を fetch するだけ**。サーバー実装不要。Next.js では ISR/`revalidate`（60〜300 秒）または SWR で取得する。
 - 認証なし。ユーザー状態（お気に入り・選択事務所）は **localStorage**。
