@@ -14,7 +14,6 @@ import {
 } from "@/lib/chat";
 import type { OfficeSummary } from "@/lib/offices";
 
-const RULES = "rules";
 const POLL_MS = 15_000;
 const SEEN_COUNTS_KEY = "chat:last-seen-post-count";
 const QUICK_REACTIONS = ["💖", "👏", "😂", "🔥"] as const;
@@ -96,21 +95,35 @@ function Body({
   );
 }
 
-function Rules() {
+function RulesPanel() {
+  const [open, setOpen] = useState(true);
+
   return (
-    <div className="space-y-3 rounded-2xl border border-violet-200 bg-gradient-to-br from-white to-violet-50 p-4 text-sm shadow-sm dark:border-violet-900/50 dark:from-zinc-900 dark:to-violet-950/30">
-      <h2 className="font-bold">📢 掲示板ルール</h2>
-      <ul className="list-disc space-y-1 pl-5">
-        <li>VTuber・配信者・他のユーザーを誹謗中傷する投稿は禁止です。</li>
-        <li>個人情報の書き込み・詮索、なりすましは禁止です。</li>
-        <li>スパム・宣伝目的の連投、違法・不快なコンテンツは禁止です。</li>
-        <li>
-          ネタバレや過度な批判は避け、敬意を持って楽しく利用してください。
-        </li>
-        <li>
-          不適切な投稿は予告なく削除する場合があります。投稿内容は自己責任でお願いします。
-        </li>
-      </ul>
+    <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-white to-violet-50 p-4 text-sm shadow-sm dark:border-violet-900/50 dark:from-zinc-900 dark:to-violet-950/30">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-bold">📢 掲示板の注意事項</h2>
+        <button
+          type="button"
+          onClick={() => setOpen((prev) => !prev)}
+          aria-expanded={open}
+          className="rounded-full border border-violet-300 bg-white px-3 py-1 text-xs font-medium text-violet-700 hover:bg-violet-50 dark:border-violet-700 dark:bg-zinc-900 dark:text-violet-300 dark:hover:bg-violet-950/20"
+        >
+          {open ? "折りたたむ" : "詳しく見る"}
+        </button>
+      </div>
+      {open && (
+        <ul className="mt-3 list-disc space-y-1 pl-5">
+          <li>VTuber・配信者・他のユーザーを誹謗中傷する投稿は禁止です。</li>
+          <li>個人情報の書き込み・詮索、なりすましは禁止です。</li>
+          <li>スパム・宣伝目的の連投、違法・不快なコンテンツは禁止です。</li>
+          <li>
+            ネタバレや過度な批判は避け、敬意を持って楽しく利用してください。
+          </li>
+          <li>
+            不適切な投稿は予告なく削除する場合があります。投稿内容は自己責任でお願いします。
+          </li>
+        </ul>
+      )}
     </div>
   );
 }
@@ -467,7 +480,7 @@ export function ChatBoard({ offices }: { offices: OfficeSummary[] }) {
   const { channelIds } = useSelectedChannels();
   const [threads, setThreads] = useState<ChatThread[] | null>(null);
   const [failed, setFailed] = useState(false);
-  const [tab, setTab] = useState(RULES);
+  const [tab, setTab] = useState("");
   const [seenCounts, setSeenCounts] = useState<Record<string, number>>(() =>
     readSeenCounts(),
   );
@@ -505,31 +518,27 @@ export function ChatBoard({ offices }: { offices: OfficeSummary[] }) {
   }, [threads, offices, channelIds]);
 
   const current = tabs.find((t) => t.id === tab) ?? null;
+  const activeThread = current ?? tabs[0] ?? null;
+
+  useEffect(() => {
+    if (!tabs.length) return;
+    const hasSelected = tabs.some((t) => t.id === tab);
+    if (!hasSelected) setTab(tabs[0].id);
+  }, [tab, tabs]);
 
   return (
     <div className="space-y-4">
+      <RulesPanel />
       <div className="-mx-4 px-4">
         <div className="mb-2 flex items-center justify-between">
           <p className="text-xs font-medium text-zinc-500">スレッド一覧</p>
-          {current && (
+          {activeThread && (
             <p className="text-xs text-zinc-500">
-              投稿 {current.postCount.toLocaleString()} 件
+              投稿 {activeThread.postCount.toLocaleString()} 件
             </p>
           )}
         </div>
         <div className="flex gap-2 overflow-x-auto pb-1">
-          <button
-            type="button"
-            onClick={() => setTab(RULES)}
-            aria-pressed={tab === RULES}
-            className={`shrink-0 rounded-2xl border px-3 py-2 text-sm font-medium ${
-              tab === RULES
-                ? "border-blue-600 bg-blue-600 text-white"
-                : "border-zinc-200 bg-white text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
-            }`}
-          >
-            📢 掲示板ルール
-          </button>
           {tabs.map((t) => {
             const unread = Math.max(t.postCount - (seenCounts[t.id] ?? 0), 0);
             return (
@@ -571,7 +580,7 @@ export function ChatBoard({ offices }: { offices: OfficeSummary[] }) {
           スレッドを読み込めませんでした
         </p>
       )}
-      {!threads && !failed && tab !== RULES && (
+      {!threads && !failed && (
         <p className="text-sm text-zinc-500">読み込み中…</p>
       )}
       {threads?.length === 0 && (
@@ -579,16 +588,12 @@ export function ChatBoard({ offices }: { offices: OfficeSummary[] }) {
           スレッドがありません
         </p>
       )}
-      {tab === RULES ? (
-        <Rules />
-      ) : (
-        current && (
-          <ThreadView
-            key={current.id}
-            thread={current}
-            onSeen={(postNo) => markSeen(current.id, postNo)}
-          />
-        )
+      {activeThread && (
+        <ThreadView
+          key={activeThread.id}
+          thread={activeThread}
+          onSeen={(postNo) => markSeen(activeThread.id, postNo)}
+        />
       )}
     </div>
   );
