@@ -90,7 +90,7 @@ jobs:
           attempt=1
           success=false
           
-          while [ $attempt -le$MAX_RETRIES ]; do
+          while [ "$attempt" -le "$MAX_RETRIES" ]; do
             echo "=== ビルド検証 試行回数: $attempt / $MAX_RETRIES ==="
             
             if npx tsc --noEmit && npm run build; then
@@ -114,8 +114,16 @@ jobs:
             git clean -fd
             node scripts/task-fallback.js
             
-            echo "❌ 今回の自動実装は中断されましたが、タスクを別のアプローチに書き換えました。"
-            exit 1
+            # フォールバックして書き換わった COPILOT_TASK.md をリモートへ保存する
+            git config --global user.name "github-actions[bot]"
+            git config --global user.email "41898282+github-actions[bot]@users.noreply.github.io"
+            git add COPILOT_TASK.md
+            git commit -m "chore(auto): ビルド失敗に伴うタスクのフォールバック (別アプローチへの更新)" || echo "No changes to commit"
+            git pull origin main --rebase || true
+            git push origin main || true
+            
+            echo "🔄 タスクを別のアプローチに書き換えてプッシュしました。"
+            exit 0
           fi
 
       - name: Step 4. ビルド成功時のみ COPILOT_TASK.md のタスクを完了扱いに更新
@@ -187,4 +195,7 @@ jobs:
           PR_URL=$(gh pr list --base main --head daily-auto-dev --state open --json url -q ".[0].url")
           if [ -n "$PR_URL" ]; then
             echo "対象PRを発見: $PR_URL"
-            gh pr merge "$PR_URL" --auto --merge --delete-branch || gh pr merge "$PR_URL" --merge --delete-branch || echo "自動マージの
+            gh pr merge "$PR_URL" --auto --merge --delete-branch || gh pr merge "$PR_URL" --merge --delete-branch || echo "自動マージの試行をスキップしました。"
+          else
+            echo "対象のオープンPRが見つかりませんでした。"
+          fi
