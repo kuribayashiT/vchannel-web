@@ -2,10 +2,44 @@
 
 import { smallAvatar } from "@/lib/url";
 import { useEffect, useMemo, useState } from "react";
+import { VTuberDetailSkeleton, VTuberTabsSkeleton } from "@/components/Skeleton";
 import { VideoCard } from "@/components/VideoCard";
 import { useSelectedChannels } from "@/hooks/useSelection";
 import { formatCompact, formatNumber } from "@/lib/format";
 import type { VTuberDetail, VTuberIndexItem } from "@/types";
+
+/** 取得済みの詳細（成功結果のみ保持。失敗は保持しない） */
+const detailCache = new Map<string, VTuberDetail>();
+/** 取得中のリクエストを共有して、同じ ID の二重リクエストを防ぐ */
+const inflight = new Map<string, Promise<VTuberDetail | null>>();
+
+function fetchDetail(channelId: string): Promise<VTuberDetail | null> {
+  const cached = detailCache.get(channelId);
+  if (cached) return Promise.resolve(cached);
+  const pending = inflight.get(channelId);
+  if (pending) return pending;
+
+  const promise = fetch(`/api/vtuber/${encodeURIComponent(channelId)}`)
+    .then((r) =>
+      r.ok ? (r.json() as Promise<VTuberDetail>) : Promise.reject(r.status),
+    )
+    .then((detail): VTuberDetail | null => {
+      detailCache.set(channelId, detail);
+      return detail;
+    })
+    .catch((): VTuberDetail | null => null)
+    .finally(() => {
+      inflight.delete(channelId);
+    });
+  inflight.set(channelId, promise);
+  return promise;
+}
+
+/** 詳細の先読み（キャッシュ済み・取得中なら何もしない） */
+function prefetchDetail(channelId: string): void {
+  if (detailCache.has(channelId) || inflight.has(channelId)) return;
+  void fetchDetail(channelId);
+}
 
 function SubscriberChart({ data }: { data: VTuberDetail["transition"] }) {
   if (data.length < 2) {
@@ -48,33 +82,29 @@ export function Detail({ channelId }: { channelId: string }) {
     detail: VTuberDetail | null;
   } | null>(null);
 
+  const cached = detailCache.get(channelId);
+
   useEffect(() => {
-    const ctrl = new AbortController();
-    fetch(`/api/vtuber/${encodeURIComponent(channelId)}`, {
-      signal: ctrl.signal,
-    })
-      .then((r) =>
-        r.ok ? (r.json() as Promise<VTuberDetail>) : Promise.reject(r.status),
-      )
-      .then((detail) => setResult({ id: channelId, detail }))
-      .catch(() => {
-        if (!ctrl.signal.aborted) setResult({ id: channelId, detail: null });
-      });
-    return () => ctrl.abort();
+    if (detailCache.has(channelId)) return;
+    let cancelled = false;
+    fetchDetail(channelId).then((detail) => {
+      if (!cancelled) setResult({ id: channelId, detail });
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [channelId]);
 
-  if (!result || result.id !== channelId) {
-    return (
-      <p className="py-16 text-center text-zinc-500">
-        Vtuberリストを読み込み中…
-      </p>
-    );
+  const d: VTuberDetail | null | undefined =
+    cached ?? (result && result.id === channelId ? result.detail : undefined);
+
+  if (d === undefined) {
+    return <VTuberDetailSkeleton />;
   }
-  const d = result.detail;
-  if (!d) {
+  if (d === null) {
     return (
       <p className="py-16 text-center text-zinc-500">
-        Vtuberリストの取得に失敗しました
+        VTuberの詳細を取得できませんでした
       </p>
     );
   }
@@ -183,12 +213,19 @@ export function VTuberTabs() {
     return index.items.filter((m) => sel.has(m.channelId));
   }, [index, channelIds]);
 
+  const currentId = (members.find((m) => m.channelId === active) ?? members[0])
+    ?.channelId;
+
+  // 表示中の詳細に加えて、次のタブ 1 件分を先読みする
+  useEffect(() => {
+    if (!currentId) return;
+    const i = members.findIndex((m) => m.channelId === currentId);
+    const next = members[i + 1];
+    if (next) prefetchDetail(next.channelId);
+  }, [members, currentId]);
+
   if (index.status === "loading") {
-    return (
-      <p className="py-16 text-center text-zinc-500">
-        Vtuberリストを読み込み中…
-      </p>
-    );
+    return <VTuberTabsSkeleton />;
   }
   if (index.status === "error") {
     return (
@@ -219,6 +256,8 @@ export function VTuberTabs() {
             role="tab"
             aria-selected={m.channelId === current.channelId}
             onClick={() => setActive(m.channelId)}
+            onPointerEnter={() => prefetchDetail(m.channelId)}
+            onFocus={() => prefetchDetail(m.channelId)}
             className={`flex shrink-0 items-center gap-2 rounded-full py-1 pl-1 pr-3 text-sm lg:rounded-lg lg:py-2 ${
               m.channelId === current.channelId
                 ? "bg-blue-600 text-white"
