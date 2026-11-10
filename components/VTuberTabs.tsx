@@ -6,7 +6,7 @@ import { VTuberDetailSkeleton, VTuberTabsSkeleton } from "@/components/Skeleton"
 import { VideoCard } from "@/components/VideoCard";
 import { useSelectedChannels } from "@/hooks/useSelection";
 import { formatCompact, formatNumber } from "@/lib/format";
-import type { VTuberDetail, VTuberIndexItem } from "@/types";
+import type { VTuberDetail, VTuberIndexItem, VTuberTabItem } from "@/types";
 
 /** 取得済みの詳細（成功結果のみ保持。失敗は保持しない） */
 const detailCache = new Map<string, VTuberDetail>();
@@ -184,14 +184,21 @@ export function Detail({ channelId }: { channelId: string }) {
 type IndexState =
   | { status: "loading" }
   | { status: "error" }
-  | { status: "ready"; items: VTuberIndexItem[] };
+  | { status: "ready"; items: VTuberTabItem[] };
 
-export function VTuberTabs() {
+type VTuberTabsProps = {
+  initialIndex?: VTuberTabItem[];
+};
+
+export function VTuberTabs({ initialIndex }: VTuberTabsProps) {
   const { channelIds } = useSelectedChannels();
-  const [index, setIndex] = useState<IndexState>({ status: "loading" });
+  const [index, setIndex] = useState<IndexState>(() =>
+    initialIndex ? { status: "ready", items: initialIndex } : { status: "loading" },
+  );
   const [active, setActive] = useState<string | null>(null);
 
   useEffect(() => {
+    if (initialIndex) return;
     const ctrl = new AbortController();
     fetch("/api/vtuber", { signal: ctrl.signal })
       .then((r) =>
@@ -204,7 +211,7 @@ export function VTuberTabs() {
         if (!ctrl.signal.aborted) setIndex({ status: "error" });
       });
     return () => ctrl.abort();
-  }, []);
+  }, [initialIndex]);
 
   // API は事務所の初出順・公式アカウント先頭で返す。その順のまま選択分だけ残す
   const members = useMemo(() => {

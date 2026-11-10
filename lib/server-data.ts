@@ -1,3 +1,4 @@
+import { cacheLife } from "next/cache";
 import {
   GCS_FILES,
   type RawOfficeDataList,
@@ -6,6 +7,7 @@ import {
   type Video,
   type VTuberDetail,
   type VTuberIndexItem,
+  type VTuberTabItem,
 } from "@/types";
 import { fetchGcsJson, normalizeVTuber, normalizeVideo } from "@/lib/gcs";
 
@@ -84,6 +86,41 @@ export const loadVTubers = memo(async () => {
   }
   return { details, index };
 });
+
+export function toVTuberTabItems(index: VTuberIndexItem[]): VTuberTabItem[] {
+  return index.map(({ channelId, name }) => ({
+    channelId,
+    name,
+  }));
+}
+
+export function countVTuberIndex(index: VTuberIndexItem[]): {
+  officeCount: number;
+  memberCount: number;
+} {
+  return {
+    officeCount: new Set(index.map((item) => item.office)).size,
+    memberCount: index.length,
+  };
+}
+
+export async function getCachedVTuberPageData(): Promise<{
+  tabItems: VTuberTabItem[];
+  directoryItems: VTuberIndexItem[];
+  officeCount: number;
+  memberCount: number;
+}> {
+  "use cache";
+  cacheLife("hours");
+  const { index } = await loadVTubers();
+  const counts = countVTuberIndex(index);
+  return {
+    tabItems: toVTuberTabItems(index),
+    directoryItems: index,
+    officeCount: counts.officeCount,
+    memberCount: counts.memberCount,
+  };
+}
 
 export const loadAllVideos = memo(async () => {
   const raw = await fetchGcsJson<RawVideo[]>(GCS_FILES.allVideos, 0);

@@ -81,6 +81,55 @@
     - `curl -s <URL>/ranking -o rk.html && wc -c rk.html` が **500KB 以下**。
     - 全タブ・期間切替・事務所絞り込みが従来どおり動く。
 
+### P0-SOFT404: 「ソフト 404」判定の解消（🚨緊急・P0-AFF より先に着手）
+
+> **背景（2026-11-10 Search Console ライブテスト）**: `/vtuber` が「ページをインデックスに登録できません: ソフト 404」と判定された（`/ranking` は登録可）。
+>
+> 原因:
+> - (1) 初期 HTML の本文が「Vtuberリストを読み込み中…」のみ（約 140 文字）で、一覧はクライアントから `/api/vtuber` を fetch して描画している。
+> - (2) `robots.txt` が `Disallow: /api/` のため、Googlebot がレンダリング時に `/api/vtuber` を取得できず、空ページのまま評価される。
+>
+> 同じ状態のページ: `/events`（本文「読み込み中…」のみ）、`/vtuber/[channelId]`（SEO-1 で対応）。
+>
+> **方針**: Google に見せるべき本文は初期 HTML に含める（クライアント fetch に依存しない）。`robots.txt` の `/api/` 禁止は維持する。
+
+- [x] **S404-1. `/vtuber` を初期データ付きでサーバーレンダリングする**（SEO-3 を前倒しして統合）
+  - **対象ファイル**:
+    `app/vtuber/page.tsx`
+    `components/VTuberTabs.tsx`
+    `components/VTuberDirectory.tsx`（新規・Server Component）
+    `lib/server-data.ts`
+  - **仕様**:
+    - `app/vtuber/page.tsx` を async にし、`loadVTubers()` の `index` をサーバーで取得する。`export const revalidate = 3600`。
+    - `VTuberTabs` に `initialIndex` props を追加し、渡された場合は `/api/vtuber` を fetch しない。
+      - 選択中タブの詳細（`/api/vtuber/[id]`）は従来どおりクライアントで取得してよい。一覧は初期 HTML に出ること。
+      - props で渡すのは `VTuberIndexItem`（軽量）のみ。HTML サイズが 500KB を超える場合は、`thumbnail` を除くなどで削減する。
+    - SEO-3 の仕様どおり、タブ UI の下に「事務所別VTuber一覧」（`VTuberDirectory`）をサーバーレンダリングする。
+      - 事務所見出し `<h2>` の下に、`<Link href="/vtuber/{id}">名前（登録者数）</Link>` を並べる。
+      - h1 直下に要約文を置く。例: `Vちゃんねるでは${事務所数}事務所・${人数}人のVTuberの登録者数や配信情報をまとめています。`
+    - `metadata`: title `VTuber一覧（事務所別）`、description に事務所数・人数を含める（`generateMetadata` で動的に生成）。
+    - データ取得に失敗した場合は、従来のクライアント fetch にフォールバックする（ページを 500 にしない）。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - `curl -s <URL>/vtuber` の HTML 本文に VTuber 名と `href="/vtuber/` リンクが含まれ、HTML サイズが 500KB 以下。
+    - 完了報告に「Search Console で `/vtuber` のライブテストを再実行してください」と添える。
+    - SEO-3 を `[x]`（S404-1 で対応済み）に更新する。
+
+- [ ] **S404-2. `/events` に今日のイベントをサーバーレンダリングする**
+  - **対象ファイル**:
+    `app/events/page.tsx`
+    `components/EventCalendar.tsx`
+  - **仕様**:
+    - 現在 `EventCalendar` はマウントするまで「読み込み中…」を返している。これをやめ、サーバー側で **今日（JST）のイベント一覧**（名前・事務所・種別、詳細ページへの `<Link>`）を初期 HTML に描画する。
+    - h1 直下に要約文を置く。例: `今日（11月10日）が誕生日・デビュー記念日のVTuberは${n}人です。`
+    - カレンダー UI はマウント後に表示してよい。マウント前もサーバー描画した今日の一覧を残し、レイアウトのずれ（CLS）を最小にする。
+    - `export const revalidate = 3600`。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - `curl -s <URL>/events` の HTML 本文に今日のイベントの VTuber 名（0 件の日は「今日のイベントはありません」）が含まれる。
+
+> **注**: `/vtuber/[channelId]` も同じ原因でソフト 404 になる。P0-AFF の後の **SEO-1** で対応する（優先度はそのまま）。
+
 ### P0-AFF: もしもアフィリエイト組み込み（最優先・他タスクより先に着手）
 
 > **前提（人手作業・Copilot は実施不要）**:
@@ -218,7 +267,7 @@
     - `npm run build` が成功する。
     - `/sitemap.xml` に VTuber 詳細 URL が含まれる。
 
-- [ ] **SEO-3. `/vtuber` 一覧に、クロール可能な事務所別メンバーリンクを追加**
+- [x] **SEO-3. `/vtuber` 一覧に、クロール可能な事務所別メンバーリンクを追加**
   - **対象ファイル**:
     `app/vtuber/page.tsx`
     `components/VTuberDirectory.tsx`（新規・Server Component）

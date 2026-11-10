@@ -157,6 +157,10 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 - 5 件ごとにネイティブ広告。検索・カテゴリ絞り込みなし。並び順は `news.json` の順（フロントで再ソートしていない）。
 
 ### 5.4 VTuber
+- `/vtuber` は Server Component で `loadVTubers()` の index を取得し、`getCachedVTuberPageData()`（`"use cache"` + `cacheLife("hours")`）で 1 時間キャッシュする。取得できた index（軽量版）を `VTuberTabs` の `initialIndex` として渡し、初期 HTML に一覧を含める。
+- `VTuberTabs` は `initialIndex` がある場合に `/api/vtuber` を再 fetch しない。`/api/vtuber/[channelId]` の詳細取得は従来どおりクライアントで行う。
+- h1 直下に要約文を表示し、`generateMetadata` で title を `VTuber一覧（事務所別）`、description に事務所数・人数を含める。
+- タブ UI の下に `VTuberDirectory`（Server Component）を配置し、「事務所別VTuber一覧」をサーバーレンダリングする。事務所見出し（`<h2>`）配下に各メンバーへのリンク（`/vtuber/{channelId}`、名前＋登録者数）を出す。
 - 選択事務所のメンバーを **1 人 1 タブ**で横並び。順序：事務所の初出順 → 各事務所内で `officeFlg == true` を先頭。
 - 背景：選択中チャンネルのサムネをぼかして拡大＋暗いオーバーレイ。
 - 詳細：サムネ・名前・事務所、登録者数・総再生数・動画本数、**登録者数推移の折れ線グラフ（30 日、`youtubeSubscriberCountTransition`）**、最新動画（最大 30 件、サムネ・お気に入り・再生）。

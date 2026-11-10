@@ -120,6 +120,12 @@ export interface VTuberIndexItem {
   subscriberCount: number;
 }
 
+export type VTuberTabItem = {
+  channelId: string;
+  name: string;
+  thumbnail?: string;
+};
+
 export interface VTuberDetail extends VTuberIndexItem {
   title: string;
   viewCount: number;
