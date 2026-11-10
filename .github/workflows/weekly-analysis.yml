@@ -90,7 +90,7 @@ jobs:
           attempt=1
           success=false
           
-          while [ $attempt -le $MAX_RETRIES ]; do
+          while [ $attempt -le$MAX_RETRIES ]; do
             echo "=== ビルド検証 試行回数: $attempt / $MAX_RETRIES ==="
             
             if npx tsc --noEmit && npm run build; then
@@ -173,5 +173,18 @@ jobs:
             
             ${{ steps.pr-body.outputs.summary_content }}
             
-            実装された機能のコード差分を確認し、問題なければマージしてください。
+            実装された機能のコード差分を確認し、問題なければ自動マージされます。
           delete-branch: true
+
+      - name: Auto-approve and Auto-merge PR
+        if: steps.git-check.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "PR作成を待機してからマージを自動実行します..."
+          sleep 5
+          
+          PR_URL=$(gh pr list --base main --head daily-auto-dev --state open --json url -q ".[0].url")
+          if [ -n "$PR_URL" ]; then
+            echo "対象PRを発見: $PR_URL"
+            gh pr merge "$PR_URL" --auto --merge --delete-branch || gh pr merge "$PR_URL" --merge --delete-branch || echo "自動マージの
