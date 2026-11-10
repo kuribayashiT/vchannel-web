@@ -132,12 +132,33 @@
 
 ### P0-AFF: もしもアフィリエイト組み込み（最優先・他タスクより先に着手）
 
-> **前提（人手作業・Copilot は実施不要）**:
-> 1. もしもアフィリエイト管理画面で **Amazon** と **楽天市場** のプロモーションに提携申請し、承認を得る（サイト審査とは別に必要）。
-> 2. 各プロモーションの「リンク作成」で任意の商品リンクを1本ずつ生成し、`a_id` / `p_id` / `pc_id` / `pl_id` の値を控える（**`a_id` は Amazon と楽天で異なる**）。
-> 3. Vercel の Environment Variables（Production / Preview）に以下を登録する。
->    - `NEXT_PUBLIC_MOSHIMO_AMAZON_AID` / `NEXT_PUBLIC_MOSHIMO_RAKUTEN_AID`
-> - 環境変数が未設定の環境（ローカル等）では、アフィリエイト枠を**一切表示しない**こと（素のリンクにもフォールバックしない）。
+> **確定情報（2026-11-10）**:
+> - **楽天市場: 提携済み。もしも `a_id` = `5890334`**（楽天ウィジェットの HTML ソースで確認）。
+>   - `a_id` は HTML に公開される値なので秘密情報ではない。`lib/affiliate.ts` に定数で持ち、環境変数 `NEXT_PUBLIC_MOSHIMO_RAKUTEN_AID` があればそちらを優先する。
+> - **Amazon: 未提携（申請中）**。`NEXT_PUBLIC_MOSHIMO_AMAZON_AID` が未設定の間は Amazon ボタンを出さず、楽天だけを表示する。
+>   - 提携後に人手で Vercel 環境変数を設定すれば、コード変更なしで Amazon ボタンが出る作りにすること。
+> - 楽天の `p_id` / `pc_id` / `pl_id` は AFF-1 記載の初期値（`54 / 54 / 616`）で実装する。人手で「どこでもリンク」を 1 本生成して値が異なると分かった場合は、別途修正タスクを起票する。
+> - `a_id` が取れないショップ（Amazon 未提携など）の枠は**一切表示しない**こと（アフィリエイトなしの素のリンクにもフォールバックしない）。
+
+- [x] **AFF-2. 広告掲載に関する表記・プライバシーポリシーページ**（もしもメディア審査中のため AFF-1 より先に着手）
+  - **対象ファイル**:
+    `app/privacy/page.tsx`（新規）
+    `components/SettingsList.tsx`
+    `app/sitemap.ts`
+  - **仕様**:
+    - `/privacy` を新規作成し、`metadata.title` を `プライバシーポリシー・広告について` にする。以下の見出しを含める。
+      - **広告の掲載について**: 「当サイトは、もしもアフィリエイトを利用したアフィリエイトプログラムに参加しており、Amazon・楽天市場等の商品を紹介しています。リンク経由で商品が購入された場合、当サイトに報酬が支払われることがあります。」
+      - **Amazon アソシエイト**: 「Vちゃんねるは、Amazon.co.jpを宣伝しリンクすることによってサイトが紹介料を獲得できる手段を提供することを目的に設定されたアフィリエイトプログラムである、Amazonアソシエイト・プログラムの参加者です。」
+      - **アクセス解析**: Vercel Analytics を利用している旨。
+      - **ローカルストレージ**: お気に入り・事務所選択を端末内に保存している旨。
+      - **お問い合わせ**: 既存の問い合わせ先（設定ページと同じメール）。
+      - **制定日**: 2026-11-09。
+    - `components/SettingsList.tsx` の「このアプリについて」付近に `/privacy` へのリンクを追加する。
+    - `app/sitemap.ts` に `/privacy` を追加する。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - 設定ページから `/privacy` に遷移できる。
+    - `FRONTEND_SPEC.md` の 5.10 / 5.11 を更新している。
 
 - [ ] **AFF-1. もしもリンク生成ユーティリティ＋商品導線コンポーネント＋VTuber詳細ページへの設置**
   - **対象ファイル**:
@@ -173,26 +194,6 @@
     - 環境変数が未設定ならアフィリエイト枠が DOM に出力されない。
     - `FRONTEND_SPEC.md` の「5.11 収益化（アフィリエイト）」を実装内容に合わせて更新している。
 
-- [ ] **AFF-2. 広告掲載に関する表記・プライバシーポリシーページ**
-  - **対象ファイル**:
-    `app/privacy/page.tsx`（新規）
-    `components/SettingsList.tsx`
-    `app/sitemap.ts`
-  - **仕様**:
-    - `/privacy` を新規作成し、`metadata.title` を `プライバシーポリシー・広告について` にする。以下の見出しを含める。
-      - **広告の掲載について**: 「当サイトは、もしもアフィリエイトを利用したアフィリエイトプログラムに参加しており、Amazon・楽天市場等の商品を紹介しています。リンク経由で商品が購入された場合、当サイトに報酬が支払われることがあります。」
-      - **Amazon アソシエイト**: 「Vちゃんねるは、Amazon.co.jpを宣伝しリンクすることによってサイトが紹介料を獲得できる手段を提供することを目的に設定されたアフィリエイトプログラムである、Amazonアソシエイト・プログラムの参加者です。」
-      - **アクセス解析**: Vercel Analytics を利用している旨。
-      - **ローカルストレージ**: お気に入り・事務所選択を端末内に保存している旨。
-      - **お問い合わせ**: 既存の問い合わせ先（設定ページと同じメール）。
-      - **制定日**: 2026-11-09。
-    - `components/SettingsList.tsx` の「このアプリについて」付近に `/privacy` へのリンクを追加する。
-    - `app/sitemap.ts` に `/privacy` を追加する。
-  - **完了条件**:
-    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
-    - 設定ページから `/privacy` に遷移できる。
-    - `FRONTEND_SPEC.md` の 5.10 / 5.11 を更新している。
-
 - [ ] **AFF-3. イベントカレンダー（誕生日・周年）への商品導線**
   - **対象ファイル**: `components/EventCalendar.tsx`
   - **仕様**:
@@ -205,6 +206,42 @@
   - **完了条件**:
     - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
     - イベントのある日を選ぶと PR バッジ付きの導線が 1 つ表示され、イベントのない日は表示されない。
+
+- [ ] **AFF-4. 楽天ウィジェット（もしも版・新 JS）をトップとランキングに設置**
+  - **対象ファイル**:
+    `components/RakutenWidget.tsx`（新規・Client Component）
+    `app/page.tsx`
+    `app/ranking/page.tsx`
+  - **元の HTML ソース（もしも管理画面で生成、2026-11-10）**:
+    ```html
+    <!-- MAF Rakuten Widget FROM HERE -->
+    <script type="text/javascript">MafRakutenWidgetParam=function() { return{ size:'468x160',design:'slide',recommend:'on',auto_mode:'on',a_id:'5890334', border:'off'};};</script><script type="text/javascript" src="https://dn.msmstatic.com/site/rakuten/widget.js"></script>
+    <!-- MAF Rakuten Widget TO HERE -->
+    ```
+    - JS は**新 URL `https://dn.msmstatic.com/site/rakuten/widget.js`** を使う（旧 `image.moshimo.com/...` は 2026-10 に停止済み。使用禁止）。
+  - **仕様**:
+    - ウィジェット JS は `document.write` 系の可能性があり、React ツリーや `next/script` に直接埋め込むとクライアント遷移時に動かない、またはページを壊すおそれがある。そのため **`<iframe srcDoc>` で隔離して描画する**。
+      - `srcDoc` の中身は `<!doctype html><html><head><meta charset="utf-8"><base target="_blank"><style>html,body{margin:0;padding:0;overflow:hidden}</style></head><body>` ＋ 上記 2 つの `<script>` ＋ `</body></html>`。
+      - `<base target="_blank">` により、ウィジェット内のリンクを iframe 内ではなく新しいタブで開く。
+      - iframe 属性: `width` / `height` をサイズに一致させる。`loading="lazy"`、`title="楽天市場のおすすめ商品（広告）"`、`style={{ border: 0 }}`、`scrolling="no"`。
+      - `sandbox` は付けない（リンク遷移と計測を阻害するため）。
+    - **サイズのレスポンシブ切替**:
+      - 画面幅 < 640px は `size:'300x250'`、それ以上は `size:'600x200'`（いずれも管理画面の選択肢にあるサイズ）。
+      - `matchMedia` で判定し、マウント前は何も描画しない（高さ分のプレースホルダーで CLS を防ぐ）。
+      - 375px 幅で横スクロールが出ないこと。
+    - パラメータは上記のまま使う（`design:'slide'`、`recommend:'on'`、`auto_mode:'on'`、`border:'off'`）。`a_id` は `lib/affiliate.ts` の楽天 `a_id` を使う。
+    - 枠の上に小さく `PR` バッジと見出し `楽天市場のおすすめ` を表示する（`AffiliateLinks` と同じバッジのスタイル）。
+    - 楽天の `a_id` が取得できない場合は何も描画しない。
+    - **設置箇所（各 1 つのみ）**:
+      - `/`: 配信セクションの下（ページ末尾）
+      - `/ranking`: ランキング一覧の下
+    - 掲示板・VTuber 詳細・イベントには置かない（詳細とイベントは AFF-1 / AFF-3 の検索ボタンを使う）。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - `/` と `/ranking` の下部に楽天ウィジェットが表示される。商品をクリックすると新しいタブで `af.moshimo.com` 経由の楽天ページが開く。
+    - クライアント遷移（他ページ → `/` → `/ranking`）を繰り返してもウィジェットが毎回表示され、ページが白くならない。
+    - 375px / 1280px で横スクロールなし。ダークモードで枠周りが崩れない。
+    - `FRONTEND_SPEC.md` 5.11 に、楽天ウィジェットの設置箇所と iframe 隔離の方針を追記している。
 
 ### P0-SEO: 検索流入・AI検索（AIO）対策（P0-AFF の次に着手）
 

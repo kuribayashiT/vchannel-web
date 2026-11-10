@@ -12,6 +12,7 @@ const PAGES: {
   { path: "/vtuber", changeFrequency: "daily", priority: 0.7 },
   { path: "/events", changeFrequency: "daily", priority: 0.6 },
   { path: "/chat", changeFrequency: "hourly", priority: 0.4 },
+  { path: "/privacy", changeFrequency: "daily", priority: 0.3 },
 ];
 
 export default function sitemap(): MetadataRoute.Sitemap {

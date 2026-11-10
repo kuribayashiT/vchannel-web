@@ -204,22 +204,30 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 `設定` / `Push通知`（Web 非表示）/ `お知らせ`（`noticeJson`、New バッジ）/ `このアプリについて`: `共有する`・`アプリ情報`・`利用規約`・`お問い合わせ`（メール）・`おすすめVtuber`（メール）。
 - アプリ情報は長い静的ページ。利用規約は現行ほぼプレースホルダー（Next.js 版で正式文面を用意）。
 - `プライバシーポリシー・広告について`（`/privacy`）へのリンクを置く（AFF-2）。
+- 問い合わせ先メールは `vchannel.com.info@gmail.com` を使用し、設定ページと `/privacy` で同じ宛先を表示する。
 
 ### 5.11 収益化（アフィリエイト）
 - ASP は **もしもアフィリエイト**（Amazon / 楽天市場）。2026-11-09 にサイト審査を通過した。
-- `a_id` は環境変数 `NEXT_PUBLIC_MOSHIMO_AMAZON_AID` / `NEXT_PUBLIC_MOSHIMO_RAKUTEN_AID` で渡す。どちらも未設定ならアフィリエイト枠を出さない。
+- 提携状況（2026-11-10）: **楽天市場は提携済み（`a_id` = `5890334`）、Amazon は未提携**。
+- `a_id` は公開値のため、楽天は `lib/affiliate.ts` の定数で持つ（環境変数 `NEXT_PUBLIC_MOSHIMO_RAKUTEN_AID` があれば優先）。Amazon は `NEXT_PUBLIC_MOSHIMO_AMAZON_AID` を設定したときだけ表示する。`a_id` のないショップの枠は出さない。
 - リンクは `lib/affiliate.ts` の `buildMoshimoUrl` だけで生成する（URL の手書き禁止）。遷移先は商品個別ページではなく **Amazon / 楽天の検索結果**（キーワード `<VTuber名> グッズ`）とし、商品データの保守は不要にする。
 - 表示は共通コンポーネント `AffiliateLinks` に統一する。ルールは以下のとおり。
   - `PR` バッジを必ず表示する。
   - `rel="sponsored nofollow noopener"`、別タブで開く。
   - インプレッション計測用の画像を添える。
-- 設置箇所:
+- 設置箇所（検索ボタン `AffiliateLinks`）:
   - VTuber 詳細ページ（グラフと最新動画の間）
-  - イベントカレンダー（選択日のイベント一覧の下に 1 つ）
+  - イベントカレンダー・日付ページ（選択日のイベント一覧の下に 1 つ）
+- 設置箇所（楽天ウィジェット `RakutenWidget`、各ページ 1 つ・ページ末尾）:
+  - トップ `/`（配信セクションの下）
+  - ランキング `/ranking`（一覧の下）
+  - 楽天ウィジェットは `https://dn.msmstatic.com/site/rakuten/widget.js`（新 URL）を `<iframe srcDoc>` で隔離して描画する（`document.write` 対策、`<base target="_blank">`）。
+  - サイズは幅 < 640px で `300x250`、それ以上で `600x200`。
 - **設置しない箇所**:
   - 掲示板（ユーザー投稿の横に広告を出さない）
-  - 配信一覧・ランキング（購買意欲が低く、表示が煩雑になる）
+  - 一覧の行の間への差し込み（配信カード・ランキング行の途中には入れない）
 - VTuber のサムネイル画像を商品リンクの装飾に使わない（各事務所の二次創作ガイドラインに配慮）。
+- `/privacy` に「広告の掲載について」「Amazon アソシエイト」「アクセス解析（Vercel Analytics）」「ローカルストレージ」「お問い合わせ」「制定日（2026-11-09）」を掲載する。
 
 ---
 

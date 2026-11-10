@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { resetSelection } from "@/hooks/useSelection";
 
 const btn =
   "w-full rounded-lg border border-zinc-200 bg-white px-4 py-3 text-left text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800";
+const CONTACT_EMAIL = "vchannel.com.info@gmail.com";
 
 export function SettingsList() {
   const [message, setMessage] = useState("");
@@ -61,6 +63,23 @@ export function SettingsList() {
         </p>
         <p className="mt-2 text-xs text-zinc-500">
           お気に入りや選択した事務所は、お使いのブラウザ内（localStorage）にのみ保存されます。
+        </p>
+        <p className="mt-3 text-xs text-zinc-500">
+          お問い合わせ：
+          <a
+            href={`mailto:${CONTACT_EMAIL}`}
+            className="ml-1 text-blue-600 underline hover:text-blue-500 dark:text-blue-400"
+          >
+            {CONTACT_EMAIL}
+          </a>
+        </p>
+        <p className="mt-2">
+          <Link
+            href="/privacy"
+            className="text-sm text-blue-600 underline hover:text-blue-500 dark:text-blue-400"
+          >
+            プライバシーポリシー・広告について
+          </Link>
         </p>
       </section>
     </div>
