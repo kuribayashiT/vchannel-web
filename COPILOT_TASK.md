@@ -115,7 +115,7 @@
     - 完了報告に「Search Console で `/vtuber` のライブテストを再実行してください」と添える。
     - SEO-3 を `[x]`（S404-1 で対応済み）に更新する。
 
-- [ ] **S404-2. `/events` に今日のイベントをサーバーレンダリングする**
+- [x] **S404-2. `/events` に今日のイベントをサーバーレンダリングする**
   - **対象ファイル**:
     `app/events/page.tsx`
     `components/EventCalendar.tsx`

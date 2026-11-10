@@ -15,6 +15,25 @@ export function dayKey(month: number, day: number): string {
   return `${month}/${day}`;
 }
 
+const jstParts = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Tokyo",
+  year: "numeric",
+  month: "numeric",
+  day: "numeric",
+});
+
+export function todayJstParts(now: Date = new Date()): {
+  y: number;
+  m: number;
+  d: number;
+} {
+  const [y, m, d] = jstParts
+    .formatToParts(now)
+    .filter((p) => p.type !== "literal")
+    .map((p) => Number(p.value));
+  return { y, m, d };
+}
+
 /** 周年 `N周年` / `誕生日` / 未来日 `未来のイベント` / 不明 `不明` */
 export function eventLabel(e: VEvent, selectedYear: number): string {
   if (e.eventType === "birthday") return "誕生日";

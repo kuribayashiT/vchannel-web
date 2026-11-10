@@ -1,44 +1,29 @@
 "use client";
 
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useMemo, useState } from "react";
 import { dayKey, eventLabel, mergeEvents, monthGrid } from "@/lib/events";
 import type { EventList } from "@/types";
 
 const WEEK = ["日", "月", "火", "水", "木", "金", "土"];
 const MIN_YEAR = 2015;
 const MAX_YEAR = 2050;
-const noopSubscribe = () => () => {};
+type EventCalendarProps = {
+  events: EventList;
+  initialDate: { y: number; m: number; d: number };
+};
 
-const jstParts = new Intl.DateTimeFormat("en-CA", {
-  timeZone: "Asia/Tokyo",
-  year: "numeric",
-  month: "numeric",
-  day: "numeric",
-});
-
-function todayJst() {
-  const [y, m, d] = jstParts
-    .formatToParts(new Date())
-    .filter((p) => p.type !== "literal")
-    .map((p) => Number(p.value));
-  return { y, m, d };
+export function EventCalendar({ events, initialDate }: EventCalendarProps) {
+  return <Calendar events={events} initialDate={initialDate} />;
 }
 
-export function EventCalendar({ events }: { events: EventList }) {
-  // 今日の日付は現在時刻依存のため、マウント後に初期化する
-  const mounted = useSyncExternalStore(
-    noopSubscribe,
-    () => true,
-    () => false,
-  );
-  if (!mounted) {
-    return <p className="py-16 text-center text-zinc-500">読み込み中…</p>;
-  }
-  return <Calendar events={events} />;
-}
-
-function Calendar({ events }: { events: EventList }) {
-  const today = useMemo(() => todayJst(), []);
+function Calendar({
+  events,
+  initialDate,
+}: {
+  events: EventList;
+  initialDate: { y: number; m: number; d: number };
+}) {
+  const today = useMemo(() => initialDate, [initialDate]);
   const [year, setYear] = useState(today.y);
   const [month, setMonth] = useState(today.m);
   const [selected, setSelected] = useState(today.d);
