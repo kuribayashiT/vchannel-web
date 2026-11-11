@@ -194,7 +194,7 @@
     - 環境変数が未設定ならアフィリエイト枠が DOM に出力されない。
     - `FRONTEND_SPEC.md` の「5.11 収益化（アフィリエイト）」を実装内容に合わせて更新している。
 
-- [ ] **AFF-3. イベントカレンダー（誕生日・周年）への商品導線**
+- [x] **AFF-3. イベントカレンダー（誕生日・周年）への商品導線**
   - **対象ファイル**: `components/EventCalendar.tsx`
   - **仕様**:
     - 選択日のイベント一覧の下に、AFF-1 の `AffiliateLinks` を 1 つだけ設置する（**イベント行ごとには置かない**。行ごとに並べると過剰になるため）。
@@ -446,5 +446,4 @@
   - 対象ファイル: `components/AppShell.tsx`, `components/BottomNav.tsx`, `package.json`
 - [x] **P0-2. 数値の短縮表記ユーティリティ**
   - 対象ファイル: 新規 `lib/format.ts`、`components/RankingTabs.tsx`, `components/GrowthTop3.tsx`, `components/VTuberTabs.tsx`, `components/VideoCard.tsx`
-- [x] **P0-3. 画像のフォールバック（壊れ画像アイコンを根絶）**
-  - 対象
+- [x] **P0-3.
