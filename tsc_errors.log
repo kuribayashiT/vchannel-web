@@ -1,3 +1,1 @@
-app/api/vtuber/[channelId]/route.ts(5,8): error TS2304: Cannot find name 'RouteContext'.
-app/layout.tsx(69,56): error TS2304: Cannot find name 'LayoutProps'.
-app/vtuber/[channelId]/page.tsx(14,4): error TS2304: Cannot find name 'PageProps'.
+components/EventCalendar.tsx(4,32): error TS2307: Cannot find module '@/components/AffiliateLinks' or its corresponding type declarations.
