@@ -477,7 +477,7 @@
     - `/llms.txt` が取得できる。
     - `/ranking` の初期 HTML に要約文と JSON-LD が含まれる。
 
-- [ ] **SEO-6. VTuber 詳細ページの動的 OGP 画像（X での共有 CTR 向上）**
+- [x] **SEO-6. VTuber 詳細ページの動的 OGP 画像（X での共有 CTR 向上）**
   - **対象ファイル**: `app/vtuber/[channelId]/opengraph-image.tsx`（新規）
   - **仕様**:
     - `next/og` の `ImageResponse` で 1200×630 の画像を生成する。内容はサムネ・名前・事務所・登録者数（短縮表記）・サイト名。

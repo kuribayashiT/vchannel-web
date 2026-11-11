@@ -82,11 +82,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       title,
       description,
       url: canonical,
-      images: detail.thumbnail
-        ? [{ url: detail.thumbnail, alt: `${detail.name}のチャンネルサムネイル` }]
-        : undefined,
+      images: [{ url: `/vtuber/${channelId}/opengraph-image` }],
     },
-    twitter: { title, description },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [`/vtuber/${channelId}/opengraph-image`],
+    },
   };
 }
 

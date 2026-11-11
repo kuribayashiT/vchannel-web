@@ -163,6 +163,7 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 - タブ UI の下に `VTuberDirectory`（Server Component）を配置し、「事務所別VTuber一覧」をサーバーレンダリングする。事務所見出し（`<h2>`）配下に各メンバーへのリンク（`/vtuber/{channelId}`、名前＋登録者数）を出す。
 - `/vtuber/[channelId]` は Server Component で `loadVTubers()` から詳細を取得し、存在しない `channelId` は `notFound()` で 404 を返す。データは `getCachedVTuberDetail()`（`"use cache"` + `cacheLife("hours")`）で 1 時間キャッシュする。
 - 詳細ページは `generateMetadata` で個別 title/description/canonical を生成し、OGP 画像にチャンネルサムネイルを設定する。本文先頭に「誰が・何人・いつ時点」を含む要約文を置く。
+- 詳細ページは `app/vtuber/[channelId]/opengraph-image.tsx` で動的 OGP 画像（1200x630）を生成し、`generateMetadata` の `openGraph.images` / `twitter.images` に設定する。`twitter.card` は `summary_large_image` を使う。
 - 詳細表示は `VTuberTabs` の `Detail` を「取得（Detail）」と「表示（DetailView）」に分離し、一覧タブはクライアント取得したデータを `DetailView` へ渡す。詳細ページはサーバー取得したデータを `DetailView` へ直接渡す。
 - 詳細ページにはパンくず（ホーム › VTuber › 名前）、`ProfilePage` + `Person` と `BreadcrumbList` の JSON-LD、同じ事務所の他メンバー（登録者数上位12人）へのリンクを表示する。
 - 詳細の「登録者数の推移」と「最新動画」の間に `AffiliateLinks` を表示する（キーワード `${name} グッズ`、見出し横に `PR` バッジ、楽天ボタン1つ）。
