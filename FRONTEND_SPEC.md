@@ -69,6 +69,26 @@ Cloud Functions が定期更新する。アプリは 1 時間 TTL でキャッ�
 - 読み取りは `officeMapping` のみ（Firestore の事務所名 → 表示名の変換表、約 600B）。`office` ノードは管理画面が REST で読む。
 - **RTDB ルールは `.read:false` を既定とし `officeMapping` / `office` のみ公開**（2026-11 に料金急増対策で変更済み）。Web から `/` などを読まないこと。
 
+### 2.3.1 VTuber 自動発見・自動登録（バックエンド、2026-11-11 追加）
+- 実装: `backend-repo/functions/vtuberDiscovery.js`。`index.js` の `scheduledVtuberDiscovery`（毎日 0:30 JST）が実行し、`previewVtuberDiscovery`（HTTP GET）は書き込みなしの試走結果を返す。
+- 流れ: Holodex（`type=vtuber`、登録者数の多い順）→ 未登録チャンネルを YouTube API で再確認 → Wikidata で照合 → 判定 → RTDB `vtuber` / `officeMapping` / `office` に 1 回のマルチパス更新で書き込む。登録後の登録者数・ランキング・`officedataList.json` は既存の 24 時間／30 分ジョブがそのまま拾う。
+- 登録条件: 登録者数 5 万人以上（YouTube API の値）、Holodex で `inactive` でない、チャンネル ID・Twitter ID が既存と重複しない、本人確認シグナル（Wikidata の P2397 一致／既知の事務所所属／チャンネル名・概要・キーワードに VTuber 関連語）が 1 つ以上。個人勢と新規事務所は日本語圏のみ（名前にかな・カナ、または概要にかな・カナ 30 字以上）。
+- 事務所チャンネル: 事務所に所属していて、名前に「公式」「official」がある、または名前がほぼ事務所名だけ（例: `hololive ホロライブ - VTuber Group`、`KAMITSUBAKI STUDIO`）のチャンネルは `officeFlg: true` で登録する（一覧で先頭に出る）。新規事務所を作る際の人数には数えない。
+- 所属の判定: Holodex の org と `group`（例: hololive の `English -Promise-`）を、登録済み VTuber の実際の `office` と照らして学習した対応を優先する（`group` 単位 → 地域 EN/ID/KR → 自動作成時の学習 → org 全体 → 静的マップ）。個人勢（Independents / Twitch Independents）は常に `personal`。実在の事務所を `personal` として学習しない。
+- 保留（`vtuberDiscovery/pending`、登録しない）: 本人確認シグナルなし／Twitter 重複・Holodex `extra_ids` が登録済み（サブチャンネル）／名前に「切り抜き」「まとめ」「翻訳」／個人勢なのに「公式」を名乗る／メンバー 1 人だけの未知の事務所。
+- 事務所の自動追加: 未知の Holodex org は、条件を満たすメンバーが 2 人以上いれば `officeMapping` と `office` に追加する（表示名は Holodex の英語名。`vtuberDiscovery/offices/{key}.needsNameReview` が true のものは日本語名に手で直す）。30 分ジョブにより、新しい事務所の掲示板スレッドが自動で作られる点に注意。
+- 上限: 1 回あたり登録 30 人・新規事務所 3 件。超過分は翌日以降に繰り越す。
+- 自動登録された VTuber の行には `registeredBy: "auto-discovery"` と `discovery`（Holodex org、登録時の登録者数、Wikidata ID、判定シグナル）が付く。`debut` / `birthday` は空で登録し、下記 2.3.2 の補完ジョブが埋める（チャンネル開設日はデビュー日と一致しないため使わない）。
+- 設定・停止（2.3.1）: `vtuberDiscovery/config`（`enabled` / `minSubscribers` / `maxRegisterPerRun` / `maxNewOfficesPerRun` / `minMembersForNewOffice`）で上書きできる。`enabled: false` で停止する。実行記録は `vtuberDiscovery/runs`（直近 30 件）に残る。`vtuberDiscovery/*` は公開読み取り不可。
+
+### 2.3.2 誕生日・デビュー日（周年）の自動補完（バックエンド、2026-11-11 追加）
+- 実装: `backend-repo/functions/vtuberProfiles.js`。`scheduledFillVtuberProfiles`（0:45 / 6:45 / 12:45 / 18:45 JST、1 回約 7 分）が実行し、`previewVtuberProfiles?limit=20`（HTTP GET）は書き込みなしの試走結果を返す。
+- 対象: 事務所チャンネル以外で `birthday` か `debut` が空のもの（新しく登録された順）。**既存の値は上書きしない**。調べたものは `vtuberProfiles/checked/{channelId}` に記録し、30 日間は再検索しない。
+- 取得元: 誕生日は Wikidata（チャンネル ID 一致・P569 の日単位の値）→ Virtual YouTuber Wiki。デビュー日は Virtual YouTuber Wiki の `debut_date` の最初の日付のみ（Wikidata の P2031 は告知日などが入りずれるため使わない）。Wiki の記事は、channel 欄の `@handle` / チャンネル ID が YouTube と一致した場合だけ採用する。
+- 形式: `birthday` は `MM-DD`、`debut` は `YYYY/MM/DD`（既存データの多数派・`eventList` の周年計算と同じ）。出典を `profileSource.birthday` / `profileSource.debut`（`wikidata:Q…` / `fandom:記事名` / `gpt`）に残す。
+- GPT 補完（`scheduledFillVtuberBirthdays`、1:00 JST）は、Wiki で調べ済みなのに誕生日が見つからなかったものだけを対象にする（`profileSource.birthday = "gpt"`）。
+- 検証（2026-11-11、既存値ありの 40 人で値を消して再取得）: 誕生日 39/39 一致、デビュー日 27/39 完全一致・3/39 は 3 日以内。未入力 40 人では 24 人が埋まった。
+
 ### 2.4 Remote Config
 | キー | 用途 |
 |---|---|
