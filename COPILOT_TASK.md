@@ -192,6 +192,35 @@
     - 設置は `/` と `/ranking` の下部に各 1 つ。
     - JS の URL とパラメータは楽天が生成したコードに従う。
 
+  - **PM 確認（2026-11-12）**: 実装されたのはモーションウィジェットではない。iframe の中にテキストリンク 1 本（楽天トップへのリンク）を置いただけの**仮実装**になっている。
+    - 600×200 / 300×250 の枠がほぼ空白になる。
+    - ダークモードでも背景が白い。
+    - AFF-8 で本物のウィジェットに差し替える。
+
+- [x] **AFF-8. 仮実装の `RakutenMotionWidget` を楽天公式モーションウィジェットに差し替え**（2026-11-12 着手可）
+  - **対象ファイル**: `components/RakutenMotionWidget.tsx`（設置箇所の `app/page.tsx` / `app/ranking/page.tsx` は変更不要）
+  - **楽天管理画面で生成したコード（2026-11-12、そのまま使う）**:
+    ```html
+    <script type="text/javascript">rakuten_design="slide";rakuten_affiliateId="5964c172.78b60cce.5964c173.d6c6def5";rakuten_items="ctsmatch";rakuten_genreId="0";rakuten_size="468x160";rakuten_target="_blank";rakuten_theme="gray";rakuten_border="off";rakuten_auto_mode="on";rakuten_genre_title="off";rakuten_recommend="on";rakuten_ts="1794402335560";</script><script type="text/javascript" src="https://xml.affiliate.rakuten.co.jp/widget/js/rakuten_widget.js?20230106"></script>
+    ```
+  - **PM 確認済み事項**:
+    - `rakuten_widget.js` は `document.write` で描画するため、**iframe `srcDoc` での隔離が必須**。React ツリーや `next/script` に直接入れないこと。
+    - JS が対応するサイズ一覧に `300x250` と `600x200` が含まれることを確認済み。
+  - **仕様**:
+    - 現在の `buildSrcDoc` のテキストリンクを削除する。代わりに上記 2 つの `<script>` を `srcDoc` の `<body>` に入れる。
+    - 変数はコードどおりにする。ただし以下の 2 点だけ変える。
+      - `rakuten_size`: スマホ用 iframe は `"300x250"`、PC用 iframe は `"600x200"`（`468x160` は使わない）。
+      - `rakuten_affiliateId`: `lib/affiliate.ts` の `getRakutenAffiliateId()` から取る（値は同じ）。
+      - それ以外（`design` / `items` / `genreId` / `target` / `theme` / `border` / `auto_mode` / `genre_title` / `recommend` / `ts`）と JS の URL（`?20230106` 含む）は**一字一句そのまま**使う。
+    - `srcDoc` の `<head>` には `<meta charset="utf-8">`、`<base target="_blank">`、`<style>html,body{margin:0;padding:0;overflow:hidden;background:transparent}</style>` を入れる。現在の `background:#fff`、flex 中央寄せ、`padding:12px` は削除する。
+    - iframe の `width` / `height` はサイズと一致させる（現状どおり）。外枠の `section`、`PR` バッジ、見出し `楽天市場のおすすめ`、`sm:hidden` / `hidden sm:flex` によるスマホ・PCの出し分けは現状を維持する。
+    - `srcDoc` に埋め込む文字列は定数から組み立てる。外部入力は使わない。アフィリエイト ID が null なら何も描画しない（現状どおり）。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - `/` と `/ranking` の HTML（iframe の srcdoc 属性）に `xml.affiliate.rakuten.co.jp/widget/js/rakuten_widget.js?20230106` と `rakuten_size=&quot;600x200&quot;` / `&quot;300x250&quot;` が含まれる。
+    - 「楽天市場のおすすめ商品を見る」のテキストリンクが残っていない。
+    - `FRONTEND_SPEC.md` 5.11 のウィジェットの記述を「楽天公式モーションウィジェット（`rakuten_widget.js`）を iframe `srcDoc` で隔離、`300x250` / `600x200`」に更新している。
+
 - [x] **AFF-5. プライバシーポリシーの広告表記から「もしもアフィリエイト」の記述を外す**（保留中でも着手する）
   - **対象ファイル**: `app/privacy/page.tsx`
   - **仕様**:

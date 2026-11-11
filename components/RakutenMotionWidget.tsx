@@ -1,24 +1,35 @@
-import {
-  buildRakutenAffiliateUrl,
-  isAffiliateEnabled,
-} from "@/lib/affiliate";
+import { getRakutenAffiliateId, isAffiliateEnabled } from "@/lib/affiliate";
 
 const MOBILE_SIZE = { width: 300, height: 250 };
 const DESKTOP_SIZE = { width: 600, height: 200 };
+const RAKUTEN_WIDGET_SCRIPT =
+  "https://xml.affiliate.rakuten.co.jp/widget/js/rakuten_widget.js?20230106";
+const RAKUTEN_WIDGET_FIXED_OPTIONS = {
+  design: "slide",
+  items: "ctsmatch",
+  genreId: "0",
+  target: "_blank",
+  theme: "gray",
+  border: "off",
+  autoMode: "on",
+  genreTitle: "off",
+  recommend: "on",
+  ts: "1794402335560",
+} as const;
 
 function buildSrcDoc(width: number, height: number): string | null {
-  const href = buildRakutenAffiliateUrl("https://www.rakuten.co.jp/");
-  if (!href) return null;
+  const affiliateId = getRakutenAffiliateId();
+  if (!affiliateId) return null;
+  const size = `${width}x${height}`;
+  const widgetParam = `rakuten_design="${RAKUTEN_WIDGET_FIXED_OPTIONS.design}";rakuten_affiliateId="${affiliateId}";rakuten_items="${RAKUTEN_WIDGET_FIXED_OPTIONS.items}";rakuten_genreId="${RAKUTEN_WIDGET_FIXED_OPTIONS.genreId}";rakuten_size="${size}";rakuten_target="${RAKUTEN_WIDGET_FIXED_OPTIONS.target}";rakuten_theme="${RAKUTEN_WIDGET_FIXED_OPTIONS.theme}";rakuten_border="${RAKUTEN_WIDGET_FIXED_OPTIONS.border}";rakuten_auto_mode="${RAKUTEN_WIDGET_FIXED_OPTIONS.autoMode}";rakuten_genre_title="${RAKUTEN_WIDGET_FIXED_OPTIONS.genreTitle}";rakuten_recommend="${RAKUTEN_WIDGET_FIXED_OPTIONS.recommend}";rakuten_ts="${RAKUTEN_WIDGET_FIXED_OPTIONS.ts}";`;
   return [
     "<!doctype html>",
     "<html><head><meta charset=\"utf-8\">",
     "<base target=\"_blank\">",
-    "<style>",
-    "html,body{margin:0;padding:0;overflow:hidden;background:#fff}",
-    `body{width:${width}px;height:${height}px;display:flex;align-items:center;justify-content:center;padding:12px;box-sizing:border-box}`,
-    "a{font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#2563eb;text-decoration:underline;word-break:break-word;font-size:13px;line-height:1.5}",
-    "</style></head><body>",
-    `<a href="${href}" rel="nofollow sponsored noopener">楽天市場のおすすめ商品を見る</a>`,
+    "<style>html,body{margin:0;padding:0;overflow:hidden;background:transparent}</style>",
+    "</head><body>",
+    `<script type="text/javascript">${widgetParam}</script>`,
+    `<script type="text/javascript" src="${RAKUTEN_WIDGET_SCRIPT}"></script>`,
     "</body></html>",
   ].join("");
 }
