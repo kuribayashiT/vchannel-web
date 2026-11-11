@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { AffiliateLinks } from "@/components/AffiliateLinks";
 import { dayKey, eventLabel, mergeEvents, monthGrid } from "@/lib/events";
 import type { EventList } from "@/types";
 
@@ -112,31 +113,39 @@ function Calendar({
           イベントはありません
         </p>
       ) : (
-        <ul>
-          {dayEvents.map((e, i) => (
-            <li
-              key={`${e.channelId}-${e.eventType}-${i}`}
-              className="flex items-center gap-3 border-b border-zinc-200 py-2 dark:border-zinc-800"
-            >
-              {e.channelThumbnail && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={e.channelThumbnail}
-                  alt=""
-                  loading="lazy"
-                  className="size-10 rounded-full object-cover"
-                />
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{e.name}</p>
-                <p className="truncate text-xs text-zinc-500">{e.office}</p>
-              </div>
-              <span className="shrink-0 rounded bg-pink-100 px-2 py-0.5 text-xs text-pink-700">
-                {eventLabel(e, year)}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <div className="space-y-4">
+          <ul>
+            {dayEvents.map((e, i) => (
+              <li
+                key={`${e.channelId}-${e.eventType}-${i}`}
+                className="flex items-center gap-3 border-b border-zinc-200 py-2 dark:border-zinc-800"
+              >
+                {e.channelThumbnail && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={e.channelThumbnail}
+                    alt=""
+                    loading="lazy"
+                    className="size-10 rounded-full object-cover"
+                  />
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{e.name}</p>
+                  <p className="truncate text-xs text-zinc-500">{e.office}</p>
+                </div>
+                <span className="shrink-0 rounded bg-pink-100 px-2 py-0.5 text-xs text-pink-700">
+                  {eventLabel(e, year)}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {dayEvents[0]?.name?.trim() && (
+            <AffiliateLinks
+              heading="お祝いグッズを探す"
+              keyword={`${dayEvents[0].name.trim()} グッズ`}
+            />
+          )}
+        </div>
       )}
     </div>
   );

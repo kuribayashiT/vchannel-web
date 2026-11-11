@@ -130,11 +130,67 @@
 
 > **注**: `/vtuber/[channelId]` も同じ原因でソフト 404 になる。P0-AFF の後の **SEO-1** で対応する（優先度はそのまま）。
 
-### P0-AFF: もしもアフィリエイト組み込み — ⛔ **保留（着手禁止）**
+### P0-AFF: アフィリエイト組み込み — 楽天アフィリエイト（直接）に切り替え
 
-> **⛔ 2026-11-11: もしもアフィリエイトの会員登録審査が否認された。** 下記 AFF-1 / AFF-3 / AFF-4 は**実装しないこと**（もしもの `a_id` は無効のため、リンクを入れても成果にならない）。
-> - 未完了の AFF タスクは飛ばし、次の未完了タスク（AFF-5 → P0-SEO の SEO-1）に進むこと。
-> - 代替 ASP（楽天アフィリエイト直接など）が決まり次第、AFF-1 / AFF-3 / AFF-4 を書き換えて保留を解除する。それまでは `[ ]` のまま残す。
+> **2026-11-11 方針変更**:
+> - もしもアフィリエイトは会員審査で否認された（再申請中）。**もしもの `a_id` やドメイン（`af.moshimo.com` / `i.moshimo.com` / `dn.msmstatic.com`）は今後一切使わない。**
+> - 代わりに **楽天アフィリエイト（直接）** を使う。サイト登録済み（`https://vchannel-web.vercel.app/`、1位）。
+> - **楽天アフィリエイトID: `5964c172.78b60cce.5964c173.d6c6def5`**（公開値。秘密情報ではない）。
+> - 楽天管理画面で生成したリンクの実物（形式の正）:
+>   ```html
+>   <a href="https://hb.afl.rakuten.co.jp/hgc/5964c172.78b60cce.5964c173.d6c6def5/?pc=https%3A%2F%2Fwww.rakuten.co.jp%2F&link_type=text&ut=eyJwYWdlIjoidXJsIiwidHlwZSI6InRleHQiLCJjb2wiOjF9" target="_blank" rel="nofollow sponsored noopener" style="word-wrap:break-word;">https://www.rakuten.co.jp/</a>
+>   ```
+> - 旧タスクの扱い:
+>   - **AFF-1 / AFF-3**: もしも前提で実装済み（`[x]`）。本番では未表示。
+>   - **AFF-4**: もしも版ウィジェットのため**実装しないこと**（AFF-7 で置き換え）。
+>   - いずれも **AFF-6 で置き換える**。
+> - Amazon は未提携のため、Amazon ボタンは引き続き出さない（もしも再審査の結果次第で別途起票）。
+
+- [x] **AFF-6. `lib/affiliate.ts` を楽天アフィリエイト（直接）に書き換え、詳細ページ・イベントに楽天ボタンを設置**
+  - **対象ファイル**:
+    `lib/affiliate.ts`（全面書き換え）
+    `components/AffiliateLinks.tsx`（新規作成。現在ファイルは存在しない）
+    `app/vtuber/[channelId]/page.tsx`（または詳細の表示コンポーネント）
+    `components/EventCalendar.tsx`
+    `app/events/[date]/page.tsx`（SEO-4 実装済みの場合のみ）
+  - **仕様（`lib/affiliate.ts`）**:
+    - もしも関連（`PROGRAMS`、`RAKUTEN_DEFAULT_AID = "5890334"`、`CLICK_BASE`、`IMPRESSION_BASE`、`buildMoshimoUrl`、`buildMoshimoImpressionUrl`、`NEXT_PUBLIC_MOSHIMO_*`）を**すべて削除**する。
+    - 定数 `RAKUTEN_AFFILIATE_ID = "5964c172.78b60cce.5964c173.d6c6def5"` を置く。環境変数 `NEXT_PUBLIC_RAKUTEN_AFFILIATE_ID` があればそちらを優先する。
+    - `buildRakutenAffiliateUrl(targetUrl: string): string | null`
+      - 形式: `https://hb.afl.rakuten.co.jp/hgc/${id}/?pc=${encodeURIComponent(targetUrl)}&link_type=text`
+      - `ut` パラメータは管理画面のリンク種別のメタ情報なので付けなくてよい。
+      - ID が空なら `null` を返す。
+    - `buildSearchUrl(keyword)`: `https://search.rakuten.co.jp/search/mall/${encodeURIComponent(kw)}/`（既存ロジックを流用し、楽天のみにする）。
+    - `isAffiliateEnabled()`: 楽天 ID があれば true。
+    - ファイル冒頭のコメント（URL 手書き禁止、ID がなければ枠を出さない、遷移先は検索結果）は維持し、ASP 名を楽天アフィリエイトに更新する。
+  - **仕様（`components/AffiliateLinks.tsx`）**:
+    - Props: `keyword: string`, `heading?: string`（既定 `関連グッズ・CDを探す`）。
+    - 「楽天市場で探す」ボタンを 1 つ表示する（lucide-react の `ShoppingBag`）。リンク属性は `target="_blank" rel="nofollow sponsored noopener"`。
+    - 見出しの横に **`PR` バッジ**を必ず表示する。
+    - インプレッション用の画像は不要（楽天直リンクには存在しない）。
+    - `isAffiliateEnabled()` が false、または keyword が空なら `null` を返す。
+    - Server Component でも Client Component でも使えるよう、hooks を使わない純粋な表示コンポーネントにする。
+    - ダークモード対応。375px で崩れないこと。
+  - **設置**:
+    - VTuber 詳細ページ: 登録者推移グラフと最新動画の間。`keyword = ${name} グッズ`。**サーバーレンダリングの HTML に含まれること。**
+    - `/events`: 選択日のイベント一覧の下に 1 つ。キーワード・見出しは旧 AFF-3 の仕様どおり（見出し `お祝いグッズを探す`、先頭イベントの `${name} グッズ`、0 件なら非表示）。
+    - `/events/[date]`（存在する場合）: 一覧の下に 1 つ。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - `grep -rn "moshimo\|msmstatic\|5890334" app components lib` が 0 件。
+    - `curl -s <URL>/vtuber/<id>` の HTML に `hb.afl.rakuten.co.jp/hgc/5964c172.78b60cce.5964c173.d6c6def5/` と `PR` が含まれる。
+    - リンクをクリックすると、楽天市場の「<VTuber名> グッズ」検索結果が開く。
+    - `FRONTEND_SPEC.md` 5.11 を楽天アフィリエイト（直接）の内容に更新している。具体的には、もしもの記述と楽天ウィジェットの iframe 方針を削除し、提携状況を「楽天: 直接・利用中 / もしも: 再審査中 / Amazon: 未提携」とする。
+    - `/privacy` の広告表記は AFF-5 の汎用文面のままでよい（変更不要）。
+
+- [ ] **AFF-7. 楽天モーションウィジェット（楽天直接版）をトップとランキングに設置** — ⏸ **人手でウィジェットコードを取得するまで着手しない**
+  - **前提（人手作業）**: 楽天アフィリエイト管理画面「ツールを使う」→「モーションウィジェット」でコードを生成し、PM（Claude）に渡す。PM がこのタスクにコードを追記した時点で着手可能になる。
+  - 仕様は旧 AFF-4 を踏襲する。
+    - `<iframe srcDoc>` で隔離し、`<base target="_blank">` を付ける。
+    - スマホは 300×250、PC は 600×200。
+    - `PR` バッジを付ける。
+    - 設置は `/` と `/ranking` の下部に各 1 つ。
+    - JS の URL とパラメータは楽天が生成したコードに従う。
 
 - [x] **AFF-5. プライバシーポリシーの広告表記から「もしもアフィリエイト」の記述を外す**（保留中でも着手する）
   - **対象ファイル**: `app/privacy/page.tsx`
@@ -223,7 +279,7 @@
     - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
     - イベントのある日を選ぶと PR バッジ付きの導線が 1 つ表示され、イベントのない日は表示されない。
 
-- [ ] **AFF-4. 楽天ウィジェット（もしも版・新 JS）をトップとランキングに設置**
+- [x] ~~**AFF-4. 楽天ウィジェット（もしも版・新 JS）をトップとランキングに設置**~~ — **廃止（2026-11-11、もしも否認のため）。実装しないこと。AFF-7 に置き換え。**
   - **対象ファイル**:
     `components/RakutenWidget.tsx`（新規・Client Component）
     `app/page.tsx`

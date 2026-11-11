@@ -2,6 +2,7 @@
 
 import { smallAvatar } from "@/lib/url";
 import { useEffect, useMemo, useState } from "react";
+import { AffiliateLinks } from "@/components/AffiliateLinks";
 import { VTuberDetailSkeleton, VTuberTabsSkeleton } from "@/components/Skeleton";
 import { VideoCard } from "@/components/VideoCard";
 import { useSelectedChannels } from "@/hooks/useSelection";
@@ -131,6 +132,8 @@ export function DetailView({ detail: d }: { detail: VTuberDetail }) {
         <h3 className="mb-2 font-bold">登録者数の推移（30日）</h3>
         <SubscriberChart data={d.transition} />
       </section>
+
+      <AffiliateLinks keyword={`${d.name} グッズ`} />
 
       <section>
         <h3 className="mb-2 font-bold">最新動画</h3>
