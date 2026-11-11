@@ -412,7 +412,7 @@
     - Google リッチリザルトテストで JSON-LD のエラーがない（手動確認）。
     - `FRONTEND_SPEC.md` 5.4 と「6.1 SEO / AIO 方針」を更新している。
 
-- [ ] **SEO-2. sitemap に全 VTuber 詳細ページを追加**
+- [x] **SEO-2. sitemap に全 VTuber 詳細ページを追加**
   - **対象ファイル**: `app/sitemap.ts`
   - **仕様**:
     - `loadVTubers()` の `index` から全 `channelId` を列挙して `/vtuber/${id}` を追加する。

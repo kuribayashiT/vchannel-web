@@ -247,7 +247,7 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
   - サイト全体: `WebSite` / `Organization`（layout）
   - JSON-LD は `<` をエスケープして出力する。
 - **内部リンク**: 詳細ページ同士（同じ事務所のメンバー）、日付ページの前日・翌日、一覧から詳細へ、をすべて `<Link>`（`<a href>`）でつなぐ。`onClick` だけの遷移にはしない。
-- **sitemap**: 静的ページ＋全 VTuber 詳細＋366 日付ページを載せる。
+- **sitemap**: 静的ページ＋全 VTuber 詳細を載せる。日付ページ（366 URL）は SEO-4 で追加する。
 - **robots**: AI クローラー（GPTBot / ClaudeBot / PerplexityBot 等）は許可を維持する。
 - **`/llms.txt`**: AI 向けのサイト案内として提供する。
 
