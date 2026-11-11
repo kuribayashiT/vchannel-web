@@ -122,6 +122,21 @@ export async function getCachedVTuberPageData(): Promise<{
   };
 }
 
+export async function getVTuberDetail(
+  channelId: string,
+): Promise<VTuberDetail | null> {
+  const { details } = await loadVTubers();
+  return details.get(channelId) ?? null;
+}
+
+export async function getCachedVTuberDetail(
+  channelId: string,
+): Promise<VTuberDetail | null> {
+  "use cache";
+  cacheLife("hours");
+  return getVTuberDetail(channelId);
+}
+
 export const loadAllVideos = memo(async () => {
   const raw = await fetchGcsJson<RawVideo[]>(GCS_FILES.allVideos, 0);
   const map = new Map<string, Video>();

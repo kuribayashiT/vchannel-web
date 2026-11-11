@@ -76,6 +76,85 @@ function SubscriberChart({ data }: { data: VTuberDetail["transition"] }) {
   );
 }
 
+export function DetailView({ detail: d }: { detail: VTuberDetail }) {
+  const stats: Array<{ label: string; value: number }> = [
+    { label: "登録者数", value: d.subscriberCount },
+    { label: "総再生数", value: d.viewCount },
+    { label: "動画本数", value: d.videoCount },
+  ];
+
+  const latestVideoTitle = d.videos[0]?.title ?? null;
+
+  return (
+    <div className="space-y-6">
+      <div className="relative overflow-hidden rounded-xl">
+        {d.thumbnail && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={d.thumbnail}
+            alt=""
+            aria-hidden
+            className="absolute inset-0 size-full scale-125 object-cover blur-xl"
+          />
+        )}
+        <div className="relative flex items-center gap-4 bg-black/60 p-4 text-white">
+          {d.thumbnail && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={d.thumbnail}
+              alt=""
+              className="size-20 rounded-full object-cover"
+            />
+          )}
+          <div className="min-w-0">
+            <h2 className="truncate text-lg font-bold">{d.name}</h2>
+            <p className="text-sm opacity-80">{d.office}</p>
+          </div>
+        </div>
+      </div>
+
+      <dl className="grid grid-cols-3 gap-2 text-center">
+        {stats.map(({ label, value }) => (
+          <div
+            key={label}
+            className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800"
+          >
+            <dt className="text-xs text-zinc-500">{label}</dt>
+            <dd className="font-bold tabular-nums" title={formatNumber(value)}>
+              {formatCompact(value)}
+            </dd>
+          </div>
+        ))}
+      </dl>
+
+      <section>
+        <h3 className="mb-2 font-bold">登録者数の推移（30日）</h3>
+        <SubscriberChart data={d.transition} />
+      </section>
+
+      <section>
+        <h3 className="mb-2 font-bold">最新動画</h3>
+        {latestVideoTitle && (
+          <p className="mb-2 text-sm text-zinc-600 dark:text-zinc-300">
+            最新動画: {latestVideoTitle}
+          </p>
+        )}
+        {d.videos.length === 0 ? (
+          <p className="py-6 text-center text-sm text-zinc-500">
+            動画データがありません
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {d.videos.map((v) => (
+              <VideoCard key={v.videoId} v={v} />
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
 export function Detail({ channelId }: { channelId: string }) {
   const [result, setResult] = useState<{
     id: string;
@@ -109,76 +188,7 @@ export function Detail({ channelId }: { channelId: string }) {
     );
   }
 
-  return (
-    <div className="space-y-6">
-      <div className="relative overflow-hidden rounded-xl">
-        {d.thumbnail && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={d.thumbnail}
-            alt=""
-            aria-hidden
-            className="absolute inset-0 size-full scale-125 object-cover blur-xl"
-          />
-        )}
-        <div className="relative flex items-center gap-4 bg-black/60 p-4 text-white">
-          {d.thumbnail && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={d.thumbnail}
-              alt=""
-              className="size-20 rounded-full object-cover"
-            />
-          )}
-          <div className="min-w-0">
-            <h2 className="truncate text-lg font-bold">{d.name}</h2>
-            <p className="text-sm opacity-80">{d.office}</p>
-          </div>
-        </div>
-      </div>
-
-      <dl className="grid grid-cols-3 gap-2 text-center">
-        {[
-          ["登録者数", d.subscriberCount],
-          ["総再生数", d.viewCount],
-          ["動画本数", d.videoCount],
-        ].map(([label, v]) => (
-          <div
-            key={label}
-            className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800"
-          >
-            <dt className="text-xs text-zinc-500">{label}</dt>
-            <dd
-              className="font-bold tabular-nums"
-              title={formatNumber(v as number)}
-            >
-              {formatCompact(v as number)}
-            </dd>
-          </div>
-        ))}
-      </dl>
-
-      <section>
-        <h3 className="mb-2 font-bold">登録者数の推移（30日）</h3>
-        <SubscriberChart data={d.transition} />
-      </section>
-
-      <section>
-        <h3 className="mb-2 font-bold">最新動画</h3>
-        {d.videos.length === 0 ? (
-          <p className="py-6 text-center text-sm text-zinc-500">
-            動画データがありません
-          </p>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {d.videos.map((v) => (
-              <VideoCard key={v.videoId} v={v} />
-            ))}
-          </div>
-        )}
-      </section>
-    </div>
-  );
+  return <DetailView detail={d} />;
 }
 
 type IndexState =

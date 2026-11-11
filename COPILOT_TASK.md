@@ -272,7 +272,7 @@
 > - Google Search Console と Bing Webmaster Tools に本番ドメインを登録し、`/sitemap.xml` を送信する。Bing は ChatGPT 検索・Copilot の情報源。
 > - Vercel の環境変数 `SITE_URL` に本番ドメインを設定する。
 
-- [ ] **SEO-1. VTuber 詳細ページのサーバーレンダリング化＋個別メタデータ＋構造化データ**
+- [x] **SEO-1. VTuber 詳細ページのサーバーレンダリング化＋個別メタデータ＋構造化データ**
   - **対象ファイル**:
     `app/vtuber/[channelId]/page.tsx`
     `components/VTuberTabs.tsx`（`Detail` を表示専用に分離）

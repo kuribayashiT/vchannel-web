@@ -161,6 +161,10 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 - `VTuberTabs` は `initialIndex` がある場合に `/api/vtuber` を再 fetch しない。`/api/vtuber/[channelId]` の詳細取得は従来どおりクライアントで行う。
 - h1 直下に要約文を表示し、`generateMetadata` で title を `VTuber一覧（事務所別）`、description に事務所数・人数を含める。
 - タブ UI の下に `VTuberDirectory`（Server Component）を配置し、「事務所別VTuber一覧」をサーバーレンダリングする。事務所見出し（`<h2>`）配下に各メンバーへのリンク（`/vtuber/{channelId}`、名前＋登録者数）を出す。
+- `/vtuber/[channelId]` は Server Component で `loadVTubers()` から詳細を取得し、存在しない `channelId` は `notFound()` で 404 を返す。データは `getCachedVTuberDetail()`（`"use cache"` + `cacheLife("hours")`）で 1 時間キャッシュする。
+- 詳細ページは `generateMetadata` で個別 title/description/canonical を生成し、OGP 画像にチャンネルサムネイルを設定する。本文先頭に「誰が・何人・いつ時点」を含む要約文を置く。
+- 詳細表示は `VTuberTabs` の `Detail` を「取得（Detail）」と「表示（DetailView）」に分離し、一覧タブはクライアント取得したデータを `DetailView` へ渡す。詳細ページはサーバー取得したデータを `DetailView` へ直接渡す。
+- 詳細ページにはパンくず（ホーム › VTuber › 名前）、`ProfilePage` + `Person` と `BreadcrumbList` の JSON-LD、同じ事務所の他メンバー（登録者数上位12人）へのリンクを表示する。
 - 選択事務所のメンバーを **1 人 1 タブ**で横並び。順序：事務所の初出順 → 各事務所内で `officeFlg == true` を先頭。
 - 背景：選択中チャンネルのサムネをぼかして拡大＋暗いオーバーレイ。
 - 詳細：サムネ・名前・事務所、登録者数・総再生数・動画本数、**登録者数推移の折れ線グラフ（30 日、`youtubeSubscriberCountTransition`）**、最新動画（最大 30 件、サムネ・お気に入り・再生）。
@@ -226,6 +230,7 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 - **入口ページはサーバーレンダリング必須**: `/vtuber/[channelId]`、`/vtuber`、`/events/[MM-DD]`、`/ranking`。
   - 主要テキスト（名前・数値・一覧）を初期 HTML に含める。
   - クライアント fetch だけで本文を描画しない。
+- `/vtuber/[channelId]` は `cacheLife("hours")` の 1 時間キャッシュで更新し、`notFound()` を返せることを前提にメタデータ・要約文・JSON-LD をサーバーで出力する。
 - **ページごとに固有の title / description / canonical** を `generateMetadata` で出す。共通タイトルは禁止。
 - **要約文（answer-first）**: 入口ページの h1 直下に、1〜2 文で「誰が・何人・いつ時点」を言い切る文を置く。AI 検索や強調スニペットに引用されやすくするため。日付は必ず明記する。
 - **構造化データ**:
