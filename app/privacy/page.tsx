@@ -15,14 +15,7 @@ export default function PrivacyPage() {
         <section>
           <h2 className="mb-2 text-base font-bold">広告の掲載について</h2>
           <p>
-            当サイトは、もしもアフィリエイトを利用したアフィリエイトプログラムに参加しており、Amazon・楽天市場等の商品を紹介しています。リンク経由で商品が購入された場合、当サイトに報酬が支払われることがあります。
-          </p>
-        </section>
-
-        <section>
-          <h2 className="mb-2 text-base font-bold">Amazon アソシエイト</h2>
-          <p>
-            Vちゃんねるは、Amazon.co.jpを宣伝しリンクすることによってサイトが紹介料を獲得できる手段を提供することを目的に設定されたアフィリエイトプログラムである、Amazonアソシエイト・プログラムの参加者です。
+            当サイトでは、第三者が提供するアフィリエイトプログラムや広告配信サービスを利用して商品・サービスを紹介することがあります。リンク経由で商品が購入された場合などに、当サイトに報酬が支払われることがあります。広告であることが分かるよう「PR」と表記します。
           </p>
         </section>
 
@@ -57,6 +50,11 @@ export default function PrivacyPage() {
         <section>
           <h2 className="mb-2 text-base font-bold">制定日</h2>
           <p>2026-11-09</p>
+        </section>
+
+        <section>
+          <h2 className="mb-2 text-base font-bold">改定日</h2>
+          <p>2026-11-11</p>
         </section>
       </div>
 
