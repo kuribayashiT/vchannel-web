@@ -4,17 +4,19 @@ const MOBILE_SIZE = { width: 300, height: 250 };
 const DESKTOP_SIZE = { width: 600, height: 200 };
 const RAKUTEN_WIDGET_SCRIPT =
   "https://xml.affiliate.rakuten.co.jp/widget/js/rakuten_widget.js?20230106";
+// 楽天管理画面で再生成したコード（2026-11-12）を元にした固定値。
+// PM判断で recommend のみ off を採用している。
 const RAKUTEN_WIDGET_FIXED_OPTIONS = {
   design: "slide",
-  items: "ctsmatch",
-  genreId: "0",
+  items: "ranking",
+  genreId: "566382",
   target: "_blank",
   theme: "gray",
   border: "off",
   autoMode: "on",
   genreTitle: "off",
-  recommend: "on",
-  ts: "1794402335560",
+  recommend: "off",
+  ts: "1794402940420",
 } as const;
 
 function buildSrcDoc(width: number, height: number): string | null {

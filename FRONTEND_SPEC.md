@@ -219,6 +219,7 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 - 設置箇所は VTuber 詳細（`登録者数の推移` と `最新動画` の間）とイベントカレンダー（日付選択のイベント一覧下）とする。
 - 楽天モーションウィジェットは `RakutenMotionWidget` で表示し、楽天公式 `https://xml.affiliate.rakuten.co.jp/widget/js/rakuten_widget.js?20230106` を `<iframe srcDoc>` で隔離して描画する。`<base target="_blank">` を付け、リンクは新しいタブで開く。
 - ウィジェットサイズは画面幅 640px 未満で `300x250`、640px 以上で `600x200`。`rakuten_size` も同じ値を使う。トップ `/` とランキング `/ranking` のページ下部に各1つ設置する。
+- ウィジェットの商品設定は `rakuten_items="ranking"`、`rakuten_genreId="566382"`、`rakuten_recommend="off"`（おすすめ優先 off）を使う。
 - ウィジェット枠にも `PR` バッジを表示する。
 - `/privacy` は ASP 名を明記しない広告表記を掲載する。現行の掲載項目は「広告の掲載について」「アクセス解析（Vercel Analytics）」「ローカルストレージ」「お問い合わせ」「制定日（2026-11-09）」「改定日（2026-11-11）」。
 

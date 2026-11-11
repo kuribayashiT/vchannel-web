@@ -221,6 +221,25 @@
     - 「楽天市場のおすすめ商品を見る」のテキストリンクが残っていない。
     - `FRONTEND_SPEC.md` 5.11 のウィジェットの記述を「楽天公式モーションウィジェット（`rakuten_widget.js`）を iframe `srcDoc` で隔離、`300x250` / `600x200`」に更新している。
 
+- [x] **AFF-9. 楽天モーションウィジェットの商品設定を「ランキング×ジャンル指定」に変更**（2026-11-12 着手可）
+  - **背景**: AFF-8 の `rakuten_items="ctsmatch"`（コンテンツマッチ）は、iframe `srcDoc` 内では楽天側からページ本文が見えない。そのため、マスカラ・子ども服など VTuber と無関係な商品が表示された（2026-11-11 PM 確認）。
+  - **対象ファイル**: `components/RakutenMotionWidget.tsx`
+  - **楽天管理画面で再生成したコード（2026-11-12）**:
+    ```html
+    <script type="text/javascript">rakuten_design="slide";rakuten_affiliateId="5964c172.78b60cce.5964c173.d6c6def5";rakuten_items="ranking";rakuten_genreId="566382";rakuten_size="468x160";rakuten_target="_blank";rakuten_theme="gray";rakuten_border="off";rakuten_auto_mode="on";rakuten_genre_title="off";rakuten_recommend="on";rakuten_ts="1794402940420";</script><script type="text/javascript" src="https://xml.affiliate.rakuten.co.jp/widget/js/rakuten_widget.js?20230106"></script>
+    ```
+  - **仕様**:
+    - `srcDoc` 内の変数を以下に変更する。それ以外は AFF-8 の実装（サイズ切替 `300x250` / `600x200`、`<base target="_blank">`、PR バッジ、設置箇所）を維持する。
+      - `rakuten_items`: `"ctsmatch"` → **`"ranking"`**
+      - `rakuten_genreId`: `"0"` → **`"566382"`**
+      - `rakuten_ts`: → **`"1794402940420"`**
+      - `rakuten_recommend`: **`"off"`**（再生成コードでは `"on"` だが、閲覧履歴ベースの無関係な商品を避けるため PM 判断で off にする。管理画面の「おすすめ商品を優先表示」と同じ設定）
+    - 変数は定数オブジェクトにまとめ、どの値が楽天生成コード由来かをコメントで残す。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - `/` と `/ranking` の HTML（iframe の srcdoc 属性）に `rakuten_items=&quot;ranking&quot;`、`rakuten_genreId=&quot;566382&quot;`、`rakuten_recommend=&quot;off&quot;` が含まれ、`ctsmatch` が含まれない。
+    - `FRONTEND_SPEC.md` 5.11 のウィジェット設定を「ランキング・ジャンル 566382・おすすめ優先 off」に更新している。
+
 - [x] **AFF-5. プライバシーポリシーの広告表記から「もしもアフィリエイト」の記述を外す**（保留中でも着手する）
   - **対象ファイル**: `app/privacy/page.tsx`
   - **仕様**:
