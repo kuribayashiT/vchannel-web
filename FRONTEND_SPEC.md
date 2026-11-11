@@ -126,7 +126,7 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 | キー（Flutter の SharedPreferences） | 型 | 意味 |
 |---|---|---|
 | `favoriteOffices` | string[] | 選択中の事務所（絞り込み対象） |
-| `selectedChannelIds` | string[] | Web の絞り込み対象チャンネル。空の場合は絞り込みなし |
+| `selectedChannelIds` | string[] | Web の絞り込み対象チャンネル。**空の場合は絞り込みなし（すべて表示）**。全チャンネルを選んだ状態は空に正規化して保存し、全 ID は保存しない（自動登録で増えた VTuber が漏れないようにするため） |
 | `favorites` | string[] | お気に入り動画の videoID |
 | `cached*` / `lastUpdate_*` | JSON 文字列 / ISO 日時 | データキャッシュ（TTL 1 時間）。Next.js では不要（fetch キャッシュに任せる） |
 | `interAdCount` | int | 広告カウンタ（Web 不要） |
@@ -141,17 +141,19 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 - 下部ナビ（現行 4 項目）：**配信 / ニュース / VTuber / チャット**。ランキングはシェル下部に無く、ランキング画面内に独自のタブバーがある（現行のねじれ。Next.js 版は 5 タブにそろえてよい）。
 - 右上メニューから **フィルター（サイドメニュー）** を開く。ヘッダーに「設定（Option）」「お気に入り」「イベントカレンダー」への導線。
 - 初回アクセス時は事務所選択を表示せず、絞り込みなしで表示する。
+- 絞り込み中（選択が空でない）はヘッダーのフィルターボタンの左に `絞り込み中 N人` チップ（N = 選択チャンネル数）を出す。チップのタップでフィルターを開き、`X` で `resetSelection()` して全件表示に戻す。選択が空なら出さない。
 - 共通フッター（指標の説明・注意書き・フッターリンク）は表示しない。
 - 動画をタップすると画面下部の **YouTube プレーヤー** が出る（グローバル状態で動画 ID 管理）。YouTube 埋め込み不可時は WebView（Web では新規タブ）に遷移。
 - 通知タップ/受信で動画ダイアログ（ネイティブのみ）。
 
 ### 5.1 サイドメニュー「フィルター」
 - 検索: `VTuber名で検索...`（名前の部分一致、結果なし: `該当するVTuberが見つかりません`）。
-- 検索欄の下に `全選択` / `選択解除` ボタンを置き、チャンネル選択を一括操作できる。
+- 事務所リストの先頭に `すべて表示` 行を置く（検索中は出さない）。選択が空のときは `すべて表示`・全事務所の丸・全 VTuber チップをチェック済みの見た目にし、補足 `事務所やVTuberをタップすると、そこだけに絞り込みます` を出す。選択があるときに `すべて表示` をタップすると選択を空に戻す。
+- 「すべて表示」の状態で事務所の丸をタップすると、その事務所のメンバーだけの選択になる。VTuber チップをタップすると、その 1 人だけの選択になる。選択があるときは従来どおりトグルし、最後の 1 人を外すと「すべて表示」に戻る。
 - 事務所リスト：行タップで展開/折りたたみ、左の丸で事務所内全員をトグル。状態は 全選択=青塗り＋チェック / 一部=薄い青 / なし=グレー。
 - VTuber個別の選択 UI は丸みの強いチップ（イニシャル＋チェック）で表示し、選択時はグラデーション背景で強調する。
 - 事務所・チャンネルはサイドメニュー内で直接選択し、設定から絞り込みを解除できる。
-- **選択中チャンネル ID が 配信・VTuber・ランキングの全データを絞り込む。**
+- **選択中チャンネル ID が 配信・VTuber・ランキングの全データを絞り込む。** 掲示板は絞り込まない（5.6）。
 
 ### 5.2 配信タブ（5 サブタブ）
 横スクロールタブ。**初期表示は「配信中」**（index 1）。Web ではスワイプ無効（タップのみ）。
@@ -181,7 +183,8 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 - `/vtuber` は Server Component で `loadVTubers()` の index を取得し、`getCachedVTuberPageData()`（`"use cache"` + `cacheLife("hours")`）で 1 時間キャッシュする。取得できた index（軽量版）を `VTuberTabs` の `initialIndex` として渡し、初期 HTML に一覧を含める。
 - `VTuberTabs` は `initialIndex` がある場合に `/api/vtuber` を再 fetch しない。`/api/vtuber/[channelId]` の詳細取得は従来どおりクライアントで行う。
 - h1 直下に要約文を表示し、`generateMetadata` で title を `VTuber一覧（事務所別）`、description に事務所数・人数を含める。
-- タブ UI の下に `VTuberDirectory`（Server Component）を配置し、「事務所別VTuber一覧」をサーバーレンダリングする。事務所見出し（`<h2>`）配下に各メンバーへのリンク（`/vtuber/{channelId}`、名前＋登録者数）を出す。
+- 選択が空のときはタブを出さず、案内カード（`SlidersHorizontal` アイコン、`気になる事務所やVTuberをフィルターで選ぶと、ここにタブで並びます。下の「事務所から探す」からも見られます。`、`フィルターを開く` ボタン）を表示する。選択があるのに該当 0 人なら `Vtuberリストがありません（フィルターで事務所を選択してください）`。
+- タブ UI の下に `VTuberDirectory`（Server Component）を配置し、見出し `事務所から探す` で全事務所をサーバーレンダリングする（フィルターの影響を受けない）。事務所ごとに `<details>`（初期は閉じる）で包み、`<summary>` 内の `<h2>` に事務所名・人数・開閉矢印を出す。中身は各メンバーへのリンク（`/vtuber/{channelId}`、名前＋登録者数）を丸チップで並べる。リンクは CSS で隠さず、閉じた `<details>` の中身として初期 HTML に含める。
 - `/vtuber/[channelId]` は Server Component で `loadVTubers()` から詳細を取得し、存在しない `channelId` は `notFound()` で 404 を返す。データは `getCachedVTuberDetail()`（`"use cache"` + `cacheLife("hours")`）で 1 時間キャッシュする。
 - 詳細ページは `generateMetadata` で個別 title/description/canonical を生成し、OGP 画像にチャンネルサムネイルを設定する。本文先頭に「誰が・何人・いつ時点」を含む要約文を置く。
 - 詳細ページは `app/vtuber/[channelId]/opengraph-image.tsx` で動的 OGP 画像（1200x630）を生成し、`generateMetadata` の `openGraph.images` / `twitter.images` に設定する。`twitter.card` は `summary_large_image` を使う。
@@ -206,7 +209,7 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 - `/ranking` は表示中タブの TOP10 を JSON-LD `ItemList` で出力する。
 
 ### 5.6 チャット（掲示板）
-- スレッド一覧は事務所タブ（選択事務所の順）。事務所ごとにスレッド（Firestore `threads`）。
+- スレッド一覧は事務所タブ。事務所ごとにスレッド（Firestore `threads`）。**フィルターに関係なく全スレッドを出す**。並びは、選択中チャンネルを含む事務所のスレッド（事務所順、タブ名の前に ★）→ 残り（`lastUpdated` の新しい順）。選択が空なら全件 `lastUpdated` の新しい順。
 - `📢 掲示板の注意事項` はスレッドタブとは分離した固定パネルで表示し、`詳しく見る` / `折りたたむ` で開閉する。
 - スレッドタブはカード表示（投稿件数・未読 `+N` バッジ付き）。開いたスレッドは既読として未読数を更新する。
 - 投稿一覧：レス番号、投稿者、時刻、`📰 Bot` バッジ（Bot 投稿）、本文、`返信` ボタン。本文内の `>>N` アンカーは対象レスへスクロール。返信アンカーを含む投稿は返信先プレビューを表示する。
