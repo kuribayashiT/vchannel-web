@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
+import { RakutenMotionWidget } from "@/components/RakutenMotionWidget";
 import { RankingTabs } from "@/components/RankingTabs";
 import {
   GcsFetchError,
@@ -62,6 +63,7 @@ export default async function RankingPage() {
           ランキングの読み込みに失敗しました。
         </p>
       )}
+      <RakutenMotionWidget />
     </main>
   );
 }

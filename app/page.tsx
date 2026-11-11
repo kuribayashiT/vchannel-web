@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Radio, Sparkles, Trophy, Users } from "lucide-react";
 import { GrowthTop3 } from "@/components/GrowthTop3";
+import { RakutenMotionWidget } from "@/components/RakutenMotionWidget";
 import { SectionHeader } from "@/components/SectionHeader";
 import { StreamTabs } from "@/components/StreamTabs";
 import { GcsFetchError } from "@/lib/gcs";
@@ -95,6 +96,7 @@ export default async function Home() {
         />
         <StreamTabs />
       </section>
+      <RakutenMotionWidget />
     </main>
   );
 }
