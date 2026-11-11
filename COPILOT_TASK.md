@@ -458,7 +458,7 @@
     - `npm run build` が成功する。
     - `/events/11-09` の初期 HTML に該当 VTuber 名が含まれる。
 
-- [ ] **SEO-5. AI 検索向け `llms.txt` とランキングの構造化データ**
+- [x] **SEO-5. AI 検索向け `llms.txt` とランキングの構造化データ**
   - **対象ファイル**:
     `app/llms.txt/route.ts`（新規）
     `app/ranking/page.tsx`

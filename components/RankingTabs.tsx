@@ -29,7 +29,10 @@ import {
 } from "@/lib/rankingQuery";
 import type { GrowthPeriod } from "@/types";
 
-type Props = { weekly: RankingRow[] };
+type RankingTabsProps = {
+  weekly: RankingRow[];
+  initialOtherData?: RankingOtherData | null;
+};
 
 const PAGE = 100;
 const PODIUM_SIZE = 3;
@@ -247,7 +250,7 @@ function Row({ r, rank }: { r: RankingRow; rank: number }) {
   );
 }
 
-export function RankingTabs({ weekly }: Props) {
+export function RankingTabs({ weekly, initialOtherData = null }: RankingTabsProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -263,7 +266,7 @@ export function RankingTabs({ weekly }: Props) {
   const tab = toRankingTab(view.tab);
   const period: GrowthPeriod = view.period;
   const viewKey = `${view.tab}:${view.period}`;
-  const [otherData, setOtherData] = useState<RankingOtherData | null>(null);
+  const [otherData, setOtherData] = useState<RankingOtherData | null>(initialOtherData);
   const [rankingDataError, setRankingDataError] = useState(false);
 
   useEffect(() => {
