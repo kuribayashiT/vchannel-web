@@ -1,8 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AffiliateLinks } from "@/components/AffiliateLinks";
-import { dayKey, eventLabel, mergeEvents, monthGrid } from "@/lib/events";
+import {
+  dayKey,
+  eventLabel,
+  formatDateSlug,
+  mergeEvents,
+  monthGrid,
+} from "@/lib/events";
 import type { EventList } from "@/types";
 
 const WEEK = ["日", "月", "火", "水", "木", "金", "土"];
@@ -108,6 +115,14 @@ function Calendar({
       <h3 className="mb-2 mt-6 font-bold">
         {year}年{month}月{selected}日
       </h3>
+      <p className="mb-3 text-sm">
+        <Link
+          href={`/events/${formatDateSlug(month, selected)}`}
+          className="text-blue-600 hover:underline dark:text-blue-400"
+        >
+          この日の詳細ページを見る
+        </Link>
+      </p>
       {dayEvents.length === 0 ? (
         <p className="py-6 text-center text-sm text-zinc-500">
           イベントはありません

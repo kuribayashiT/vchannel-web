@@ -439,7 +439,7 @@
     - `npm run build` が成功する。
     - 初期 HTML に詳細ページへの `<a href="/vtuber/...">` が含まれる。
 
-- [ ] **SEO-4. 日付別「誕生日・周年のVTuber」ページ（366 ページ）**
+- [x] **SEO-4. 日付別「誕生日・周年のVTuber」ページ（366 ページ）**
   - **対象ファイル**:
     `app/events/[date]/page.tsx`（新規。`date` は `MM-DD`）
     `lib/events.ts`
