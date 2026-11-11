@@ -85,8 +85,9 @@ Cloud Functions が定期更新する。アプリは 1 時間 TTL でキャッ�
 - 実装: `backend-repo/functions/vtuberProfiles.js`。`scheduledFillVtuberProfiles`（0:45 / 6:45 / 12:45 / 18:45 JST、1 回約 7 分）が実行し、`previewVtuberProfiles?limit=20`（HTTP GET）は書き込みなしの試走結果を返す。
 - 対象: 事務所チャンネル以外で `birthday` か `debut` が空のもの（新しく登録された順）。**既存の値は上書きしない**。調べたものは `vtuberProfiles/checked/{channelId}` に記録し、30 日間は再検索しない。
 - 取得元: 誕生日は Wikidata（チャンネル ID 一致・P569 の日単位の値）→ Virtual YouTuber Wiki。デビュー日は Virtual YouTuber Wiki の `debut_date` の最初の日付のみ（Wikidata の P2031 は告知日などが入りずれるため使わない）。Wiki の記事は、channel 欄の `@handle` / チャンネル ID が YouTube と一致した場合だけ採用する。
-- 形式: `birthday` は `MM-DD`、`debut` は `YYYY/MM/DD`（既存データの多数派・`eventList` の周年計算と同じ）。出典を `profileSource.birthday` / `profileSource.debut`（`wikidata:Q…` / `fandom:記事名` / `gpt`）に残す。
-- GPT 補完（`scheduledFillVtuberBirthdays`、1:00 JST）は、Wiki で調べ済みなのに誕生日が見つからなかったものだけを対象にする（`profileSource.birthday = "gpt"`）。
+- 形式: `birthday` は `MM-DD`、`debut` は `YYYY/MM/DD`（既存データの多数派・`eventList` の周年計算と同じ）。出典を `profileSource.birthday` / `profileSource.debut`（`wikidata:Q…` / `fandom:記事名`）に残す。
+- 誕生日は `birthdayJobs.js`（2026-11-04 導入）の `scheduledFillVtuberBirthdays`（1:00 JST、Wikipedia/Wikidata 照合・信頼度 high/medium のみ反映、照合結果は `birthdayLookup/{key}`）も補完する。GPT による補完は「記入例の 06-21 をそのまま返す」不具合があったため廃止済み（375 件を `birthdayBackup/` に退避してクリア）。
+- `vtuber/{key}` への書き込みは `onVtuberWriteForEventList` が誕生日を `MM-DD` に正規化して `meta/eventListDirty` を立て、`scheduledRebuildEventList`（10 分ごと）が `eventList.json` を作り直す。両関数・`rebuildEventList` は削除しないこと。
 - 検証（2026-11-11、既存値ありの 40 人で値を消して再取得）: 誕生日 39/39 一致、デビュー日 27/39 完全一致・3/39 は 3 日以内。未入力 40 人では 24 人が埋まった。
 
 ### 2.4 Remote Config
