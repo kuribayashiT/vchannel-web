@@ -14,6 +14,10 @@
   - 新規作成した共通コンポーネント、ユーティリティ関数、UIルール等を `FRONTEND_SPEC.md` に反映する。
   - 問題がなければ `COPILOT_TASK.md` の該当タスクを完了済み（`- [x]`）に変更し、Git Commit および Git Push まで実行する。
 
+- **管理画面（`/admin`）の例外**:
+  - 運営者向けの管理画面は、ユーザー向け機能ではないため **Claude Code が直接実装・保守する**。タスクは `ADMIN_TASK.md` で管理し、`COPILOT_TASK.md` には載せない。
+  - GitHub Copilot は `app/admin/`、`app/api/admin/`、`components/admin/`、`lib/admin/`、`proxy.ts`、`ADMIN_TASK.md` を編集しない。
+
 ## 📋 自律開発ループルール
 タスクの指示を受けた際、以下のステップを必ず自律的に完遂してください。
 

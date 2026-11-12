@@ -80,6 +80,7 @@ Cloud Functions が定期更新する。アプリは 1 時間 TTL でキャッ�
 - 上限: 1 回あたり登録 30 人・新規事務所 3 件。超過分は翌日以降に繰り越す。
 - 自動登録された VTuber の行には `registeredBy: "auto-discovery"` と `discovery`（Holodex org、登録時の登録者数、Wikidata ID、判定シグナル）が付く。`debut` / `birthday` は空で登録し、下記 2.3.2 の補完ジョブが埋める（チャンネル開設日はデビュー日と一致しないため使わない）。
 - 設定・停止（2.3.1）: `vtuberDiscovery/config`（`enabled` / `minSubscribers` / `maxRegisterPerRun` / `maxNewOfficesPerRun` / `minMembersForNewOffice`）で上書きできる。`enabled: false` で停止する。実行記録は `vtuberDiscovery/runs`（直近 30 件）に残る。`vtuberDiscovery/*` は公開読み取り不可。
+- 除外リスト（2026-11-12 追加、5.12）: `vtuberDiscovery/excluded/{channelId}` にあるチャンネルは、登録済みと同じ扱いで候補から外す（`registeredIds` に加える。`extra_ids` の照合には使わない）。管理画面で削除した VTuber が翌日に再登録されるのを防ぐ。YouTube API で確認する前の「未登録の絞り込み」の段階で外し、件数を実行記録の `excluded` に残す。
 
 ### 2.3.2 誕生日・デビュー日（周年）の自動補完（バックエンド、2026-11-11 追加）
 - 実装: `backend-repo/functions/vtuberProfiles.js`。`scheduledFillVtuberProfiles`（0:45 / 6:45 / 12:45 / 18:45 JST、1 回約 7 分）が実行し、`previewVtuberProfiles?limit=20`（HTTP GET）は書き込みなしの試走結果を返す。
@@ -250,6 +251,89 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 - ウィジェットの商品設定は `rakuten_items="ranking"`、`rakuten_genreId="566382"`、`rakuten_recommend="off"`（おすすめ優先 off）を使う。
 - ウィジェット枠にも `PR` バッジを表示する。
 - `/privacy` は ASP 名を明記しない広告表記を掲載する。現行の掲載項目は「広告の掲載について」「アクセス解析（Vercel Analytics）」「ローカルストレージ」「お問い合わせ」「制定日（2026-11-09）」「改定日（2026-11-11）」。
+
+### 5.12 管理画面 `/admin`（VTuber データ編集、2026-11-12 追加）
+
+自動登録（2.3.1）で増える VTuber のデータを、運営者 1 人がブラウザから直せるようにする。一般ユーザー向けの画面ではない。
+**実装・保守は Claude Code が担当し、タスクは `ADMIN_TASK.md` で管理する（`COPILOT_TASK.md` には載せない。Copilot は `/admin`・`/api/admin/*`・`components/admin/`・`lib/admin/`・`proxy.ts` を編集しない）。**
+
+実装ファイル: `proxy.ts`（認証）, `lib/admin/`（`types.ts` 型と入力チェック / `auth.ts` Basic 認証 / `firebaseAdmin.ts` / `server.ts` API 共通処理）, `app/api/admin/**`, `app/admin/`（`layout.tsx` / `page.tsx`）, `components/admin/`（`AdminApp` / `OfficeBoard` / `EditPanel` / `PendingList` / `Toasts` / `api.ts`）。
+
+#### アクセス制御・公開範囲
+- `/admin` と `/api/admin/*` は `proxy.ts`（Next.js 16。旧 `middleware.ts`）で Basic 認証をかける。ID・パスワードは環境変数 `ADMIN_USER` / `ADMIN_PASSWORD`。**どちらかが未設定なら 404 を返す**（設定漏れで無防備に公開されないようにする）。
+- 検索エンジンに出さない: `app/robots.ts` の `DISALLOW` に `/admin` を足し、`app/admin/layout.tsx` の metadata で `robots: { index: false, follow: false }`。sitemap に含めない。ヘッダー・BottomNav・サイドメニューからリンクしない。
+- ルートレイアウトは全ページを AppShell で包むため、`app/admin/layout.tsx` は全画面の `fixed` レイヤー（`z-[60]`）で AppShell を覆って表示する（公開サイト側のファイルを変えないため）。
+- `/api/admin/*` は proxy.ts に加えて各 Route Handler でも認証する（`withAdmin()`）。`FIREBASE_SERVICE_ACCOUNT` 未設定なら 503。
+- PC での利用が前提（サイドバーは `lg` 以上で表示）。スマホでは編集パネルの「事務所」セレクトで同じ操作ができる。
+
+#### 書き込み経路
+- 正本は RTDB（`vtuber` / `office` / `officeMapping`）。RTDB は公開読み書き不可なので、Next.js の Route Handler（`/api/admin/*`、`runtime = "nodejs"`、`dynamic = "force-dynamic"`）から **firebase-admin** で読み書きする。
+  - 認証情報: 環境変数 `FIREBASE_SERVICE_ACCOUNT`（サービスアカウント JSON を Base64 にした文字列。JSON そのままも可）。`FIREBASE_DATABASE_URL` で接続先を上書きできる。`databaseURL` は `https://vtuber-335811-default-rtdb.firebaseio.com`。
+  - 初期化は `lib/admin/firebaseAdmin.ts` に置き、**呼ばれたときに初めて初期化する**（環境変数が無くても `npm run build` が通ること）。先頭に `import "server-only"`。
+- 書き込みは必ず `update()` で、**変更したフィールドのパスだけ**送る（例 `vtuber/123/office`）。行ごと `set()` しない（24 時間ジョブが `thumbnailUrl` を、プロフィール補完ジョブが `birthday` / `debut` / `profileSource` を同じ行に書くため）。
+- 変更のたびに `updateTime`（ISO 文字列）を更新し、`adminLog/{pushId}` に `{ at, action, key, channelId, before, after }` を残す（取り消し・調査用）。
+- 公開サイトへの反映は既存ジョブまかせ: `officedataList.json` は 30 分ジョブ、`eventList.json` は `onVtuberWriteForEventList` → 10 分ジョブで作り直される。管理画面では保存後に「公開サイトへの反映は最大 30 分後」と表示する。
+- 事務所を変えると 2.3.1 の「所属の学習」にも効く（登録済み VTuber の実際の `office` から Holodex org／group の対応を学ぶため）。手で直すほど自動登録の所属判定が良くなる。
+- 注意: 手動 HTTP 関数 `addVtuberMetaBatch` は全員の `name` / `description` を YouTube の値で上書きする。管理画面で直した名前も戻るので、実行しないこと。
+
+#### 画面構成
+```
+┌ VTuber 管理 [事務所ボード|保留中|除外済み]                                         [↻] ┐
+├ [検索____] [すべて/自動登録のみ/未入力] 6/6人  (2人を選択中 ×)        [+ 事務所を追加] ┤
+│ サイドバー（固定）   │ 事務所セクション（縦に並ぶ）                    │ 編集パネル      │
+│  ホロライブ      82  │ ┌ ホロライブ hololive 82人 ✎ ────────────┐ │（右に固定・     │
+│  にじさんじ     150  │ │ [card][card][card][card] …（自動折り返し） │ │  カードクリック │
+│  Phase Connect ⚠  6  │ └──────────────────────────────┘ │  で開く）       │
+│  個人           300  │ ┌ Phase Connect phase ⚠名前未確認 6人 ✎ ─┐ │                 │
+│  未分類           1  │ │ [新人A 🤖 誕生日・デビューなし]           │ │                 │
+└──────────────┴───────────────────────────┴────────┘
+                         [ 新人A を Phase Connect → にじさんじ に移動しました  元に戻す ]
+```
+- **事務所の並び**: `office` ノードの順（表示名もメンバーもないゴミ行は出さない）→ `office` に無い `officeMapping` のキー → VTuber が使っているが未登録のキー（例 `.LIVE`）→ 最後に `personal`。`office` が空・未知の VTuber は「未分類」セクション（ドロップ先にはならない）。
+- **サイドバー**: 全事務所の名前と人数（絞り込み中は `表示数/全体`）。クリックでそのセクションへ移動、**ドロップ先**にもなる（事務所が約 25 件あり、遠いセクションまでドラッグしなくて済むように）。上部の案内文はドラッグ中に「N人を移動先へドロップ」に変わる（高さ固定でリストがずれない）。
+- **セクション見出し**: 表示名・キー・人数・✎（名前変更）。`vtuberDiscovery/offices/{key}.needsNameReview` が true なら ⚠「名前未確認」。メンバー 0 人の事務所は「ここにドロップして移動」の枠を出す。検索・絞り込みで 0 件になったセクションは隠す。
+- **VTuber カード**: アイコン（`thumbnailUrl`）、名前、登録者数（`officedataList.json` を `channeID` で突き合わせ、無ければ `discovery.subscribersAtRegistration`）、バッジ。
+  - 🤖 `registeredBy === "auto-discovery"`（自動登録）
+  - 「公式」 `officeFlg === true`
+  - 「誕生日なし」「デビュー日なし」 値が空のとき
+  - カード内の並びは公開サイトと同じ（`officeFlg` を先頭、続いて `createdAt` 昇順）。並べ替え機能は作らない。
+- **検索**: 名前・チャンネル ID・Twitter ID の部分一致。ヒットしたカードだけ残し、0 件の事務所カラムは隠す。
+- **絞り込み**: すべて／自動登録のみ／未入力あり（誕生日またはデビュー日が空）。
+- **ドラッグ＆ドロップで事務所変更**: カードを別の事務所セクション、またはサイドバーの事務所名へドロップすると、確認なしで即保存（楽観的更新）し、画面下にトースト「○○ を にじさんじ → ホロライブ に移動しました [元に戻す]」を 8 秒表示する。保存に失敗したら元のカラムへ戻してエラートーストを出す。
+  - ドロップ先はハイライトする（セクションは青枠、サイドバーは青背景）。
+  - 複数選択: カードの Shift / ⌘(Ctrl) クリックで複数選択し、選択中のカードをドラッグするとまとめて移動する（1 回の PATCH）。Esc で選択解除。「元に戻す」は各人の元の事務所へ戻す。
+  - 実装は HTML5 Drag and Drop（ライブラリを追加しない）。タッチ端末では編集パネルの「事務所」セレクトで代替する。
+- **編集パネル**（カードクリックで右側に開く。URL は `/admin?key=123` で、リロードしても同じ人が開く）
+
+  | 項目 | フィールド | 入力 | 備考 |
+  |---|---|---|---|
+  | 名前 | `name` | テキスト | 必須 |
+  | 事務所 | `office` | セレクト（`officeMapping` の表示名＋個人勢） | D&D と同じ処理 |
+  | 事務所公式アカウント | `officeFlg` | チェック | |
+  | Twitter ID | `twitterName` | テキスト | 先頭の `@` は取り除いて保存。他の VTuber と重複したら警告（保存は可） |
+  | 誕生日 | `birthday` | `MM-DD` | 形式チェック。空で保存可 |
+  | デビュー日 | `debut` | `YYYY/MM/DD` | 形式チェック。空で保存可 |
+  | 概要 | `description` | テキストエリア | |
+  | チャンネル ID | `channeID` | 表示のみ | YouTube へのリンク。変更不可 |
+  | 登録情報 | `createdAt` / `registeredBy` / `discovery` / `profileSource` | 表示のみ | 自動登録の判定根拠を確認できるように |
+
+  - 「保存」で差分のあるフィールドだけ送る。未保存の変更があるまま別のカードを開く・閉じる・ページを離れる場合は確認する。
+  - 手で `birthday` / `debut` を変えたら、`profileSource.birthday` / `profileSource.debut` を `"manual"` にする。
+  - 公開ページ `/vtuber/{channelId}` を新しいタブで開くリンクを置く。
+- **削除（除外）**: 編集パネル下部の「この VTuber を削除」（赤、確認ダイアログで名前を入力させる）。`vtuber/{key}` を消し、同時に `vtuberDiscovery/excluded/{channelId}` に `{ name, at, reason }` を書く。**除外リストに入ったチャンネルは自動登録で再登録しない**（バックエンド側の対応が必要。2.3.1）。除外リストは画面の「除外済み」タブで一覧でき、「除外を解除」できる（解除しても再登録は翌日の自動登録まかせ）。削除の確認では名前の入力に加え、理由（任意）を残せる。
+- **事務所の管理**: 見出しの ✎ で `officeMapping/{key}`（表示名）を変更。変更したら `vtuberDiscovery/offices/{key}/needsNameReview` を false にする。「事務所を追加」で `officeKey`（英数字・`-`・`_` のみ、既存と重複不可）と表示名を入力し、`office` の末尾と `officeMapping` に追加する。事務所の削除は作らない（メンバーを全員移せば公開サイトから消える）。
+- **自動登録の保留候補**（タブ「保留中」）: `vtuberDiscovery/pending` を一覧表示（名前・登録者数・Holodex org・保留理由）。「登録する」で事務所（初期値は候補の `officeKey`）と公式アカウントかを選び、`vtuber/{次の数値キー}` に自動登録と同じ形の行を作る（`registeredBy: "admin"`、キーは `transaction` で確保）。登録済みのチャンネルなら 409。「却下」で除外リストに入れる。
+
+#### API（すべて Basic 認証の内側）
+| メソッド・パス | 内容 |
+|---|---|
+| `GET /api/admin/vtubers` | `{ vtubers: { [key]: VTuberRow }, offices: string[], officeMapping, officeReview: { [key]: boolean }, subscribers: { [channelId]: number } }` |
+| `PATCH /api/admin/vtubers` | `{ changes: [{ key, fields: Partial<VTuberRow> }] }`。許可フィールドは上表の編集可能項目のみ（それ以外は 400）。1 回の `update()` で反映し、`adminLog` に記録 |
+| `DELETE /api/admin/vtubers/[key]` | 削除＋除外リスト追加（body に `reason`） |
+| `GET` / `DELETE /api/admin/excluded[/channelId]` | 除外リストの取得・解除 |
+| `PATCH /api/admin/offices` | `{ key, name }` 表示名変更 |
+| `POST /api/admin/offices` | `{ key, name }` 事務所追加 |
+| `GET /api/admin/pending` / `POST /api/admin/pending/[channelId]` | 保留候補の取得・登録（body に `officeKey`, `action: "register" \| "reject"`） |
 
 ---
 
