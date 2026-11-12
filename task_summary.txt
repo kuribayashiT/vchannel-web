@@ -1,3 +1,3 @@
 ### 🚀 本日の自動実装成果
-- **対象ファイル**: `components/EventCalendar.tsx`
-- **改善内容**: イベントカレンダーで選択日にイベントがある場合、イベント一覧の下に PR バッジ付きの AffiliateLinks（見出し「お祝いグッズを探す」）を1つだけ表示するようにしました。キーワードは先頭イベントの「<名前> グッズ」で、イベントのない日や名前が空の場合は表示しません。AffiliateLinks.tsx と lib/affiliate.ts はこちらに届いたソースに含まれていなかったため、AFF-1 完了済みの仕様どおり名前付きエクスポート `AffiliateLinks`（props: keyword, heading）が存在する前提です。ビルドと型チェックは実行していません。
+- **対象ファイル**: `components/VTuberDirectory.tsx`
+- **改善内容**: 事務所別一覧を FRONTEND_SPEC 5.4 の仕様に合わせました。見出しは「事務所から探す」にし、事務所ごとに閉じた状態の <details> で包みました。<summary> 内の <h2> に事務所名・人数・開閉矢印を出し、中身のメンバーは <Link>（/vtuber/{channelId}、名前＋登録者数）の丸チップで並べています。dangerouslySetInnerHTML は使わず JSX で描画します。リンクは CSS で隠さず、閉じた <details> の中身として初期 HTML に含まれます。npx tsc --noEmit と npm run build は実行していません。

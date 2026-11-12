@@ -1,7 +1,10 @@
+import Link from "next/link";
+import { ChevronDown } from "lucide-react";
 import { formatNumber } from "@/lib/format";
 import { getCachedVTuberPageData } from "@/lib/server-data";
 import type { VTuberIndexItem } from "@/types";
 
+/** 全事務所・全メンバーをサーバーレンダリングする一覧（フィルターの影響を受けない） */
 export async function VTuberDirectory() {
   let items: VTuberIndexItem[];
   try {
@@ -10,6 +13,7 @@ export async function VTuberDirectory() {
   } catch {
     return null;
   }
+
   const grouped = new Map<string, VTuberIndexItem[]>();
   for (const item of items) {
     const list = grouped.get(item.office);
@@ -20,30 +24,48 @@ export async function VTuberDirectory() {
     grouped.set(item.office, [item]);
   }
 
-  const escapeHtml = (value: string): string =>
-    value
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#39;");
-
-  const html = Array.from(grouped.entries())
-    .map(([office, members]) => {
-      const membersHtml = members
-        .map((member) => {
-          const href = `/vtuber/${encodeURIComponent(member.channelId)}`;
-          return `<li><a href="${href}" class="text-blue-600 hover:underline dark:text-blue-400">${escapeHtml(member.name)}（${formatNumber(member.subscriberCount)}）</a></li>`;
-        })
-        .join("");
-      return `<section class="space-y-2"><h2 class="text-lg font-semibold">${escapeHtml(office)}</h2><ul class="flex flex-wrap gap-x-4 gap-y-2 text-sm">${membersHtml}</ul></section>`;
-    })
-    .join("");
+  if (grouped.size === 0) return null;
 
   return (
-    <section className="mt-10 space-y-6">
-      <p className="text-xl font-bold tracking-tight">事務所別VTuber一覧</p>
-      <div dangerouslySetInnerHTML={{ __html: html }} />
+    <section aria-label="事務所から探す" className="mt-10 space-y-4">
+      <p className="text-xl font-bold tracking-tight">事務所から探す</p>
+      <div className="space-y-2">
+        {Array.from(grouped.entries()).map(([office, members]) => (
+          <details
+            key={office}
+            className="group rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+          >
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 [&::-webkit-details-marker]:hidden">
+              <h2 className="min-w-0 truncate text-base font-semibold">
+                {office}
+                <span className="ml-2 text-xs font-normal text-zinc-500">
+                  {formatNumber(members.length)}人
+                </span>
+              </h2>
+              <ChevronDown
+                size={18}
+                aria-hidden
+                className="shrink-0 text-zinc-500 transition-transform group-open:rotate-180"
+              />
+            </summary>
+            <ul className="flex flex-wrap gap-2 px-4 pb-4 text-sm">
+              {members.map((member) => (
+                <li key={member.channelId}>
+                  <Link
+                    href={`/vtuber/${encodeURIComponent(member.channelId)}`}
+                    className="inline-block rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-blue-600 transition-colors hover:bg-blue-50 hover:underline dark:border-zinc-700 dark:bg-zinc-800 dark:text-blue-400 dark:hover:bg-zinc-700"
+                  >
+                    {member.name}
+                    <span className="ml-1 text-xs text-zinc-500">
+                      （{formatNumber(member.subscriberCount)}）
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </details>
+        ))}
+      </div>
     </section>
   );
 }
