@@ -87,6 +87,42 @@ export const RTDB_KEY_RE = /^[^.#$[\]/]{1,200}$/;
 
 export const MAX_TEXT = 5000;
 
+function validMonthDay(month: number, day: number): boolean {
+  if (month < 1 || month > 12 || day < 1) return false;
+  return day <= [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1];
+}
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+/**
+ * 誕生日を保存形式 "MM-DD" にそろえる。backend-repo/functions/eventList.js の
+ * normalizeBirthday と同じ解釈（MM/DD・M/D・YYYY-MM-DD・M月D日・MMDD・"-"=不明で確定）。
+ * 解釈できなければ null。
+ */
+export function normalizeBirthday(raw: string): string | null {
+  const s = raw.trim();
+  if (s === "" || s === "-") return s;
+  const m =
+    /^(?:\d{4}[-/.])?(\d{1,2})[-/.](\d{1,2})$/.exec(s) ??
+    /^(?:\d{4}年)?\s*(\d{1,2})月\s*(\d{1,2})日$/.exec(s) ??
+    /^(\d{2})(\d{2})$/.exec(s);
+  if (!m) return null;
+  const month = Number(m[1]);
+  const day = Number(m[2]);
+  return validMonthDay(month, day) ? `${pad2(month)}-${pad2(day)}` : null;
+}
+
+/** デビュー日を保存形式 "YYYY/MM/DD" にそろえる（YYYY/M/D・YYYY-MM-DD・YYYY年M月D日 可）。解釈できなければ null */
+export function normalizeDebut(raw: string): string | null {
+  const s = raw.trim();
+  if (s === "") return "";
+  const m = /^(\d{4})[-/.年]\s*(\d{1,2})[-/.月]\s*(\d{1,2})日?$/.exec(s);
+  if (!m) return null;
+  const month = Number(m[2]);
+  const day = Number(m[3]);
+  return validMonthDay(month, day) ? `${m[1]}/${pad2(month)}/${pad2(day)}` : null;
+}
+
 /** 1 フィールド分の正規化。不正なら Error を投げる */
 export function normalizeField(
   field: EditableField,
@@ -109,12 +145,18 @@ export function normalizeField(
     case "twitterName":
       v = v.replace(/^@+/, "");
       break;
-    case "birthday":
-      if (v && !BIRTHDAY_RE.test(v)) throw new Error("誕生日は MM-DD 形式");
+    case "birthday": {
+      const n = normalizeBirthday(v);
+      if (n === null) throw new Error("誕生日を日付として読めません（MM-DD 形式）");
+      v = n;
       break;
-    case "debut":
-      if (v && !DEBUT_RE.test(v)) throw new Error("デビュー日は YYYY/MM/DD 形式");
+    }
+    case "debut": {
+      const n = normalizeDebut(v);
+      if (n === null) throw new Error("デビュー日を日付として読めません（YYYY/MM/DD 形式）");
+      v = n;
       break;
+    }
     case "description":
       v = value.replace(/\s+$/, "");
       break;

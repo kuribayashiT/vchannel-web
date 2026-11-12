@@ -311,12 +311,13 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
   | 事務所 | `office` | セレクト（`officeMapping` の表示名＋個人勢） | D&D と同じ処理 |
   | 事務所公式アカウント | `officeFlg` | チェック | |
   | Twitter ID | `twitterName` | テキスト | 先頭の `@` は取り除いて保存。他の VTuber と重複したら警告（保存は可） |
-  | 誕生日 | `birthday` | `MM-DD` | 形式チェック。空で保存可 |
-  | デビュー日 | `debut` | `YYYY/MM/DD` | 形式チェック。空で保存可 |
+  | 誕生日 | `birthday` | `MM-DD` | 空・`-`（不明で確定）可。`MM/DD`・`M/D`・`M月D日` なども受け付けて `MM-DD` にそろえる（`eventList.js` の `normalizeBirthday` と同じ解釈） |
+  | デビュー日 | `debut` | `YYYY/MM/DD` | 空可。`YYYY/M/D`・`YYYY-MM-DD` なども受け付けて `YYYY/MM/DD` にそろえる |
   | 概要 | `description` | テキストエリア | |
   | チャンネル ID | `channeID` | 表示のみ | YouTube へのリンク。変更不可 |
   | 登録情報 | `createdAt` / `registeredBy` / `discovery` / `profileSource` | 表示のみ | 自動登録の判定根拠を確認できるように |
 
+  - 形式チェックは**編集した欄だけ**。既存データの旧形式（誕生日 `MM/DD` が約 170 件、デビュー日 `YYYY/M/D` が約 70 件。2026-11-12 時点）は保存を止めず、黄色で「旧形式です」と出すだけ（別の項目を直したいだけのときに邪魔しないため）。
   - 「保存」で差分のあるフィールドだけ送る。未保存の変更があるまま別のカードを開く・閉じる・ページを離れる場合は確認する。
   - 手で `birthday` / `debut` を変えたら、`profileSource.birthday` / `profileSource.debut` を `"manual"` にする。
   - 公開ページ `/vtuber/{channelId}` を新しいタブで開くリンクを置く。

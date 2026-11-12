@@ -6,6 +6,8 @@ import {
   BIRTHDAY_RE,
   DEBUT_RE,
   EDITABLE_FIELDS,
+  normalizeBirthday,
+  normalizeDebut,
   type AdminOffice,
   type AdminVtuber,
   type VtuberEdit,
@@ -45,11 +47,14 @@ function Field({
   label,
   hint,
   error,
+  note,
   children,
 }: {
   label: string;
   hint?: string;
   error?: string | null;
+  /** 保存は止めない注意（黄色） */
+  note?: string | null;
   children: React.ReactNode;
 }) {
   return (
@@ -58,6 +63,8 @@ function Field({
       {children}
       {error ? (
         <span className="block text-xs text-red-600">{error}</span>
+      ) : note ? (
+        <span className="block text-xs text-amber-600">{note}</span>
       ) : hint ? (
         <span className="block text-xs text-zinc-500">{hint}</span>
       ) : null}
@@ -99,10 +106,30 @@ export function EditPanel({
     onDirtyChange(Object.keys(diffForm(vtuber, next)).length > 0);
   };
 
-  const birthdayErr =
-    form.birthday.trim() && !BIRTHDAY_RE.test(form.birthday.trim()) ? "MM-DD 形式（例 03-14）" : null;
-  const debutErr =
-    form.debut.trim() && !DEBUT_RE.test(form.debut.trim()) ? "YYYY/MM/DD 形式（例 2021/08/01）" : null;
+  // 形式チェックは「編集した欄」だけ。既存の旧形式（05/15 など）は保存を止めず、注意だけ出す
+  const dateState = (
+    value: string,
+    original: string,
+    normalize: (s: string) => string | null,
+    re: RegExp,
+    format: string,
+  ): { error: string | null; note: string | null } => {
+    const v = value.trim();
+    const n = normalize(v);
+    if (v === original.trim()) {
+      if (!v || v === "-" || re.test(v)) return { error: null, note: null };
+      return {
+        error: null,
+        note: n ? `旧形式です。編集して保存すると ${n} になります` : `日付として読めない値です（${format}）`,
+      };
+    }
+    if (n === null) return { error: `日付として読めません（${format}）`, note: null };
+    return { error: null, note: n !== v ? `保存時に ${n || "空"} になります` : null };
+  };
+  const bday = dateState(form.birthday, vtuber.birthday, normalizeBirthday, BIRTHDAY_RE, "例 03-14");
+  const debutState = dateState(form.debut, vtuber.debut, normalizeDebut, DEBUT_RE, "例 2021/08/01");
+  const birthdayErr = bday.error;
+  const debutErr = debutState.error;
   const nameErr = form.name.trim() ? null : "必須";
 
   const twitterDup = useMemo(() => {
@@ -193,10 +220,20 @@ export function EditPanel({
         </Field>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="誕生日" error={birthdayErr} hint={vtuber.profileSource?.birthday ? `出典 ${vtuber.profileSource.birthday}` : "MM-DD"}>
+          <Field
+            label="誕生日"
+            error={birthdayErr}
+            note={bday.note}
+            hint={vtuber.profileSource?.birthday ? `出典 ${vtuber.profileSource.birthday}` : "MM-DD（不明で確定なら -）"}
+          >
             <input className={input} placeholder="MM-DD" value={form.birthday} onChange={(e) => set("birthday", e.target.value)} />
           </Field>
-          <Field label="デビュー日" error={debutErr} hint={vtuber.profileSource?.debut ? `出典 ${vtuber.profileSource.debut}` : "YYYY/MM/DD"}>
+          <Field
+            label="デビュー日"
+            error={debutErr}
+            note={debutState.note}
+            hint={vtuber.profileSource?.debut ? `出典 ${vtuber.profileSource.debut}` : "YYYY/MM/DD"}
+          >
             <input className={input} placeholder="YYYY/MM/DD" value={form.debut} onChange={(e) => set("debut", e.target.value)} />
           </Field>
         </div>
