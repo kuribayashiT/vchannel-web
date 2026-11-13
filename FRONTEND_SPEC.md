@@ -17,8 +17,14 @@ Flutter アプリ（`lib/`, v2.22.2）の現行実装を元にまとめた仕様
 ### サイトアイコン
 - ブラウザのタブと iPhone のホーム画面アイコンには `public/logo.png` を使用する。
 
+### 本番ドメイン（2026-11-13 変更）
+- 正式な URL は **`https://www.vchannel.net`**（www あり）。Vercel Pro プランで運用する（Hobby は商用利用不可のため）。
+- `vchannel.net`（www なし）と旧ホスト `vchannel-web.vercel.app` は、Vercel の Domains 設定で `www.vchannel.net` へ **308 恒久リダイレクト**する（コード側のリダイレクトは不要）。プレビューデプロイのホストは対象外。
+- `SITE_URL`（`lib/site.ts`）の決め方: 環境変数 `SITE_URL` → 本番（`VERCEL_ENV=production`）なら `https://www.vchannel.net` → `VERCEL_PROJECT_PRODUCTION_URL` → `http://localhost:3000`。canonical・sitemap・OGP・JSON-LD はすべてこの値から作る。URL の直書きは禁止。
+
 ### Search Console 確認タグ
-- Google Search Console の URL プレフィックス プロパティ `https://vchannel-web.vercel.app` の所有権確認に、`app/layout.tsx` の `metadata.verification.google` を使用する。
+- 旧 URL プレフィックス プロパティ `https://vchannel-web.vercel.app` の所有権確認に、`app/layout.tsx` の `metadata.verification.google` を使用する。アドレス変更ツールで旧プロパティの確認が必要なため、移行後も残す。
+- 新ドメインは Search Console の **ドメイン プロパティ** `vchannel.net`（DNS TXT で確認）で管理する。
 
 ### 移行方針（推奨）
 - 読み取りデータは **公開 JSON（GCS）を fetch するだけ**。サーバー実装不要。Next.js では ISR/`revalidate`（60〜300 秒）または SWR で取得する。
@@ -353,6 +359,7 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
   - クライアント fetch だけで本文を描画しない。
 - `/vtuber/[channelId]` は `cacheLife("hours")` の 1 時間キャッシュで更新し、`notFound()` を返せることを前提にメタデータ・要約文・JSON-LD をサーバーで出力する。
 - **ページごとに固有の title / description / canonical** を `generateMetadata` で出す。共通タイトルは禁止。
+  - canonical は公開ページすべてに付ける（`/`、`/vtuber`、`/events`、`/news`、`/chat`、`/privacy` を含む）。`alternates.canonical` に相対パスを書き、`metadataBase`（`SITE_URL`）で絶対 URL にする。robots で disallow 済みの `/favorites`、`/settings` は対象外。
 - **要約文（answer-first）**: 入口ページの h1 直下に、1〜2 文で「誰が・何人・いつ時点」を言い切る文を置く。AI 検索や強調スニペットに引用されやすくするため。日付は必ず明記する。
 - **構造化データ**:
   - 詳細: `ProfilePage` + `Person`、`BreadcrumbList`
