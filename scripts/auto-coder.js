@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { firstOpenTask } from './task-md.mjs';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 if (!ANTHROPIC_API_KEY) {
@@ -31,6 +32,15 @@ async function main() {
   const frontendSpec = fs.existsSync('FRONTEND_SPEC.md') ? fs.readFileSync('FRONTEND_SPEC.md', 'utf8') : '';
   const copilotTask = fs.existsSync('COPILOT_TASK.md') ? fs.readFileSync('COPILOT_TASK.md', 'utf8') : '';
 
+  // 実装するタスクは「ファイル内で最初の未完了タスク」に固定する。
+  // ビルド成功時の完了マーク（scripts/mark-task-done.mjs）と失敗メモ（scripts/task-fallback.js）も同じタスクを対象にする。
+  const target = firstOpenTask(copilotTask);
+  if (!target) {
+    console.log('未完了タスクがないため、自動実装をスキップします。');
+    return;
+  }
+  console.log(`実装対象タスク: ${target.line}`);
+
   console.log('既存のソースコードをスキャン中...');
   const sourceCodeContext = [
     ...loadSourceFiles('app'),
@@ -38,7 +48,8 @@ async function main() {
   ].join('\n');
 
   const prompt = "あなたは Next.js (App Router) + TypeScript + Tailwind CSS のプロフェッショナルなフロントエンドエンジニアです。\n" +
-    "以下のプロジェクト資料および既存のソースコード構造を完全に理解した上で、COPILOT_TASK.md の「未完了タスク (- [ ])」の中から、最優先のタスクを1件だけピックアップして正確に実装してください。\n\n" +
+    "以下のプロジェクト資料および既存のソースコード構造を完全に理解した上で、COPILOT_TASK.md の次のタスク（最初の未完了タスク）を正確に実装してください。ほかのタスクには手を付けないでください。\n\n" +
+    "## 🎯 今回実装するタスク\n" + target.block + "\n\n" +
     "## AGENTS.md\n" + agentsMd + "\n\n" +
     "## FRONTEND_SPEC.md\n" + frontendSpec + "\n\n" +
     "## COPILOT_TASK.md\n" + copilotTask + "\n\n" +

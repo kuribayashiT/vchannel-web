@@ -128,17 +128,8 @@ jobs:
 
       - name: Step 4. ビルド成功時のみ COPILOT_TASK.md のタスクを完了扱いに更新
         run: |
-          node -e '
-            const fs = require("fs");
-            if (fs.existsSync("COPILOT_TASK.md")) {
-              let content = fs.readFileSync("COPILOT_TASK.md", "utf8");
-              if (content.includes("- [ ]")) {
-                content = content.replace("- [ ]", "- [x]");
-                fs.writeFileSync("COPILOT_TASK.md", content, "utf8");
-                console.log("✅ COPILOT_TASK.md の先頭タスクを完了 (- [x]) に更新しました");
-              }
-            }
-          '
+          # auto-coder が実装した「最初の未完了タスク」の行だけを完了にする（行頭一致・壊れ検査付き）
+          node scripts/mark-task-done.mjs
 
       - name: Check for codebase changes
         id: git-check
