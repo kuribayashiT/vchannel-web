@@ -6,7 +6,7 @@ import { X, CalendarDays, Settings, SlidersHorizontal, Star } from "lucide-react
 import { BottomNav, TopNav } from "@/components/BottomNav";
 import { YouTubePlayer } from "@/components/YouTubePlayer";
 import { OfficeSelector } from "@/components/OfficeSelector";
-import { useSelectedChannels } from "@/hooks/useSelection";
+import { resetSelection, useSelectedChannels } from "@/hooks/useSelection";
 import type { OfficeSummary } from "@/lib/offices";
 
 function SideMenu({
@@ -45,6 +45,33 @@ function SideMenu({
           onChange={setChannelIds}
         />
       </aside>
+    </div>
+  );
+}
+
+/** 絞り込み中（選択が空でない）のときだけ表示するチップ。タップでフィルターを開き、× で全件表示に戻す */
+function FilterChip({ onOpen }: { onOpen: () => void }) {
+  const { channelIds } = useSelectedChannels();
+  if (channelIds.length === 0) return null;
+
+  return (
+    <div className="flex items-center overflow-hidden rounded-full border border-violet-300 bg-violet-50 text-xs font-medium text-violet-800 dark:border-violet-700 dark:bg-violet-950/40 dark:text-violet-200">
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={`絞り込み中 ${channelIds.length}人。フィルターを開く`}
+        className="whitespace-nowrap py-1 pl-2.5 pr-1 hover:bg-violet-100 dark:hover:bg-violet-900/40"
+      >
+        絞り込み中 {channelIds.length}人
+      </button>
+      <button
+        type="button"
+        onClick={() => resetSelection()}
+        aria-label="絞り込みを解除して全件表示に戻す"
+        className="flex items-center py-1 pl-1 pr-2 hover:bg-violet-100 dark:hover:bg-violet-900/40"
+      >
+        <X size={12} aria-hidden />
+      </button>
     </div>
   );
 }
@@ -93,6 +120,9 @@ export function AppShell({
             >
               <Settings size={18} />
             </Link>
+            <div className="ml-1">
+              <FilterChip onOpen={() => setMenuOpen(true)} />
+            </div>
             <button
               type="button"
               aria-label="フィルター"
