@@ -1,3 +1,3 @@
 ### 🚀 本日の自動実装成果
-- **対象ファイル**: `components/AppShell.tsx`
-- **改善内容**: ヘッダーのフィルターボタンの左に「絞り込み中 N人」チップを追加しました。チップをタップするとフィルターが開き、「×」で resetSelection() を呼んで全件表示に戻ります。選択が空のときはチップを出しません。FRONTEND_SPEC.md 5.0 の仕様に合わせた変更です。
+- **対象ファイル**: `app/vtuber/[channelId]/page.tsx`
+- **改善内容**: 詳細ページ本文からキャッシュなしで直接呼んでいた loadVTubers() を、"use cache" + cacheLife("hours") 付きの getCachedOfficeMembers() 経由に変更しました。これでプリレンダー中の Date.now() エラーが解消する見込みです。同じ事務所のメンバー12人の表示と並び順は変えていません。1ファイル制限のため、この関数は lib/server-data.ts ではなくこのページ内に置いています。lib/server-data.ts と lib/gcs.ts（allvideos.json の 2MB 超対策）、FRONTEND_SPEC.md の更新は未対応です。tsc と npm run build は実行していません。
