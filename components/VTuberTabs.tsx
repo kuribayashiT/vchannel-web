@@ -1,14 +1,17 @@
 "use client";
 
 import { smallAvatar } from "@/lib/url";
-import { ChevronDown, Search } from "lucide-react";
+import { Cake, ChevronDown, PartyPopper, Search } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { AffiliateLinks } from "@/components/AffiliateLinks";
+import { DateCountdown } from "@/components/DateCountdown";
 import { VTuberDetailSkeleton, VTuberTabsSkeleton } from "@/components/Skeleton";
 import { VideoCard } from "@/components/VideoCard";
 import { useSelectedChannels } from "@/hooks/useSelection";
 import { formatCompact, formatNumber } from "@/lib/format";
 import { normalizeForSearch } from "@/lib/search";
+import { formatDateSlug } from "@/lib/events";
 import type {
   VTuberDetail,
   VTuberIndexItem,
@@ -136,6 +139,46 @@ export function DetailView({ detail: d }: { detail: VTuberDetail }) {
           </div>
         ))}
       </dl>
+
+      {(d.birthday || d.debut) && (
+        <dl className="space-y-2 rounded-lg border border-zinc-200 bg-white/85 p-3 backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/85">
+          {d.birthday && (
+            <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-1">
+              <dt className="flex items-center gap-1.5 text-sm font-medium">
+                <Cake size={16} aria-hidden />
+                誕生日
+              </dt>
+              <dd className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                <Link
+                  href={`/events/${formatDateSlug(d.birthday.month, d.birthday.day)}`}
+                  className="text-sm font-semibold text-blue-600 hover:text-violet-600 dark:text-blue-400 dark:hover:text-violet-300"
+                >
+                  {d.birthday.month}月{d.birthday.day}日
+                </Link>
+                <DateCountdown date={d.birthday} kind="birthday" />
+              </dd>
+            </div>
+          )}
+          {d.debut && (
+            <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-1">
+              <dt className="flex items-center gap-1.5 text-sm font-medium">
+                <PartyPopper size={16} aria-hidden />
+                デビュー
+              </dt>
+              <dd className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                <Link
+                  href={`/events/${formatDateSlug(d.debut.month, d.debut.day)}`}
+                  className="text-sm font-semibold text-blue-600 hover:text-violet-600 dark:text-blue-400 dark:hover:text-violet-300"
+                >
+                  {d.debut.year && `${d.debut.year}年`}
+                  {d.debut.month}月{d.debut.day}日
+                </Link>
+                <DateCountdown date={d.debut} kind="debut" />
+              </dd>
+            </div>
+          )}
+        </dl>
+      )}
 
       <section>
         <h3 className="mb-2 font-bold">登録者数の推移（30日）</h3>

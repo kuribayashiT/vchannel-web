@@ -70,7 +70,16 @@ function buildSummary(detail: VTuberDetail): string {
   } else if (delta < 0) {
     deltaText = `過去30日間で${formatNumber(Math.abs(delta))}人減少しました。`;
   }
-  return `${detail.name}は${detail.office}に所属するVTuberです。${latestDateText(latest?.date)}のYouTube登録者数は${formatNumber(detail.subscriberCount)}人（${formatCompact(detail.subscriberCount)}）で、${deltaText}`;
+  const profileDates = [
+    detail.birthday &&
+      `誕生日は${detail.birthday.month}月${detail.birthday.day}日`,
+    detail.debut &&
+      `デビューは${detail.debut.year ? `${detail.debut.year}年` : ""}${detail.debut.month}月${detail.debut.day}日`,
+  ].filter((value): value is string => Boolean(value));
+  const profileDateSummary = profileDates.length
+    ? `${profileDates.join("、")}です。`
+    : "";
+  return `${detail.name}は${detail.office}に所属するVTuberです。${latestDateText(latest?.date)}のYouTube登録者数は${formatNumber(detail.subscriberCount)}人（${formatCompact(detail.subscriberCount)}）で、${deltaText}${profileDateSummary}`;
 }
 
 function metadataDescription(detail: VTuberDetail): string {

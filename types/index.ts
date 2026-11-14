@@ -135,6 +135,8 @@ export interface VTuberDetail extends VTuberIndexItem {
   title: string;
   viewCount: number;
   videoCount: number;
+  birthday?: { month: number; day: number };
+  debut?: { year?: number; month: number; day: number };
   /** 直近 30 日（古い順） */
   transition: { date: string; count: number }[];
   /** 新しい順・最大 30 件 */

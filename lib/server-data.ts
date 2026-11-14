@@ -11,6 +11,7 @@ import {
   type VTuberTabItem,
 } from "@/types";
 import { fetchGcsJson, normalizeVTuber, normalizeVideo } from "@/lib/gcs";
+import { parseDebut, parseMonthDay } from "@/lib/profile-date";
 
 /**
  * officedataList.json(約19MB) / allvideos.json(約16MB) は Next.js の fetch キャッシュ上限(2MB)を
@@ -38,6 +39,8 @@ const MAX_DAYS = 30;
 
 function toDetail(raw: RawVTuber): VTuberDetail {
   const v = normalizeVTuber(raw);
+  const birthday = parseMonthDay(v.birthday);
+  const debut = parseDebut(v.debut);
   const rawVideos = (raw as { videos?: Record<string, RawVideo> }).videos;
   const videos = Object.values(rawVideos ?? {})
     .map(normalizeVideo)
@@ -58,6 +61,8 @@ function toDetail(raw: RawVTuber): VTuberDetail {
     title: v.title,
     viewCount: v.viewCount,
     videoCount: v.videoCount,
+    ...(birthday ? { birthday } : {}),
+    ...(debut ? { debut } : {}),
     transition,
     videos,
   };

@@ -822,7 +822,7 @@
     - スマホ幅で 3 事務所を選ぶと 2 段のチップになり、事務所チップでメンバー列が切り替わる。
     - `FRONTEND_SPEC.md` 5.4（PM 更新済み）の記述と実装が一致している。
 
-- [ ] **VT-PROFILE-1. VTuber 詳細に誕生日とデビュー日（周年）を表示する**（2026-11-14 追加・VT-GROUP-2 の次に着手）
+- [x] **VT-PROFILE-1. VTuber 詳細に誕生日とデビュー日（周年）を表示する**（2026-11-14 追加・VT-GROUP-2 の次に着手）
   - **対象ファイル**: 新規 `lib/profile-date.ts`、`lib/server-data.ts`、`types/index.ts`、`components/VTuberTabs.tsx`（`DetailView`）、`app/vtuber/[channelId]/page.tsx`
   - **背景**: `officedataList.json` には `birthday` / `debut` があるが、詳細画面では使っていない。2026-11-14 時点で、公式アカウントを除く 1,389 人のうち誕生日 792 人、デビュー日 790 人に値がある（残りはバックエンドの補完ジョブ（仕様 2.3.2）が順次埋める）。記念日の配信を追うファンにとって知りたい情報で、日付ページ（`/events/{MM-DD}`）への内部リンクも増やせる。
   - **仕様**:
