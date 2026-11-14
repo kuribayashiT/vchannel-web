@@ -793,6 +793,36 @@
     - スマホ幅で 3 事務所を選ぶと 2 段のチップになり、事務所チップでメンバー列が切り替わる。
     - `FRONTEND_SPEC.md` 5.4（PM 更新済み）の記述と実装が一致している。
 
+- [ ] **VT-PROFILE-1. VTuber 詳細に誕生日とデビュー日（周年）を表示する**（2026-11-14 追加・VT-GROUP-2 の次に着手）
+  - **対象ファイル**: 新規 `lib/profile-date.ts`、`lib/server-data.ts`、`types/index.ts`、`components/VTuberTabs.tsx`（`DetailView`）、`app/vtuber/[channelId]/page.tsx`
+  - **背景**: `officedataList.json` には `birthday` / `debut` があるが、詳細画面では使っていない。2026-11-14 時点で、公式アカウントを除く 1,389 人のうち誕生日 792 人、デビュー日 790 人に値がある（残りはバックエンドの補完ジョブ（仕様 2.3.2）が順次埋める）。記念日の配信を追うファンにとって知りたい情報で、日付ページ（`/events/{MM-DD}`）への内部リンクも増やせる。
+  - **仕様**:
+    - **日付の正規化**: `lib/profile-date.ts` に次の 2 関数を追加する。
+      - `parseMonthDay(s): { month: number; day: number } | null`: `05-15` / `05/23` / `5/3` / `2018/05/15` / `2018-05-15` を受け付け、最後の 2 つの数字を月・日とする。
+      - `parseDebut(s): { year?: number; month: number; day: number } | null`: `2018/3/22` / `2018/09/07` / `2018-09-07` を受け付ける。4 桁の年が無ければ `year` なしで返す。
+      - 共通ルール: 区切りは `/`・`-`・`.`・`年月日` を許す。月 1〜12、日がその月の範囲内（2/29 は可）でなければ `null`。空文字・不正値は `null`。
+    - **データ**: `VTuberDetail` に `birthday?: { month: number; day: number }` と `debut?: { year?: number; month: number; day: number }` を追加し、`lib/server-data.ts` の詳細の組み立てで上の関数を使って入れる（`null` のときは項目を入れない）。`VTuberIndexItem` / `VTuberTabItem` には足さない（`/vtuber` の HTML を増やさないため）。
+    - **表示**（`DetailView`。一覧タブと `/vtuber/[channelId]` の両方に出る）:
+      - 数値の `<dl>` の下、登録者数推移のグラフの上に、プロフィール行のまとまりを置く。
+      - 誕生日の行: lucide-react の `Cake`（`size={16}`）＋ `誕生日` ＋ `5月15日`。デビューの行: `PartyPopper` ＋ `デビュー` ＋ `2017年9月7日`（年が無ければ `9月7日`）。
+      - 日付部分は `<Link href={`/events/${formatDateSlug(month, day)}`}>`（`lib/events.ts` の既存関数）にする。ホバーで violet 系。
+      - 値がない行は出さない。両方ないときはまとまりごと出さない（`不明` とは書かない）。
+      - 背景のぼかしサムネイルの上でも読めるように、既存の数値カードと同じトーン（半透明の白／ダーク対応）にする。375px 幅で 1 行に収まらない場合は、相対表示を次の行に折り返してよい。
+    - **相対表示**（日付の右に小さく）:
+      - 新規の小さなクライアントコンポーネント（例: `components/DateCountdown.tsx`）で、**マウント後に** JST の今日（`lib/events.ts` の `todayJstParts()`）を基準に計算する。マウント前は何も描画しない。キャッシュされた HTML と日付がずれても、ハイドレーションの不一致を起こさないようにするため。
+      - 誕生日: `あと N 日`。当日は `今日は誕生日！`（amber 系のバッジ）。1〜30 日以内は `もうすぐ` バッジ（violet 系）＋ `あと N 日`。
+      - デビュー（年があるとき）: 今年の記念日を過ぎていれば `N周年`。当日は `今日で N周年！`（amber 系のバッジ）。次の記念日まで 30 日以内なら `もうすぐ N周年（あと D 日）`。デビュー日が未来なら `デビューまであと D 日`。周年が 0（今年デビュー済み）なら `今年デビュー`。
+      - デビュー（年がないとき）: 誕生日と同じく `あと N 日` だけを出す。
+      - 2/29: うるう年でない年は 3 月 1 日として数える。
+    - **要約文**: `app/vtuber/[channelId]/page.tsx` の `buildSummary()` の末尾に、ある分だけ `誕生日は5月15日、デビューは2017年9月7日です。` を足す（片方だけなら片方だけの文にする）。`metadataDescription()` と JSON-LD は変えない（誕生日に年が無いので `birthDate` は入れない）。
+  - **完了条件**:
+    - `npx tsc --noEmit` / `npm run build` がエラーなし。
+    - `/vtuber/UCp6993wxpyDPHUpavwDFqgg`（ときのそら）の HTML に `5月15日`、`2017年9月7日`、`href="/events/05-15"`、`href="/events/09-07"` が含まれる。
+    - 誕生日もデビュー日も無い VTuber の詳細では、プロフィール行が出ない。
+    - `.next/server/app/vtuber.html` のサイズが変わらない（一覧のデータに項目を足していない）。
+    - ブラウザのコンソールにハイドレーションの警告が出ない。
+    - `FRONTEND_SPEC.md` 5.4（PM 更新済み）の記述と実装が一致している。
+
 - [x] **FILTER-4. ヘッダーに「絞り込み中」チップを出す**（2026-11-13 PR #18 で実装）
   - **対象ファイル**: `components/AppShell.tsx`
   - **仕様**:
