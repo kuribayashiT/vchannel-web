@@ -8,6 +8,38 @@ const EMPTY: string[] = [];
 
 const listCache = new Map<string, { raw: string | null; value: string[] }>();
 
+export function normalizeChannelSelection(
+  next: readonly string[],
+  allIds: readonly string[],
+): string[] {
+  const unique = [...new Set(next)];
+  const all = new Set(allIds);
+  if (
+    all.size > 0 &&
+    unique.length === all.size &&
+    unique.every((id) => all.has(id))
+  ) {
+    return EMPTY;
+  }
+  return unique;
+}
+
+export function toggleChannelSelection(
+  current: readonly string[],
+  ids: readonly string[],
+  allIds: readonly string[],
+): string[] {
+  if (current.length === 0) return normalizeChannelSelection(ids, allIds);
+
+  const next = new Set(current);
+  const allOn = ids.every((id) => next.has(id));
+  for (const id of ids) {
+    if (allOn) next.delete(id);
+    else next.add(id);
+  }
+  return normalizeChannelSelection([...next], allIds);
+}
+
 function readList(key: string): string[] {
   const raw = localStorage.getItem(key);
   const hit = listCache.get(key);
@@ -47,7 +79,11 @@ export function useSelectedChannels() {
     () => EMPTY,
   );
   const setChannelIds = useCallback(
-    (next: string[]) => write(CHANNELS_KEY, JSON.stringify(next)),
+    (next: string[], allIds?: readonly string[]) =>
+      write(
+        CHANNELS_KEY,
+        JSON.stringify(allIds ? normalizeChannelSelection(next, allIds) : next),
+      ),
     [],
   );
   return { channelIds, setChannelIds };

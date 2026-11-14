@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { SafeImage } from "@/components/SafeImage";
+import { toggleChannelSelection } from "@/hooks/useSelection";
 import type { OfficeSummary } from "@/lib/offices";
 import { normalizeForSearch } from "@/lib/search";
 
@@ -36,7 +37,7 @@ export function OfficeSelector({
 }: {
   offices: OfficeSummary[];
   selected: string[];
-  onChange: (next: string[]) => void;
+  onChange: (next: string[], allIds?: readonly string[]) => void;
 }) {
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -58,6 +59,7 @@ export function OfficeSelector({
       offices
         .map((o) => ({
           ...o,
+          allMemberIds: o.members.map((member) => member.channelId),
           members: normalizedQuery
             ? o.members.filter((m) =>
                 normalizeForSearch(m.name).includes(normalizedQuery),
@@ -69,13 +71,22 @@ export function OfficeSelector({
   );
 
   const toggleIds = (ids: string[]) => {
-    const next = new Set(sel);
-    const allOn = ids.every((id) => next.has(id));
-    for (const id of ids) {
-      if (allOn) next.delete(id);
-      else next.add(id);
+    onChange(toggleChannelSelection(selected, ids, allIds), allIds);
+  };
+
+  const allMode = selected.length === 0;
+  const isSelected = (id: string) => allMode || sel.has(id);
+
+  const toggleOffice = (ids: string[], allMemberIds: string[]) => {
+    if (allMode) {
+      onChange(toggleChannelSelection(selected, allMemberIds, allIds), allIds);
+      return;
     }
-    onChange([...next]);
+    onChange(toggleChannelSelection(selected, ids, allIds), allIds);
+  };
+
+  const toggleMember = (id: string) => {
+    toggleIds([id]);
   };
 
   const toggleExpand = (name: string) =>
@@ -86,17 +97,15 @@ export function OfficeSelector({
     });
 
   useEffect(() => {
-    if (thumbnailCache) {
-      setThumbnails(thumbnailCache);
-      return;
-    }
     if (!thumbnailRequest) {
-      thumbnailRequest = fetch("/api/office-thumbnails")
-        .then((res) =>
-          res.ok
-            ? (res.json() as Promise<Record<string, string>>)
-            : Promise.reject(new Error(`HTTP ${res.status}`)),
-        )
+        const request = thumbnailCache
+          ? Promise.resolve(thumbnailCache)
+          : fetch("/api/office-thumbnails").then((res) =>
+            res.ok
+              ? (res.json() as Promise<Record<string, string>>)
+              : Promise.reject(new Error(`HTTP ${res.status}`)),
+          );
+        thumbnailRequest = request
         .then((data) => {
           thumbnailCache = data;
           return data;
@@ -128,24 +137,32 @@ export function OfficeSelector({
         placeholder="VTuber名で検索..."
         className="w-full rounded border border-zinc-300 bg-transparent px-3 py-2 text-sm dark:border-zinc-700"
       />
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => onChange(allIds)}
-          disabled={allIds.length === 0 || allIds.every((id) => sel.has(id))}
-          className="rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          全選択
-        </button>
-        <button
-          type="button"
-          onClick={() => onChange([])}
-          disabled={selected.length === 0}
-          className="rounded-full border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
-        >
-          選択解除
-        </button>
-      </div>
+      {normalizedQuery === "" && (
+        <div>
+          <button
+            type="button"
+            role="checkbox"
+            aria-checked={allMode}
+            onClick={() => onChange([], allIds)}
+            className={`flex w-full items-center gap-3 rounded-lg px-1 py-2 text-left text-sm font-medium transition hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
+              allMode ? "text-violet-900 dark:text-violet-100" : ""
+            }`}
+          >
+            <span
+              aria-hidden
+              className={`flex size-6 shrink-0 items-center justify-center rounded-full border text-xs transition-all ${circle[allMode ? "all" : "none"]}`}
+            >
+              {allMode && "✓"}
+            </span>
+            <span>すべて表示</span>
+          </button>
+          {allMode && (
+            <p className="pb-2 pl-9 text-xs text-zinc-500 dark:text-zinc-400">
+              事務所やVTuberをタップすると、そこだけに絞り込みます
+            </p>
+          )}
+        </div>
+      )}
       <div className="min-h-0 flex-1 overflow-y-auto">
         {visible.length === 0 ? (
           <p className="py-8 text-center text-sm text-zinc-500">
@@ -155,7 +172,7 @@ export function OfficeSelector({
           visible.map((o) => {
             const ids = o.members.map((m) => m.channelId);
             const open = normalizedQuery !== "" || expanded.has(o.name);
-            const officeState = stateOf(ids, sel);
+            const officeState = allMode ? "all" : stateOf(ids, sel);
             return (
               <div
                 key={o.name}
@@ -169,7 +186,7 @@ export function OfficeSelector({
                       officeState === "some" ? "mixed" : officeState === "all"
                     }
                     aria-label={`${o.name}を全員選択/解除`}
-                    onClick={() => toggleIds(ids)}
+                    onClick={() => toggleOffice(ids, o.allMemberIds)}
                     className={`flex size-6 shrink-0 items-center justify-center rounded-full border text-xs transition-all hover:scale-105 ${circle[officeState]}`}
                   >
                     {officeState === "all" && "✓"}
@@ -194,10 +211,10 @@ export function OfficeSelector({
                         <button
                           type="button"
                           role="checkbox"
-                          aria-checked={sel.has(m.channelId)}
-                          onClick={() => toggleIds([m.channelId])}
+                          aria-checked={isSelected(m.channelId)}
+                          onClick={() => toggleMember(m.channelId)}
                           className={`group flex w-full items-center gap-2 rounded-full border px-2.5 py-1.5 text-left text-sm transition ${
-                            sel.has(m.channelId)
+                            isSelected(m.channelId)
                               ? "border-violet-300 bg-gradient-to-r from-violet-100 to-fuchsia-100 text-violet-900 shadow-sm shadow-violet-200/60 dark:border-violet-700 dark:from-violet-900/50 dark:to-fuchsia-900/40 dark:text-violet-100 dark:shadow-none"
                               : "border-zinc-200 bg-white text-zinc-700 hover:border-violet-300 hover:bg-violet-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-violet-700 dark:hover:bg-violet-950/30"
                           }`}
@@ -209,7 +226,7 @@ export function OfficeSelector({
                               variant="avatar"
                               loading="lazy"
                               className={`size-6 shrink-0 rounded-full object-cover ${
-                                sel.has(m.channelId)
+                                isSelected(m.channelId)
                                   ? "ring-2 ring-white dark:ring-zinc-900"
                                   : ""
                               }`}
@@ -218,7 +235,7 @@ export function OfficeSelector({
                             <span
                               aria-hidden
                               className={`flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
-                                sel.has(m.channelId)
+                                isSelected(m.channelId)
                                   ? "bg-white/80 text-violet-700 dark:bg-zinc-900/80 dark:text-violet-200"
                                   : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
                               }`}
