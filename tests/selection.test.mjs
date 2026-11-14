@@ -140,6 +140,7 @@ test("empty filter selection renders every office and member as checked", () => 
   assert.match(html, /すべて表示/);
   assert.match(html, /事務所やVTuberをタップすると、そこだけに絞り込みます/);
   assert.equal((html.match(/aria-checked="true"/g) ?? []).length, 4);
+  assert.equal((html.match(/bg-violet-600 text-white/g) ?? []).length, 2);
   assert.doesNotMatch(html, /全選択|選択解除/);
 });
 

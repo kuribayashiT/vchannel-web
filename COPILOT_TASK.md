@@ -679,7 +679,7 @@
     - 選択が空のとき、VTuber 検索の結果に `選択外` バッジが付かない。
     - `FRONTEND_SPEC.md` 5.4（PM 更新済み）の記述と実装が一致している。
 
-- [ ] **FILTER-8. フィルターの VTuber チップで、「すべて表示」のときにチェックマークが消えている**（FILTER-2 の次に着手）
+- [x] **FILTER-8. フィルターの VTuber チップで、「すべて表示」のときにチェックマークが消えている**（FILTER-2 の次に着手）
   - **症状**: `すべて表示` の状態でフィルターの事務所を開くと、VTuber チップの背景は選択色なのに、右端の ✓ だけ灰色（未選択の見た目）になる。
   - **原因**: `components/OfficeSelector.tsx` のチップの ✓ の色だけが `sel.has(m.channelId)` を見ている。背景と `aria-checked` は `isSelected(m.channelId)`（空 = すべて対応済み）を使っている。
   - **対象ファイル**: `components/OfficeSelector.tsx`

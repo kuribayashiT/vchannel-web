@@ -10,8 +10,8 @@ import { ytThumbUrl } from "@/lib/thumbnail";
 
 type State = "all" | "some" | "none";
 
-function stateOf(ids: string[], selected: Set<string>): State {
-  const n = ids.filter((id) => selected.has(id)).length;
+function stateOf(ids: string[], isSelected: (id: string) => boolean): State {
+  const n = ids.filter(isSelected).length;
   return n === 0 ? "none" : n === ids.length ? "all" : "some";
 }
 
@@ -167,7 +167,7 @@ export function OfficeSelector({
           visible.map((o) => {
             const ids = o.members.map((m) => m.channelId);
             const open = normalizedQuery !== "" || expanded.has(o.name);
-            const officeState = allMode ? "all" : stateOf(ids, sel);
+            const officeState = stateOf(ids, isSelected);
             return (
               <div
                 key={o.name}
@@ -264,7 +264,7 @@ export function OfficeSelector({
                           <span
                             aria-hidden
                             className={`flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] transition ${
-                              sel.has(m.channelId)
+                              isSelected(m.channelId)
                                 ? "bg-violet-600 text-white"
                                 : "bg-zinc-200 text-transparent dark:bg-zinc-700"
                             }`}
