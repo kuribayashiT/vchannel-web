@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { SafeImage } from "@/components/SafeImage";
 import type { OfficeSummary } from "@/lib/offices";
 import { normalizeForSearch } from "@/lib/search";
 
@@ -17,6 +18,16 @@ const circle: Record<State, string> = {
   none: "border-zinc-300 bg-white text-zinc-400 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-500",
 };
 
+let thumbnailCache: Record<string, string> | null = null;
+let thumbnailRequest: Promise<Record<string, string>> | null = null;
+
+function restoreThumbnailUrl(shortOrUrl: string): string {
+  if (shortOrUrl.startsWith("http://") || shortOrUrl.startsWith("https://")) {
+    return shortOrUrl;
+  }
+  return `https://yt3.ggpht.com/${shortOrUrl}=s48-c-k-c0x00ffffff-no-rj`;
+}
+
 /** 検索・事務所の展開/折りたたみ・事務所ごとの一括トグルを持つ選択 UI */
 export function OfficeSelector({
   offices,
@@ -29,6 +40,9 @@ export function OfficeSelector({
 }) {
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [thumbnails, setThumbnails] = useState<Record<string, string> | null>(
+    thumbnailCache,
+  );
   const sel = useMemo(() => new Set(selected), [selected]);
   const allIds = useMemo(
     () => [...new Set(offices.flatMap((o) => o.members.map((m) => m.channelId)))],
@@ -70,6 +84,40 @@ export function OfficeSelector({
       if (!next.delete(name)) next.add(name);
       return next;
     });
+
+  useEffect(() => {
+    if (thumbnailCache) {
+      setThumbnails(thumbnailCache);
+      return;
+    }
+    if (!thumbnailRequest) {
+      thumbnailRequest = fetch("/api/office-thumbnails")
+        .then((res) =>
+          res.ok
+            ? (res.json() as Promise<Record<string, string>>)
+            : Promise.reject(new Error(`HTTP ${res.status}`)),
+        )
+        .then((data) => {
+          thumbnailCache = data;
+          return data;
+        })
+        .catch((e) => {
+          console.error("Failed to fetch office thumbnails", e);
+          thumbnailCache = {};
+          return {};
+        })
+        .finally(() => {
+          thumbnailRequest = null;
+        });
+    }
+    let cancelled = false;
+    thumbnailRequest.then((data) => {
+      if (!cancelled) setThumbnails(data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">
@@ -154,16 +202,30 @@ export function OfficeSelector({
                               : "border-zinc-200 bg-white text-zinc-700 hover:border-violet-300 hover:bg-violet-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-violet-700 dark:hover:bg-violet-950/30"
                           }`}
                         >
-                          <span
-                            aria-hidden
-                            className={`flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
-                              sel.has(m.channelId)
-                                ? "bg-white/80 text-violet-700 dark:bg-zinc-900/80 dark:text-violet-200"
-                                : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
-                            }`}
-                          >
-                            {m.name.slice(0, 1)}
-                          </span>
+                          {thumbnails?.[m.channelId] ? (
+                            <SafeImage
+                              src={restoreThumbnailUrl(thumbnails[m.channelId])}
+                              alt={`${m.name}のチャンネルアイコン`}
+                              variant="avatar"
+                              loading="lazy"
+                              className={`size-6 shrink-0 rounded-full object-cover ${
+                                sel.has(m.channelId)
+                                  ? "ring-2 ring-white dark:ring-zinc-900"
+                                  : ""
+                              }`}
+                            />
+                          ) : (
+                            <span
+                              aria-hidden
+                              className={`flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold ${
+                                sel.has(m.channelId)
+                                  ? "bg-white/80 text-violet-700 dark:bg-zinc-900/80 dark:text-violet-200"
+                                  : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+                              }`}
+                            >
+                              {m.name.slice(0, 1)}
+                            </span>
+                          )}
                           <span className="min-w-0 flex-1 truncate" title={m.name}>
                             {m.name}
                           </span>

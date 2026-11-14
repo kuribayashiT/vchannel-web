@@ -688,7 +688,7 @@
     - `npx tsc --noEmit` / `npm run build` がエラーなし。
     - スマホ幅（360px）で名前が `…` になるチップでも、チェック丸がほかのチップと同じ真円・同じ位置で表示される。
 
-- [ ] **FILTER-6. フィルターの VTuber チップのアイコンを、名前の頭文字からチャンネルのサムネイルにする**（2026-11-14 追加・FILTER-5 の次に着手）
+- [x] **FILTER-6. フィルターの VTuber チップのアイコンを、名前の頭文字からチャンネルのサムネイルにする**（2026-11-14 実装）
   - **対象ファイル**: `lib/offices.ts`, 新規 `app/api/office-thumbnails/route.ts`, `components/OfficeSelector.tsx`
   - **前提（2026-11-14 計測）**: 事務所 24、VTuber 1,408 人。`channelThumbnail` は 1 件約 120 文字で、全件だと約 170KB になる。`offices` は `app/layout.tsx` から **全ページの HTML に埋め込まれる**ので、`OfficeSummary` にサムネイル URL を足してはいけない（P0-PERF の「HTML 500KB 以下」目標に反する）。また URL の末尾は `=s800-...`（800px）なので、そのまま 24px のアイコンに使うと画像が重い。
   - **仕様**:
