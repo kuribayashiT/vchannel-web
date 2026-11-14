@@ -164,10 +164,12 @@ export function OfficeSelector({
                           >
                             {m.name.slice(0, 1)}
                           </span>
-                          <span className="truncate">{m.name}</span>
+                          <span className="min-w-0 flex-1 truncate" title={m.name}>
+                            {m.name}
+                          </span>
                           <span
                             aria-hidden
-                            className={`ml-auto flex size-5 items-center justify-center rounded-full text-[11px] transition ${
+                            className={`flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] transition ${
                               sel.has(m.channelId)
                                 ? "bg-violet-600 text-white"
                                 : "bg-zinc-200 text-transparent dark:bg-zinc-700"
