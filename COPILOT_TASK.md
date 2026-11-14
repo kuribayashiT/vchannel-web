@@ -760,7 +760,7 @@
     - localStorage が空の状態でも、検索から詳細を表示できる。
     - `FRONTEND_SPEC.md` 5.4（PM 更新済み）の記述と実装が一致している。
 
-- [ ] **VT-GROUP-1. PC の左の一覧を事務所ごとの折りたたみにする**（VT-SEARCH-1 の次に着手）
+- [x] **VT-GROUP-1. PC の左の一覧を事務所ごとの折りたたみにする**（2026-11-14 実装）
   - **対象ファイル**: `components/VTuberTabs.tsx`、`components/Skeleton.tsx`（必要なら）
   - **仕様**（`lg` 以上のみ。スマホは VT-GROUP-2）:
     - `members` を `officeGroups` で事務所ごとに分け、事務所ごとに見出しボタンを置く。

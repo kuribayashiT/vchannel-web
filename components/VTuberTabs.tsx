@@ -1,7 +1,7 @@
 "use client";
 
 import { smallAvatar } from "@/lib/url";
-import { Search } from "lucide-react";
+import { ChevronDown, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { AffiliateLinks } from "@/components/AffiliateLinks";
 import { VTuberDetailSkeleton, VTuberTabsSkeleton } from "@/components/Skeleton";
@@ -15,6 +15,8 @@ import type {
   VTuberOfficeGroup,
   VTuberTabItem,
 } from "@/types";
+
+type SearchItem = VTuberTabItem & { office: string; normalizedName: string };
 
 /** 取得済みの詳細（成功結果のみ保持。失敗は保持しない） */
 const detailCache = new Map<string, VTuberDetail>();
@@ -206,7 +208,7 @@ type IndexState =
   | { status: "error" }
   | {
       status: "ready";
-      items: (VTuberTabItem & { office: string; normalizedName: string })[];
+      items: SearchItem[];
       officeGroups: VTuberOfficeGroup[];
     };
 
@@ -262,6 +264,39 @@ function toSearchItemsFromTabs(
   });
 }
 
+function groupMembersByOffice(
+  members: SearchItem[],
+  officeGroups: VTuberOfficeGroup[],
+): Array<{ name: string; members: SearchItem[] }> {
+  if (members.length === 0) return [];
+  const officeToMembers = new Map<string, SearchItem[]>();
+  for (const member of members) {
+    const list = officeToMembers.get(member.office) ?? [];
+    list.push(member);
+    officeToMembers.set(member.office, list);
+  }
+
+  const groupedByOrder = officeGroups
+    .map((group) => ({
+      name: group.name,
+      members: officeToMembers.get(group.name) ?? [],
+    }))
+    .filter((group) => group.members.length > 0);
+
+  if (groupedByOrder.length > 0) return groupedByOrder;
+
+  const fallback: Array<{ name: string; members: SearchItem[] }> = [];
+  for (const member of members) {
+    const last = fallback[fallback.length - 1];
+    if (last && last.name === member.office) {
+      last.members.push(member);
+      continue;
+    }
+    fallback.push({ name: member.office, members: [member] });
+  }
+  return fallback;
+}
+
 function SearchInput({
   value,
   onChange,
@@ -305,9 +340,11 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
   const [active, setActive] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [searchPinned, setSearchPinned] = useState<
-    (VTuberTabItem & { office: string; normalizedName: string }) | null
+    SearchItem | null
   >(null);
   const tabRefs = useRef(new Map<string, HTMLButtonElement>());
+  const prevGroupSignatureRef = useRef("");
+  const [openOfficeNames, setOpenOfficeNames] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (initialIndex) return;
@@ -358,6 +395,22 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
     return [searchPinned, ...members];
   }, [members, searchPinned]);
 
+  const groupedMembers = useMemo(
+    () =>
+      index.status === "ready"
+        ? groupMembersByOffice(members, index.officeGroups)
+        : [],
+    [index, members],
+  );
+  const useDesktopGrouping = groupedMembers.length > 1;
+  const groupSignature = useMemo(
+    () =>
+      groupedMembers
+        .map((group) => `${group.name}:${group.members.length}`)
+        .join("|"),
+    [groupedMembers],
+  );
+
   const searchResults = useMemo(() => {
     if (index.status !== "ready" || !normalizedQuery) {
       return { items: [], overflow: 0 };
@@ -394,6 +447,21 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
       ?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [active, members, normalizedQuery]);
 
+  useEffect(() => {
+    if (!useDesktopGrouping) {
+      prevGroupSignatureRef.current = "";
+      setOpenOfficeNames(new Set());
+      return;
+    }
+    if (prevGroupSignatureRef.current === groupSignature) return;
+    prevGroupSignatureRef.current = groupSignature;
+    const currentOffice =
+      current && members.some((m) => m.channelId === current.channelId)
+        ? current.office
+        : groupedMembers[0]?.name;
+    setOpenOfficeNames(currentOffice ? new Set([currentOffice]) : new Set());
+  }, [current, groupSignature, groupedMembers, members, useDesktopGrouping]);
+
   if (index.status === "loading") {
     return <VTuberTabsSkeleton />;
   }
@@ -409,7 +477,7 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
   const showLeftColumn = members.length > 0;
 
   const handleSearchSelect = (
-    item: VTuberTabItem & { office: string; normalizedName: string },
+    item: SearchItem,
   ) => {
     setQuery("");
     setActive(item.channelId);
@@ -426,6 +494,41 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
       setSearchPinned(null);
     }
   };
+
+  const renderTabButton = (m: SearchItem, className = "") => (
+    <button
+      key={m.channelId}
+      ref={(el) => {
+        if (el) {
+          tabRefs.current.set(m.channelId, el);
+          return;
+        }
+        tabRefs.current.delete(m.channelId);
+      }}
+      role="tab"
+      aria-selected={m.channelId === current?.channelId}
+      onClick={() => handleTabSelect(m.channelId)}
+      onPointerEnter={() => prefetchDetail(m.channelId)}
+      onFocus={() => prefetchDetail(m.channelId)}
+      className={`flex shrink-0 items-center gap-2 rounded-full py-1 pl-1 pr-3 text-sm lg:rounded-lg lg:py-2 ${
+        m.channelId === current?.channelId
+          ? "bg-blue-600 text-white"
+          : "bg-zinc-200 dark:bg-zinc-800"
+      } ${className}`}
+    >
+      {m.thumbnail && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={smallAvatar(m.thumbnail)}
+          referrerPolicy="no-referrer"
+          alt=""
+          loading="lazy"
+          className="size-7 rounded-full object-cover"
+        />
+      )}
+      <span className="max-w-40 truncate lg:max-w-none">{m.name}</span>
+    </button>
+  );
 
   const renderSearchResults = (mobile: boolean) => (
     <div
@@ -507,50 +610,73 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
       <div className="mb-4 space-y-2 lg:sticky lg:top-20 lg:mb-0 lg:flex lg:max-h-[calc(100vh-6rem)] lg:flex-col">
         {searchInput}
         {showSearchResults ? (
-          renderSearchResults(false)
+          <>
+            <div className="lg:hidden">{renderSearchResults(true)}</div>
+            <div className="hidden lg:flex lg:min-h-0 lg:flex-1">
+              {renderSearchResults(false)}
+            </div>
+          </>
         ) : (
-          <div
-            role="tablist"
-            className="flex gap-2 overflow-x-auto pb-1 lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-y-auto lg:overflow-x-hidden lg:rounded-xl lg:border lg:border-zinc-200 lg:bg-white lg:p-2 lg:shadow-sm dark:lg:border-zinc-800 dark:lg:bg-zinc-900"
-          >
-            {searchPinned && !sel.has(searchPinned.channelId) && (
-              <div className="px-2 pb-1 text-xs text-zinc-500">検索から表示中</div>
-            )}
-            {listItems.map((m) => (
-              <button
-                key={m.channelId}
-                ref={(el) => {
-                  if (el) {
-                    tabRefs.current.set(m.channelId, el);
-                    return;
-                  }
-                  tabRefs.current.delete(m.channelId);
-                }}
-                role="tab"
-                aria-selected={m.channelId === current?.channelId}
-                onClick={() => handleTabSelect(m.channelId)}
-                onPointerEnter={() => prefetchDetail(m.channelId)}
-                onFocus={() => prefetchDetail(m.channelId)}
-                className={`flex shrink-0 items-center gap-2 rounded-full py-1 pl-1 pr-3 text-sm lg:rounded-lg lg:py-2 ${
-                  m.channelId === current?.channelId
-                    ? "bg-blue-600 text-white"
-                    : "bg-zinc-200 dark:bg-zinc-800"
-                }`}
-              >
-                {m.thumbnail && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={smallAvatar(m.thumbnail)}
-                    referrerPolicy="no-referrer"
-                    alt=""
-                    loading="lazy"
-                    className="size-7 rounded-full object-cover"
-                  />
-                )}
-                <span className="max-w-40 truncate lg:max-w-none">{m.name}</span>
-              </button>
-            ))}
-          </div>
+          <>
+            <div
+              role="tablist"
+              className="flex gap-2 overflow-x-auto pb-1 lg:hidden"
+            >
+              {listItems.map((m) => renderTabButton(m))}
+            </div>
+            <div className="hidden lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-y-auto lg:rounded-xl lg:border lg:border-zinc-200 lg:bg-white lg:p-2 lg:shadow-sm dark:lg:border-zinc-800 dark:lg:bg-zinc-900">
+              {searchPinned && !sel.has(searchPinned.channelId) && (
+                <div className="px-2 pb-1 text-xs text-zinc-500">検索から表示中</div>
+              )}
+              {useDesktopGrouping ? (
+                groupedMembers.map((group, idx) => {
+                  const panelId = `vtuber-office-panel-${idx}`;
+                  const isOpen = openOfficeNames.has(group.name);
+                  return (
+                    <section
+                      key={group.name}
+                      className="border-b border-zinc-200 py-1 last:border-b-0 dark:border-zinc-800"
+                    >
+                      <button
+                        type="button"
+                        aria-expanded={isOpen}
+                        aria-controls={panelId}
+                        onClick={() =>
+                          setOpenOfficeNames((prev) => {
+                            const next = new Set(prev);
+                            if (!next.delete(group.name)) next.add(group.name);
+                            return next;
+                          })
+                        }
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm font-semibold hover:bg-zinc-100 dark:hover:bg-zinc-800/60"
+                      >
+                        <span className="min-w-0 flex-1 truncate">{group.name}</span>
+                        <span className="shrink-0 text-xs tabular-nums text-zinc-500">
+                          {group.members.length}人
+                        </span>
+                        <ChevronDown
+                          size={16}
+                          aria-hidden
+                          className={`shrink-0 text-zinc-500 transition-transform ${
+                            isOpen ? "rotate-180" : ""
+                          }`}
+                        />
+                      </button>
+                      {isOpen && (
+                        <div id={panelId} role="tablist" className="space-y-1 px-1 pb-1">
+                          {group.members.map((m) => renderTabButton(m, "w-full"))}
+                        </div>
+                      )}
+                    </section>
+                  );
+                })
+              ) : (
+                <div role="tablist" className="space-y-1">
+                  {listItems.map((m) => renderTabButton(m, "w-full"))}
+                </div>
+              )}
+            </div>
+          </>
         )}
       </div>
       {current ? (
