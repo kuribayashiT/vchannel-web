@@ -7,6 +7,7 @@ import {
   type Video,
   type VTuberDetail,
   type VTuberIndexItem,
+  type VTuberOfficeGroup,
   type VTuberTabItem,
 } from "@/types";
 import { fetchGcsJson, normalizeVTuber, normalizeVideo } from "@/lib/gcs";
@@ -94,6 +95,21 @@ export function toVTuberTabItems(index: VTuberIndexItem[]): VTuberTabItem[] {
   }));
 }
 
+export function buildOfficeGroups(
+  index: Pick<VTuberIndexItem, "office">[],
+): VTuberOfficeGroup[] {
+  const groups: VTuberOfficeGroup[] = [];
+  for (const item of index) {
+    const last = groups[groups.length - 1];
+    if (last && last.name === item.office) {
+      last.count += 1;
+      continue;
+    }
+    groups.push({ name: item.office, count: 1 });
+  }
+  return groups;
+}
+
 export function countVTuberIndex(index: VTuberIndexItem[]): {
   officeCount: number;
   memberCount: number;
@@ -106,6 +122,7 @@ export function countVTuberIndex(index: VTuberIndexItem[]): {
 
 export async function getCachedVTuberPageData(): Promise<{
   tabItems: VTuberTabItem[];
+  officeGroups: VTuberOfficeGroup[];
   directoryItems: VTuberIndexItem[];
   officeCount: number;
   memberCount: number;
@@ -116,6 +133,7 @@ export async function getCachedVTuberPageData(): Promise<{
   const counts = countVTuberIndex(index);
   return {
     tabItems: toVTuberTabItems(index),
+    officeGroups: buildOfficeGroups(index),
     directoryItems: index,
     officeCount: counts.officeCount,
     memberCount: counts.memberCount,

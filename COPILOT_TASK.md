@@ -731,7 +731,7 @@
 >
 > **前提**: `initialIndex`（`tabItems`）には全 1,408 人分の `channelId` と `name` がすでに入っている。検索のために追加の取得や HTML の増加は不要。FILTER-2（案内カード）の実装後に着手すること。
 
-- [ ] **VT-SEARCH-1. VTuber タブに名前検索を付ける（フィルターの選択外の人も対象）**
+- [x] **VT-SEARCH-1. VTuber タブに名前検索を付ける（フィルターの選択外の人も対象）**（2026-11-14 実装）
   - **対象ファイル**: `components/VTuberTabs.tsx`、新規 `lib/search.ts`、`components/OfficeSelector.tsx`（正規化関数の共通化のみ）、`lib/server-data.ts`、`app/vtuber/page.tsx`、`components/VTuberTabsIsland.tsx`
   - **仕様**:
     - `lib/search.ts` に `normalizeForSearch(s: string): string` を追加する。処理は NFKC → 小文字化 → ひらがなをカタカナへ（`ぁ-ゖ` に `+0x60`）→ 空白と `・` を除去。

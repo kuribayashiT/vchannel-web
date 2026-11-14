@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { OfficeSummary } from "@/lib/offices";
+import { normalizeForSearch } from "@/lib/search";
 
 type State = "all" | "some" | "none";
 
@@ -34,18 +35,23 @@ export function OfficeSelector({
     [offices],
   );
 
-  const q = query.trim().toLowerCase();
+  const normalizedQuery = useMemo(
+    () => normalizeForSearch(query.trim()),
+    [query],
+  );
   const visible = useMemo(
     () =>
       offices
         .map((o) => ({
           ...o,
-          members: q
-            ? o.members.filter((m) => m.name.toLowerCase().includes(q))
+          members: normalizedQuery
+            ? o.members.filter((m) =>
+                normalizeForSearch(m.name).includes(normalizedQuery),
+              )
             : o.members,
         }))
         .filter((o) => o.members.length > 0),
-    [offices, q],
+    [offices, normalizedQuery],
   );
 
   const toggleIds = (ids: string[]) => {
@@ -100,7 +106,7 @@ export function OfficeSelector({
         ) : (
           visible.map((o) => {
             const ids = o.members.map((m) => m.channelId);
-            const open = q !== "" || expanded.has(o.name);
+            const open = normalizedQuery !== "" || expanded.has(o.name);
             const officeState = stateOf(ids, sel);
             return (
               <div

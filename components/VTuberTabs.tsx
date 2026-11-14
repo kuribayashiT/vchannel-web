@@ -1,13 +1,20 @@
 "use client";
 
 import { smallAvatar } from "@/lib/url";
-import { useEffect, useMemo, useState } from "react";
+import { Search } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { AffiliateLinks } from "@/components/AffiliateLinks";
 import { VTuberDetailSkeleton, VTuberTabsSkeleton } from "@/components/Skeleton";
 import { VideoCard } from "@/components/VideoCard";
 import { useSelectedChannels } from "@/hooks/useSelection";
 import { formatCompact, formatNumber } from "@/lib/format";
-import type { VTuberDetail, VTuberIndexItem, VTuberTabItem } from "@/types";
+import { normalizeForSearch } from "@/lib/search";
+import type {
+  VTuberDetail,
+  VTuberIndexItem,
+  VTuberOfficeGroup,
+  VTuberTabItem,
+} from "@/types";
 
 /** 取得済みの詳細（成功結果のみ保持。失敗は保持しない） */
 const detailCache = new Map<string, VTuberDetail>();
@@ -197,18 +204,110 @@ export function Detail({ channelId }: { channelId: string }) {
 type IndexState =
   | { status: "loading" }
   | { status: "error" }
-  | { status: "ready"; items: VTuberTabItem[] };
+  | {
+      status: "ready";
+      items: (VTuberTabItem & { office: string; normalizedName: string })[];
+      officeGroups: VTuberOfficeGroup[];
+    };
 
 type VTuberTabsProps = {
   initialIndex?: VTuberTabItem[];
+  initialOfficeGroups?: VTuberOfficeGroup[];
 };
 
-export function VTuberTabs({ initialIndex }: VTuberTabsProps) {
+function buildOfficeGroupsFromIndex(items: VTuberIndexItem[]): VTuberOfficeGroup[] {
+  const groups: VTuberOfficeGroup[] = [];
+  for (const item of items) {
+    const last = groups[groups.length - 1];
+    if (last && last.name === item.office) {
+      last.count += 1;
+      continue;
+    }
+    groups.push({ name: item.office, count: 1 });
+  }
+  return groups;
+}
+
+function toSearchItemsFromIndex(items: VTuberIndexItem[]) {
+  return items.map((item) => ({
+    channelId: item.channelId,
+    name: item.name,
+    thumbnail: item.thumbnail,
+    office: item.office,
+    normalizedName: normalizeForSearch(item.name),
+  }));
+}
+
+function toSearchItemsFromTabs(
+  tabItems: VTuberTabItem[],
+  officeGroups: VTuberOfficeGroup[] | undefined,
+) {
+  let groupIndex = 0;
+  let countInGroup = 0;
+  return tabItems.map((item) => {
+    const group = officeGroups?.[groupIndex];
+    const office = group?.name ?? "";
+    countInGroup += 1;
+    if (group && countInGroup >= group.count) {
+      groupIndex += 1;
+      countInGroup = 0;
+    }
+    return {
+      channelId: item.channelId,
+      name: item.name,
+      thumbnail: item.thumbnail,
+      office,
+      normalizedName: normalizeForSearch(item.name),
+    };
+  });
+}
+
+function SearchInput({
+  value,
+  onChange,
+  onKeyDown,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  onKeyDown: (e: KeyboardEvent<HTMLInputElement>) => void;
+}) {
+  return (
+    <label className="relative block">
+      <Search
+        size={16}
+        aria-hidden
+        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"
+      />
+      <input
+        type="search"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={onKeyDown}
+        placeholder="VTuber名で探す"
+        aria-label="VTuber名で探す"
+        className="w-full rounded-lg border border-zinc-300 bg-white py-2 pl-9 pr-3 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+      />
+    </label>
+  );
+}
+
+export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProps) {
   const { channelIds } = useSelectedChannels();
   const [index, setIndex] = useState<IndexState>(() =>
-    initialIndex ? { status: "ready", items: initialIndex } : { status: "loading" },
+    initialIndex
+      ? {
+          status: "ready",
+          items: toSearchItemsFromTabs(initialIndex, initialOfficeGroups),
+          officeGroups: initialOfficeGroups ?? [],
+        }
+      : { status: "loading" },
   );
   const [active, setActive] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [searchPinned, setSearchPinned] = useState<
+    (VTuberTabItem & { office: string; normalizedName: string }) | null
+  >(null);
+  const tabRefs = useRef(new Map<string, HTMLButtonElement>());
 
   useEffect(() => {
     if (initialIndex) return;
@@ -219,30 +318,81 @@ export function VTuberTabs({ initialIndex }: VTuberTabsProps) {
           ? (r.json() as Promise<VTuberIndexItem[]>)
           : Promise.reject(r.status),
       )
-      .then((items) => setIndex({ status: "ready", items }))
+      .then((items) =>
+        setIndex({
+          status: "ready",
+          items: toSearchItemsFromIndex(items),
+          officeGroups: buildOfficeGroupsFromIndex(items),
+        }),
+      )
       .catch(() => {
         if (!ctrl.signal.aborted) setIndex({ status: "error" });
       });
     return () => ctrl.abort();
   }, [initialIndex]);
 
-  // API は事務所の初出順・公式アカウント先頭で返す。その順のまま選択分だけ残す
+  const normalizedQuery = useMemo(() => normalizeForSearch(query.trim()), [query]);
+  const sel = useMemo(() => new Set(channelIds), [channelIds]);
+
   const members = useMemo(() => {
     if (index.status !== "ready") return [];
-    const sel = new Set(channelIds);
     return index.items.filter((m) => sel.has(m.channelId));
-  }, [index, channelIds]);
+  }, [index, sel]);
 
-  const currentId = (members.find((m) => m.channelId === active) ?? members[0])
-    ?.channelId;
+  const allItemsById = useMemo(() => {
+    if (index.status !== "ready") return new Map<string, typeof members[number]>();
+    return new Map(index.items.map((item) => [item.channelId, item]));
+  }, [index]);
+
+  const current = useMemo(() => {
+    if (index.status !== "ready") return null;
+    if (active) return allItemsById.get(active) ?? null;
+    return members[0] ?? null;
+  }, [active, allItemsById, index, members]);
+
+  const listItems = useMemo(() => {
+    if (!searchPinned) return members;
+    if (members.some((m) => m.channelId === searchPinned.channelId)) {
+      return members;
+    }
+    return [searchPinned, ...members];
+  }, [members, searchPinned]);
+
+  const searchResults = useMemo(() => {
+    if (index.status !== "ready" || !normalizedQuery) {
+      return { items: [], overflow: 0 };
+    }
+    const matched = index.items.filter((item) =>
+      item.normalizedName.includes(normalizedQuery),
+    );
+    return {
+      items: matched.slice(0, 50),
+      overflow: Math.max(0, matched.length - 50),
+    };
+  }, [index, normalizedQuery]);
 
   // 表示中の詳細に加えて、次のタブ 1 件分を先読みする
   useEffect(() => {
-    if (!currentId) return;
-    const i = members.findIndex((m) => m.channelId === currentId);
-    const next = members[i + 1];
+    if (!current) return;
+    const i = members.findIndex((m) => m.channelId === current.channelId);
+    const next = i >= 0 ? members[i + 1] : undefined;
     if (next) prefetchDetail(next.channelId);
-  }, [members, currentId]);
+  }, [members, current]);
+
+  useEffect(() => {
+    if (!searchPinned) return;
+    if (!allItemsById.has(searchPinned.channelId) || sel.has(searchPinned.channelId)) {
+      setSearchPinned(null);
+    }
+  }, [allItemsById, searchPinned, sel]);
+
+  useEffect(() => {
+    if (!active || normalizedQuery || members.length === 0) return;
+    if (!members.some((m) => m.channelId === active)) return;
+    tabRefs.current
+      .get(active)
+      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [active, members, normalizedQuery]);
 
   if (index.status === "loading") {
     return <VTuberTabsSkeleton />;
@@ -254,51 +404,162 @@ export function VTuberTabs({ initialIndex }: VTuberTabsProps) {
       </p>
     );
   }
-  if (members.length === 0) {
+
+  const showSearchResults = normalizedQuery.length > 0;
+  const showLeftColumn = members.length > 0;
+
+  const handleSearchSelect = (
+    item: VTuberTabItem & { office: string; normalizedName: string },
+  ) => {
+    setQuery("");
+    setActive(item.channelId);
+    if (!sel.has(item.channelId)) {
+      setSearchPinned(item);
+      return;
+    }
+    setSearchPinned(null);
+  };
+
+  const handleTabSelect = (channelId: string) => {
+    setActive(channelId);
+    if (searchPinned && searchPinned.channelId !== channelId) {
+      setSearchPinned(null);
+    }
+  };
+
+  const renderSearchResults = (mobile: boolean) => (
+    <div
+      className={`rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 ${
+        mobile ? "max-h-80 overflow-y-auto" : "min-h-0 flex-1 overflow-y-auto"
+      }`}
+    >
+      {searchResults.items.length === 0 ? (
+        <p className="py-8 text-center text-sm text-zinc-500">
+          該当するVTuberが見つかりません
+        </p>
+      ) : (
+        <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+          {searchResults.items.map((item) => {
+            const outside = !sel.has(item.channelId);
+            return (
+              <li key={item.channelId}>
+                <button
+                  type="button"
+                  onClick={() => handleSearchSelect(item)}
+                  className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">
+                      {item.name}
+                    </span>
+                    <span className="block truncate text-xs text-zinc-500">
+                      {item.office}
+                    </span>
+                  </span>
+                  {outside && (
+                    <span className="shrink-0 rounded-full border border-zinc-300 px-2 py-0.5 text-[11px] text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                      選択外
+                    </span>
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {searchResults.overflow > 0 && (
+        <p className="border-t border-zinc-100 px-3 py-2 text-xs text-zinc-500 dark:border-zinc-800">
+          ほか {searchResults.overflow} 人（名前をもう少し入力してください）
+        </p>
+      )}
+    </div>
+  );
+
+  const searchInput = (
+    <SearchInput
+      value={query}
+      onChange={setQuery}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") setQuery("");
+      }}
+    />
+  );
+
+  if (!showLeftColumn) {
     return (
-      <p className="py-16 text-center text-zinc-500">
-        Vtuberリストがありません（フィルターで事務所を選択してください）
-      </p>
+      <div className="space-y-4">
+        {searchInput}
+        {showSearchResults ? (
+          renderSearchResults(true)
+        ) : current ? (
+          <Detail channelId={current.channelId} />
+        ) : (
+          <p className="py-16 text-center text-zinc-500">
+            Vtuberリストがありません（フィルターで事務所を選択してください）
+          </p>
+        )}
+      </div>
     );
   }
 
-  const current = members.find((m) => m.channelId === active) ?? members[0];
-
   return (
     <div className="lg:grid lg:grid-cols-[16rem_1fr] lg:items-start lg:gap-6">
-      <div
-        role="tablist"
-        className="mb-4 flex gap-2 overflow-x-auto pb-1 lg:sticky lg:top-20 lg:mb-0 lg:max-h-[calc(100vh-6rem)] lg:flex-col lg:overflow-y-auto lg:overflow-x-hidden lg:rounded-xl lg:border lg:border-zinc-200 lg:bg-white lg:p-2 lg:shadow-sm dark:lg:border-zinc-800 dark:lg:bg-zinc-900"
-      >
-        {members.map((m) => (
-          <button
-            key={m.channelId}
-            role="tab"
-            aria-selected={m.channelId === current.channelId}
-            onClick={() => setActive(m.channelId)}
-            onPointerEnter={() => prefetchDetail(m.channelId)}
-            onFocus={() => prefetchDetail(m.channelId)}
-            className={`flex shrink-0 items-center gap-2 rounded-full py-1 pl-1 pr-3 text-sm lg:rounded-lg lg:py-2 ${
-              m.channelId === current.channelId
-                ? "bg-blue-600 text-white"
-                : "bg-zinc-200 dark:bg-zinc-800"
-            }`}
+      <div className="mb-4 space-y-2 lg:sticky lg:top-20 lg:mb-0 lg:flex lg:max-h-[calc(100vh-6rem)] lg:flex-col">
+        {searchInput}
+        {showSearchResults ? (
+          renderSearchResults(false)
+        ) : (
+          <div
+            role="tablist"
+            className="flex gap-2 overflow-x-auto pb-1 lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-y-auto lg:overflow-x-hidden lg:rounded-xl lg:border lg:border-zinc-200 lg:bg-white lg:p-2 lg:shadow-sm dark:lg:border-zinc-800 dark:lg:bg-zinc-900"
           >
-            {m.thumbnail && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={smallAvatar(m.thumbnail)}
-                referrerPolicy="no-referrer"
-                alt=""
-                loading="lazy"
-                className="size-7 rounded-full object-cover"
-              />
+            {searchPinned && !sel.has(searchPinned.channelId) && (
+              <div className="px-2 pb-1 text-xs text-zinc-500">検索から表示中</div>
             )}
-            <span className="max-w-40 truncate lg:max-w-none">{m.name}</span>
-          </button>
-        ))}
+            {listItems.map((m) => (
+              <button
+                key={m.channelId}
+                ref={(el) => {
+                  if (el) {
+                    tabRefs.current.set(m.channelId, el);
+                    return;
+                  }
+                  tabRefs.current.delete(m.channelId);
+                }}
+                role="tab"
+                aria-selected={m.channelId === current?.channelId}
+                onClick={() => handleTabSelect(m.channelId)}
+                onPointerEnter={() => prefetchDetail(m.channelId)}
+                onFocus={() => prefetchDetail(m.channelId)}
+                className={`flex shrink-0 items-center gap-2 rounded-full py-1 pl-1 pr-3 text-sm lg:rounded-lg lg:py-2 ${
+                  m.channelId === current?.channelId
+                    ? "bg-blue-600 text-white"
+                    : "bg-zinc-200 dark:bg-zinc-800"
+                }`}
+              >
+                {m.thumbnail && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={smallAvatar(m.thumbnail)}
+                    referrerPolicy="no-referrer"
+                    alt=""
+                    loading="lazy"
+                    className="size-7 rounded-full object-cover"
+                  />
+                )}
+                <span className="max-w-40 truncate lg:max-w-none">{m.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
-      <Detail channelId={current.channelId} />
+      {current ? (
+        <Detail channelId={current.channelId} />
+      ) : (
+        <p className="py-16 text-center text-zinc-500">
+          Vtuberリストがありません（フィルターで事務所を選択してください）
+        </p>
+      )}
     </div>
   );
 }

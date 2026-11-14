@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { VTuberDirectory } from "@/components/VTuberDirectory";
 import { VTuberTabsIsland } from "@/components/VTuberTabsIsland";
 import { getCachedVTuberPageData } from "@/lib/server-data";
-import type { VTuberTabItem } from "@/types";
+import type { VTuberOfficeGroup, VTuberTabItem } from "@/types";
 
 const PAGE_TITLE = "VTuber一覧（事務所別）";
 
@@ -27,12 +27,14 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function VTuberPage() {
   let initialIndex: VTuberTabItem[] | undefined;
+  let initialOfficeGroups: VTuberOfficeGroup[] | undefined;
   let summary =
     "VちゃんねるではVTuberの登録者数や配信情報を事務所別にまとめています。";
 
   try {
     const data = await getCachedVTuberPageData();
     initialIndex = data.tabItems;
+    initialOfficeGroups = data.officeGroups;
     summary = buildSummary(data.officeCount, data.memberCount);
   } catch {
     // 取得失敗時はクライアント fetch にフォールバックする
@@ -44,7 +46,10 @@ export default async function VTuberPage() {
         VTuber一覧（事務所別）
       </h1>
       <p className="mb-5 text-sm text-zinc-600 dark:text-zinc-300">{summary}</p>
-      <VTuberTabsIsland initialIndex={initialIndex} />
+      <VTuberTabsIsland
+        initialIndex={initialIndex}
+        initialOfficeGroups={initialOfficeGroups}
+      />
       <VTuberDirectory />
     </main>
   );
