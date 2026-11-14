@@ -37,6 +37,73 @@ test("empty selection toggles to only the chosen scope and full selection normal
   assert.deepEqual(toggleChannelSelection(["a"], ["b"], ["a", "b", "c"]), ["a", "b"]);
 });
 
+test("VTuber tabs treat an empty selection as all channels", () => {
+  let channelIds = [];
+  const Empty = () => null;
+  const Tabs = loadModule("../components/VTuberTabs.tsx", {
+    "@/lib/url": { smallAvatar: () => "" },
+    "lucide-react": {
+      Cake: Empty,
+      ChevronDown: Empty,
+      PartyPopper: Empty,
+      Search: Empty,
+    },
+    "next/link": { __esModule: true, default: Empty },
+    "@/components/AffiliateLinks": { AffiliateLinks: Empty },
+    "@/components/DateCountdown": { DateCountdown: Empty },
+    "@/components/Skeleton": {
+      VTuberDetailSkeleton: Empty,
+      VTuberTabsSkeleton: Empty,
+    },
+    "@/components/VideoCard": { VideoCard: Empty },
+    "@/hooks/useSelection": {
+      useSelectedChannels: () => ({ channelIds }),
+    },
+    "@/lib/format": {
+      formatCompact: String,
+      formatNumber: String,
+    },
+    "@/lib/search": { normalizeForSearch: (value) => value.toLowerCase() },
+    "@/lib/events": { formatDateSlug: () => "" },
+  });
+  const initialIndex = [
+    { channelId: "a1", name: "A1" },
+    { channelId: "a2", name: "A2" },
+    { channelId: "b1", name: "B1" },
+  ];
+  const initialOfficeGroups = [
+    { name: "事務所A", count: 2 },
+    { name: "事務所B", count: 1 },
+  ];
+  const render = () =>
+    renderToStaticMarkup(
+      React.createElement(Tabs.VTuberTabs, {
+        initialIndex,
+        initialOfficeGroups,
+      }),
+    );
+
+  const allHtml = render();
+  assert.match(allHtml, /事務所A/);
+  assert.match(allHtml, /事務所B/);
+  assert.match(allHtml, />A1<\/span>/);
+  assert.match(allHtml, />A2<\/span>/);
+  assert.doesNotMatch(allHtml, />B1<\/span>/);
+  assert.doesNotMatch(allHtml, />すべて<\/button>/);
+  assert.equal(
+    Tabs.isInSelection([], new Set(), "outside"),
+    true,
+  );
+  assert.equal(
+    Tabs.isInSelection(["a1"], new Set(["a1"]), "outside"),
+    false,
+  );
+
+  channelIds = ["a1", "b1"];
+  const filteredHtml = render();
+  assert.match(filteredHtml, />すべて<\/button>/);
+});
+
 test("empty filter selection renders every office and member as checked", () => {
   const Selector = loadModule("../components/OfficeSelector.tsx", {
     react: {

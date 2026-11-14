@@ -3,7 +3,14 @@
 import { smallAvatar } from "@/lib/url";
 import { Cake, ChevronDown, PartyPopper, Search } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import { AffiliateLinks } from "@/components/AffiliateLinks";
 import { DateCountdown } from "@/components/DateCountdown";
 import { VTuberDetailSkeleton, VTuberTabsSkeleton } from "@/components/Skeleton";
@@ -20,6 +27,14 @@ import type {
 } from "@/types";
 
 type SearchItem = VTuberTabItem & { office: string; normalizedName: string };
+
+export function isInSelection(
+  channelIds: readonly string[],
+  selected: ReadonlySet<string>,
+  id: string,
+): boolean {
+  return channelIds.length === 0 || selected.has(id);
+}
 
 /** 取得済みの詳細（成功結果のみ保持。失敗は保持しない） */
 const detailCache = new Map<string, VTuberDetail>();
@@ -389,7 +404,6 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
   const prevGroupSignatureRef = useRef("");
   const prevMobileGroupSignatureRef = useRef("");
   const [openOfficeNames, setOpenOfficeNames] = useState<Set<string>>(new Set());
-  const [mobileOfficeFilter, setMobileOfficeFilter] = useState<string>("all");
 
   useEffect(() => {
     if (initialIndex) return;
@@ -415,11 +429,15 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
 
   const normalizedQuery = useMemo(() => normalizeForSearch(query.trim()), [query]);
   const sel = useMemo(() => new Set(channelIds), [channelIds]);
+  const isSelected = useCallback(
+    (id: string) => isInSelection(channelIds, sel, id),
+    [channelIds, sel],
+  );
 
   const members = useMemo(() => {
     if (index.status !== "ready") return [];
-    return index.items.filter((m) => sel.has(m.channelId));
-  }, [index, sel]);
+    return index.items.filter((m) => isSelected(m.channelId));
+  }, [index, isSelected]);
 
   const allItemsById = useMemo(() => {
     if (index.status !== "ready") return new Map<string, typeof members[number]>();
@@ -449,6 +467,13 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
   );
   const useDesktopGrouping = groupedMembers.length > 1;
   const useMobileOfficeChips = groupedMembers.length > 1;
+  const initialOffice =
+    current && members.some((m) => m.channelId === current.channelId)
+      ? current.office
+      : groupedMembers[0]?.name;
+  const [mobileOfficeFilter, setMobileOfficeFilter] = useState(
+    () => initialOffice ?? "all",
+  );
   const groupSignature = useMemo(
     () =>
       groupedMembers
@@ -480,10 +505,13 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
 
   useEffect(() => {
     if (!searchPinned) return;
-    if (!allItemsById.has(searchPinned.channelId) || sel.has(searchPinned.channelId)) {
+    if (
+      !allItemsById.has(searchPinned.channelId) ||
+      isSelected(searchPinned.channelId)
+    ) {
       setSearchPinned(null);
     }
-  }, [allItemsById, searchPinned, sel]);
+  }, [allItemsById, isSelected, searchPinned]);
 
   useEffect(() => {
     if (!active || normalizedQuery || members.length === 0) return;
@@ -542,7 +570,7 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
   ) => {
     setQuery("");
     setActive(item.channelId);
-    if (!sel.has(item.channelId)) {
+    if (!isSelected(item.channelId)) {
       setSearchPinned(item);
       return;
     }
@@ -611,7 +639,7 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
       ) : (
         <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
           {searchResults.items.map((item) => {
-            const outside = !sel.has(item.channelId);
+            const outside = !isSelected(item.channelId);
             return (
               <li key={item.channelId}>
                 <button
@@ -664,11 +692,11 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
           renderSearchResults(true)
         ) : current ? (
           <Detail channelId={current.channelId} />
-        ) : (
+        ) : channelIds.length > 0 ? (
           <p className="py-16 text-center text-zinc-500">
             Vtuberリストがありません（フィルターで事務所を選択してください）
           </p>
-        )}
+        ) : null}
       </div>
     );
   }
@@ -688,17 +716,19 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
           <>
             {useMobileOfficeChips && (
               <div className="flex gap-1.5 overflow-x-auto pb-1 lg:hidden">
-                <button
-                  type="button"
-                  onClick={() => setMobileOfficeFilter("all")}
-                  className={`shrink-0 rounded-full border px-2.5 py-1 text-xs ${
-                    mobileOfficeFilter === "all"
-                      ? "border-violet-500 bg-violet-100 text-violet-800 dark:border-violet-700 dark:bg-violet-900/40 dark:text-violet-200"
-                      : "border-zinc-300 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300"
-                  }`}
-                >
-                  すべて
-                </button>
+                {channelIds.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setMobileOfficeFilter("all")}
+                    className={`shrink-0 rounded-full border px-2.5 py-1 text-xs ${
+                      mobileOfficeFilter === "all"
+                        ? "border-violet-500 bg-violet-100 text-violet-800 dark:border-violet-700 dark:bg-violet-900/40 dark:text-violet-200"
+                        : "border-zinc-300 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300"
+                    }`}
+                  >
+                    すべて
+                  </button>
+                )}
                 {groupedMembers.map((group) => (
                   <button
                     key={group.name}
@@ -722,7 +752,7 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
               {mobileListItems.map((m) => renderTabButton(m))}
             </div>
             <div className="hidden lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-y-auto lg:rounded-xl lg:border lg:border-zinc-200 lg:bg-white lg:p-2 lg:shadow-sm dark:lg:border-zinc-800 dark:lg:bg-zinc-900">
-              {searchPinned && !sel.has(searchPinned.channelId) && (
+              {searchPinned && !isSelected(searchPinned.channelId) && (
                 <div className="px-2 pb-1 text-xs text-zinc-500">検索から表示中</div>
               )}
               {useDesktopGrouping ? (
@@ -778,11 +808,11 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
       </div>
       {current ? (
         <Detail channelId={current.channelId} />
-      ) : (
+      ) : channelIds.length > 0 ? (
         <p className="py-16 text-center text-zinc-500">
           Vtuberリストがありません（フィルターで事務所を選択してください）
         </p>
-      )}
+      ) : null}
     </div>
   );
 }
