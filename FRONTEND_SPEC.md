@@ -291,7 +291,7 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 - 問い合わせ先メールは `vchannel.com.info@gmail.com` を使用し、設定ページと `/privacy` で同じ宛先を表示する。
 
 ### 5.11 収益化（アフィリエイト）
-- 提携状況（2026-11-11）: **楽天: 直接・利用中 / もしも: 再審査中 / Amazon: 未提携**。
+- 提携状況（2026-11-14）: **楽天: 直接・利用中 / もしも: 会員登録承認済み（2026-11-14、メディア URL の更新と Amazon 提携申請はこれから） / Amazon: 未提携**。
 - アフィリエイトリンクは `lib/affiliate.ts` の `buildRakutenAffiliateUrl` だけで生成する（URL の手書き禁止）。ID は `NEXT_PUBLIC_RAKUTEN_AFFILIATE_ID` を優先し、未設定時は公開 ID `5964c172.78b60cce.5964c173.d6c6def5` を使う。
 - 共通表示は `AffiliateLinks`（`PR` バッジ付き、`rel="nofollow sponsored noopener"`、楽天ボタン1つ）を使う。インプレッション画像は使わない。
 - 設置箇所は VTuber 詳細（`登録者数の推移` と `最新動画` の間）とイベントカレンダー（日付選択のイベント一覧下）とする。

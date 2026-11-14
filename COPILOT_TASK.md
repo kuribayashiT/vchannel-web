@@ -563,6 +563,41 @@
     - 掲示板ルールがスレッドタブ列に表示されない。
     - 注意事項はスレッド一覧の上で開閉できる。
 
+### P0-OGFIX: VTuber 詳細ページの共有画像が 500 になる不具合（🚨最優先・2026-11-14 追加・P0-DOMAIN より先に着手）
+
+- [ ] **OGFIX-1. `/vtuber/[channelId]/opengraph-image` の 500 エラーを直し、どんな場合も画像を返すようにする**
+  - **現象（2026-11-14 PM 確認、本番 `https://www.vchannel.net`）**:
+    - 詳細ページの `og:image` / `twitter:image` は `/vtuber/{id}/opengraph-image` を指している（`twitter:card` は `summary_large_image`）。
+    - 実在する VTuber の ID（例: `UC1DCedRgGHBdm81E1llLhOQ`、`UCoSrY_IQQVpmIRZ9Xf-y93g`）では **HTTP 500**（HTML のエラーページ）が返る。
+    - 存在しない ID では 200 が返る（「VTuber詳細」だけの予備画像）。
+    - このため、X などで詳細ページを共有しても画像が出ない。
+  - **対象ファイル**: `app/vtuber/[channelId]/opengraph-image.tsx`
+  - **原因の候補（PM 調査。実装前に必ずどれかを特定すること）**:
+    1. **フォントのサブセットが固定文字列**（`"0123456789VTuber登録者数総再生数動画本数所属ちゃんねる"`）。VTuber 名・事務所名・`万` `億` `人` `（` `）` `,` `.` などの文字が含まれていない。
+    2. **YouTube アイコン画像（`yt3.ggpht.com`）の埋め込み**。`ImageResponse` がサポートしない形式（WebP など）で返る、または取得に失敗している可能性がある。
+    3. 上記以外の例外（データ取得など）。
+    - 特定方法: `npm run build && npm start` で起動し、`curl -i localhost:3000/vtuber/UC1DCedRgGHBdm81E1llLhOQ/opengraph-image` を実行してサーバーログのスタックトレースを確認する。Vercel の Runtime Logs でも可。原因は完了報告に書くこと。
+  - **仕様**:
+    - **フォントの読み込み文字を動的にする**: 実際に描画する全文字列（VTuber 名、事務所名、統計行、`所属`、`SITE_NAME`、予備画像の文言）を連結し、重複を除いた文字集合を Google Fonts の `text=` パラメータに渡す。
+      - キャッシュはテキストごとに持つ。もしくは文字集合をキーにしたメモ化でよい。
+      - 固定文字列のモジュール変数キャッシュ（`fontDataPromise`）は廃止する。
+    - **アイコン画像は事前に取得して data URL で渡す**:
+      - サーバー側で `fetch(thumbnail, { headers: { Accept: "image/png,image/jpeg" } })` する。
+      - `content-type` が `image/png` / `image/jpeg` のときだけ `data:` URL にして `<img src>` に渡す。
+      - それ以外の形式や取得失敗時は、アイコン部分を頭文字入りの円などのプレースホルダーにする（画像全体は失敗させない）。
+      - YouTube のアイコン URL の末尾サイズ指定（`=s800-...`）は `=s400-c-k-c0x00ffffff-no-rj` などに置き換えて軽くしてよい。
+    - **どんな例外でも 500 を返さない**: 本体の描画を try/catch で囲み、失敗時はサイト名と「VTuber詳細」だけの予備画像（`ImageResponse`、200）を返す。`console.error` でエラー内容をログに残す。
+    - `size`（1200×630）・`contentType`（`image/png`）・レイアウトは現状を維持する。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - ローカルの `npm start` で、以下 3 件の `opengraph-image` がすべて **200 かつ `content-type: image/png`** になる。
+      - `UC1DCedRgGHBdm81E1llLhOQ`（兎田ぺこら）
+      - `UCoSrY_IQQVpmIRZ9Xf-y93g`（Gawr Gura）
+      - 存在しない ID
+    - 生成された PNG を開いて、VTuber 名・事務所名・「万」「人」などが**文字化け（□）せずに**表示されていることを目視で確認する。完了報告に確認した旨を書く。
+    - 完了報告に、500 の原因（上記 1〜3 のどれだったか）を書く。
+    - `FRONTEND_SPEC.md` の 6.1（SEO / AIO 方針）に「OGP 画像は失敗時も予備画像を返す」「フォントは描画文字から動的サブセット」を追記している。
+
 ### P0-DOMAIN: 独自ドメイン `vchannel.net` への移行（🚨最優先・2026-11-13 追加・P0-FILTER より先に着手）
 
 > **背景**: 独自ドメイン `vchannel.net` を取得し、Vercel を Pro プランに変更した（Hobby は商用利用不可で、楽天アフィリエイト掲載と両立しないため）。Search Console 上の検索流入はまだほぼゼロなので、評価を持たない今のうちに正式な URL を **`https://www.vchannel.net`** に統一する。
