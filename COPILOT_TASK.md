@@ -677,6 +677,54 @@
     - localStorage の `selectedChannelIds` に全 ID が保存されることがない。
     - `FRONTEND_SPEC.md` 4 章と 5.1（PM 更新済み）の記述と実装が一致している。
 
+- [ ] **FILTER-5. フィルターの VTuber チップで、名前が長いと右端のチェックマークが潰れる不具合を直す**（2026-11-14 追加・小さい修正なので FILTER-3 と同時でよい）
+  - **対象ファイル**: `components/OfficeSelector.tsx`
+  - **原因**: 右端のチェック丸（`ml-auto flex size-5 ...`）に `shrink-0` が無い。名前の `truncate` と横幅を取り合い、名前が `…` で省略されるチップではチェック丸の横幅が縮んで楕円や見切れになる。
+  - **仕様**:
+    - 右端のチェック丸に `shrink-0` を付ける。
+    - 名前の `<span className="truncate">` に `min-w-0 flex-1` を付ける（チェック丸は `ml-auto` が無くても右端にそろう）。
+    - 長い名前の `title` 属性にフルネームを入れ、省略されても長押しやホバーで読めるようにする。
+  - **完了条件**:
+    - `npx tsc --noEmit` / `npm run build` がエラーなし。
+    - スマホ幅（360px）で名前が `…` になるチップでも、チェック丸がほかのチップと同じ真円・同じ位置で表示される。
+
+- [ ] **FILTER-6. フィルターの VTuber チップのアイコンを、名前の頭文字からチャンネルのサムネイルにする**（2026-11-14 追加・FILTER-5 の次に着手）
+  - **対象ファイル**: `lib/offices.ts`, 新規 `app/api/office-thumbnails/route.ts`, `components/OfficeSelector.tsx`
+  - **前提（2026-11-14 計測）**: 事務所 24、VTuber 1,408 人。`channelThumbnail` は 1 件約 120 文字で、全件だと約 170KB になる。`offices` は `app/layout.tsx` から **全ページの HTML に埋め込まれる**ので、`OfficeSummary` にサムネイル URL を足してはいけない（P0-PERF の「HTML 500KB 以下」目標に反する）。また URL の末尾は `=s800-...`（800px）なので、そのまま 24px のアイコンに使うと画像が重い。
+  - **仕様**:
+    - **サムネイルは別 JSON で、フィルターを開いたときに取得する**。
+      - `app/api/office-thumbnails/route.ts`（GET）を追加し、`{ [channelId]: string }` を返す。`lib/offices.ts` に `getOfficeThumbnails()` を追加し、`getOfficeSummaries()` と同じく `"use cache"` + `cacheLife("hours")` でキャッシュする。
+      - 値は容量を減らすため短縮形にする: 先頭の `https://yt3.ggpht.com/` を除き、末尾の `=s...` 以降も除いた部分だけを返す。`yt3.ggpht.com` 以外のホストの URL はそのまま返す。
+      - レスポンスに `Cache-Control: public, s-maxage=3600, stale-while-revalidate=86400` を付ける。
+    - `OfficeSelector` はマウント時（フィルターを開いたとき）に 1 回だけ `fetch("/api/office-thumbnails")` する。結果はモジュール変数に保持し、2 回目以降に開いたときは再取得しない。
+    - 画像 URL は短縮形を戻して `https://yt3.ggpht.com/<短縮形>=s48-c-k-c0x00ffffff-no-rj` にする（**48px**。Retina で 24px 表示に十分）。
+    - アイコンは既存の `SafeImage`（`variant="avatar"`、`loading="lazy"`、`className="size-6 shrink-0 rounded-full object-cover"`）で表示する。
+      - 取得前・取得失敗・URL なしのときは、今の頭文字の丸をそのまま出す（レイアウトが動かないよう同じ `size-6`）。
+      - 選択中は、アイコンに `ring-2 ring-white`（ダークは `dark:ring-zinc-900`）を付けて、グラデーション背景から浮かせる。
+    - 画像は事務所を展開したときだけ描画される（今の `open &&` のまま）。`loading="lazy"` と合わせて、スクロールして見えた分だけ読み込まれる。
+  - **完了条件**:
+    - `npx tsc --noEmit` / `npm run build` がエラーなし。
+    - `/` など各ページの HTML サイズが、この変更の前後で増えていない（サムネイル URL が HTML に入っていない）。
+    - フィルターを開いて事務所を展開すると、各チップにチャンネルのアイコンが出る。DevTools の Network で画像 URL が `=s48` になっている。
+    - `/api/office-thumbnails` のレスポンスが gzip 後おおよそ 100KB 以下。
+    - `FRONTEND_SPEC.md` 5.1（PM 更新済み）の記述と実装が一致している。
+
+- [ ] **FILTER-7. フィルターの事務所名の左に、事務所のアイコン（公式チャンネルのサムネイル）を出す**（2026-11-14 追加・FILTER-6 の次に着手）
+  - **対象ファイル**: `lib/offices.ts`, `components/OfficeSelector.tsx`
+  - **前提（2026-11-14 計測）**: 24 事務所のうち 19 事務所に、公式アカウント（`officeFlg: true`）が 1 人いる。いない事務所は `KAMITSUBAKI` / `Phase Connect` / `Crazy Raccoon` / `REJECT` / `個人`。
+  - **仕様**:
+    - `OfficeSummary` に `thumbnail?: string` を追加する。`summarizeOffices()` で、その事務所の `officeFlg: true` のメンバーの `channelThumbnail` を入れる（いなければ入れない）。
+      - 事務所は 24 件だけなので、FILTER-6 と違って **`OfficeSummary` に直接入れてよい**（HTML 増加は約 3KB）。容量を抑えるため、FILTER-6 と同じ短縮形（`https://yt3.ggpht.com/` と `=s...` 以降を除く）で持たせる。短縮・復元の処理は FILTER-6 と共通の関数にする（例: `lib/thumbnail.ts` の `shortenYtThumb()` / `ytThumbUrl(short, size)`）。
+    - 事務所行の、左の選択丸と事務所名のあいだにアイコンを置く。`SafeImage`（`=s48`、`className="size-6 shrink-0 rounded-full object-cover"`、`loading="lazy"`）で表示する。
+      - `thumbnail` が無い事務所は、lucide-react の `Building2` を同じ `size-6` の灰色の丸の中に出す。`個人` だけは `User` を出す。
+    - 左の選択丸（チェック状態）と見分けがつくように、アイコンは選択状態で色を変えない。
+    - 事務所名が長いときは `truncate` で省略し、右端の `▲/▼` を縮めない（`shrink-0`）。
+  - **完了条件**:
+    - `npx tsc --noEmit` / `npm run build` がエラーなし。
+    - フィルターを開いた直後（事務所を展開しなくても）、公式アカウントがある事務所の名前の左にアイコンが出る。
+    - 公式アカウントが無い事務所は `Building2`、`個人` は `User` のアイコンになる。
+    - `FRONTEND_SPEC.md` 5.1（PM 更新済み）の記述と実装が一致している。
+
 - [x] **FILTER-4. ヘッダーに「絞り込み中」チップを出す**（2026-11-13 PR #18 で実装）
   - **対象ファイル**: `components/AppShell.tsx`
   - **仕様**:
