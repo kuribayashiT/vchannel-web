@@ -27,7 +27,6 @@ import { SITE_URL } from "@/lib/site";
 type PageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
-export const instant = false;
 
 export async function generateMetadata({
   searchParams,

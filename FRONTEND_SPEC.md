@@ -411,7 +411,8 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 - **方針**: タップしたら**まず遷移してから読み込む**。遷移先のデータ取得が終わるまで前の画面に留まる作りにしない。
 - **原因（2026-11-14 調査）**: サーバーでデータを読むページ（`/`、`/vtuber`、`/vtuber/[channelId]`、`/ranking`、`/events`、`/events/[date]`、`/news`）に `loading.tsx` も `<Suspense>` も無く、ページ本体の先頭で `await` している。さらに複数ページが `export const instant = false` で即時遷移の検証を外している。このため、`cacheComponents` + `partialPrefetching` を有効にしていても先読みできる App Shell が空で、クライアント遷移はサーバーの描画が終わるまで止まる（キャッシュが温まった 2 回目以降だけ速い）。
 - **ルール**:
-  - サーバーでデータを読むルートには `loading.tsx` を置き、共通スケルトン（`components/PageSkeleton.tsx`）を返す。スケルトンは遷移先の大まかな形（見出し＋カード／行の並び）に合わせ、読み込み後のレイアウトずれを小さくする。
+  - サーバーでデータを読むルートには `loading.tsx` を置き、共通スケルトン（`components/PageSkeleton.tsx`）を返す。`PageSkeleton` は Server Component で、`variant` は `"list"`（行の並び）/ `"grid"`（カードの並び）/ `"detail"`（アバター＋見出し＋本文）、`maxWidth` は `"4xl"` / `"6xl"`（省略時 `"6xl"`）を指定する。スケルトンは遷移先の大まかな形に合わせ、読み込み後のレイアウトずれを小さくする。
+  - スケルトンの variant: `/`・`/news`・`/events/[date]`・`/ranking` は `list`、`/vtuber`・`/events` は `grid`、`/vtuber/[channelId]` は `detail`。イベント系と VTuber 詳細は実ページに合わせて `maxWidth="4xl"` を指定する。
   - 新しいサーバーページを追加するときも、`loading.tsx` か `<Suspense>` を必ず用意する。`instant = false` は「即時表示がどうしても不可能」な場合に理由をコメントで残したうえでのみ使う。
   - 下部ナビ・ヘッダーのリンクは、押した直後から押下中の表示（`useLinkStatus`）を出す。
   - `next dev` は先読みしないため、体感の確認は `npm run build && npm start` か Vercel のプレビューで行う。

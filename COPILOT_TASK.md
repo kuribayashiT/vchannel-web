@@ -611,7 +611,7 @@
 
 > **背景**: 全体的に、タップしてから別のページに切り替わるまでが遅い。特に初回（キャッシュが温まる前）が顕著。原因は、サーバーでデータを読むページに `loading.tsx` も `<Suspense>` も無く、さらに `instant = false` で即時遷移の検証を外しているため、遷移先の描画が終わるまで前の画面に留まっていること。詳細は `FRONTEND_SPEC.md` 6.2。
 
-- [ ] **NAV-1. データを読む各ルートに `loading.tsx` を置き、タップ直後にスケルトンへ切り替える**
+- [x] **NAV-1. データを読む各ルートに `loading.tsx` を置き、タップ直後にスケルトンへ切り替える**
   - **対象ファイル**: 新規 `components/PageSkeleton.tsx`、新規 `app/loading.tsx`・`app/vtuber/loading.tsx`・`app/vtuber/[channelId]/loading.tsx`・`app/ranking/loading.tsx`・`app/events/loading.tsx`・`app/events/[date]/loading.tsx`・`app/news/loading.tsx`、`instant = false` を書いている各 `page.tsx`
   - **仕様**:
     - `PageSkeleton` は Server Component。`variant`（`"list"` = 行の並び / `"grid"` = カードの並び / `"detail"` = アバター＋見出し＋本文）を受け取り、`animate-pulse` の灰色ブロック（`bg-zinc-200 dark:bg-zinc-800`、角丸）で形だけを出す。外側の `<main>` の幅・余白は各ページと同じクラス（例: `mx-auto w-full max-w-6xl flex-1 px-4 py-5 md:px-6 md:py-8`）にそろえ、読み込み後にレイアウトがずれないようにする。`aria-busy="true"` と画面読み上げ用の「読み込み中」テキスト（`sr-only`）を付ける。

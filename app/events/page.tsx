@@ -6,7 +6,6 @@ import { dayKey, eventLabel, mergeEvents, todayJstParts } from "@/lib/events";
 import type { EventList } from "@/types";
 
 export const metadata = { title: "イベントカレンダー" };
-export const instant = false;
 
 export default async function EventsPage() {
   await connection();

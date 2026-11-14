@@ -10,7 +10,6 @@ import { smallAvatar } from "@/lib/url";
 import type { VTuberDetail, VTuberIndexItem } from "@/types";
 
 type PageProps = { params: Promise<{ channelId: string }> };
-export const instant = false;
 
 const jstDate = new Intl.DateTimeFormat("ja-JP", {
   timeZone: "Asia/Tokyo",
