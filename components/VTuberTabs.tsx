@@ -344,7 +344,9 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
   >(null);
   const tabRefs = useRef(new Map<string, HTMLButtonElement>());
   const prevGroupSignatureRef = useRef("");
+  const prevMobileGroupSignatureRef = useRef("");
   const [openOfficeNames, setOpenOfficeNames] = useState<Set<string>>(new Set());
+  const [mobileOfficeFilter, setMobileOfficeFilter] = useState<string>("all");
 
   useEffect(() => {
     if (initialIndex) return;
@@ -403,6 +405,7 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
     [index, members],
   );
   const useDesktopGrouping = groupedMembers.length > 1;
+  const useMobileOfficeChips = groupedMembers.length > 1;
   const groupSignature = useMemo(
     () =>
       groupedMembers
@@ -461,6 +464,21 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
         : groupedMembers[0]?.name;
     setOpenOfficeNames(currentOffice ? new Set([currentOffice]) : new Set());
   }, [current, groupSignature, groupedMembers, members, useDesktopGrouping]);
+
+  useEffect(() => {
+    if (!useMobileOfficeChips) {
+      prevMobileGroupSignatureRef.current = "";
+      setMobileOfficeFilter("all");
+      return;
+    }
+    if (prevMobileGroupSignatureRef.current === groupSignature) return;
+    prevMobileGroupSignatureRef.current = groupSignature;
+    const currentOffice =
+      current && members.some((m) => m.channelId === current.channelId)
+        ? current.office
+        : groupedMembers[0]?.name;
+    setMobileOfficeFilter(currentOffice ?? "all");
+  }, [current, groupSignature, groupedMembers, members, useMobileOfficeChips]);
 
   if (index.status === "loading") {
     return <VTuberTabsSkeleton />;
@@ -529,6 +547,13 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
       <span className="max-w-40 truncate lg:max-w-none">{m.name}</span>
     </button>
   );
+
+  const mobileListItems = useMemo(() => {
+    if (!useMobileOfficeChips || mobileOfficeFilter === "all") {
+      return listItems;
+    }
+    return listItems.filter((m) => m.office === mobileOfficeFilter);
+  }, [listItems, mobileOfficeFilter, useMobileOfficeChips]);
 
   const renderSearchResults = (mobile: boolean) => (
     <div
@@ -618,11 +643,40 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
           </>
         ) : (
           <>
+            {useMobileOfficeChips && (
+              <div className="flex gap-1.5 overflow-x-auto pb-1 lg:hidden">
+                <button
+                  type="button"
+                  onClick={() => setMobileOfficeFilter("all")}
+                  className={`shrink-0 rounded-full border px-2.5 py-1 text-xs ${
+                    mobileOfficeFilter === "all"
+                      ? "border-violet-500 bg-violet-100 text-violet-800 dark:border-violet-700 dark:bg-violet-900/40 dark:text-violet-200"
+                      : "border-zinc-300 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300"
+                  }`}
+                >
+                  すべて
+                </button>
+                {groupedMembers.map((group) => (
+                  <button
+                    key={group.name}
+                    type="button"
+                    onClick={() => setMobileOfficeFilter(group.name)}
+                    className={`shrink-0 rounded-full border px-2.5 py-1 text-xs ${
+                      mobileOfficeFilter === group.name
+                        ? "border-violet-500 bg-violet-100 text-violet-800 dark:border-violet-700 dark:bg-violet-900/40 dark:text-violet-200"
+                        : "border-zinc-300 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300"
+                    }`}
+                  >
+                    {group.name} {group.members.length}
+                  </button>
+                ))}
+              </div>
+            )}
             <div
               role="tablist"
               className="flex gap-2 overflow-x-auto pb-1 lg:hidden"
             >
-              {listItems.map((m) => renderTabButton(m))}
+              {mobileListItems.map((m) => renderTabButton(m))}
             </div>
             <div className="hidden lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-y-auto lg:rounded-xl lg:border lg:border-zinc-200 lg:bg-white lg:p-2 lg:shadow-sm dark:lg:border-zinc-800 dark:lg:bg-zinc-900">
               {searchPinned && !sel.has(searchPinned.channelId) && (
