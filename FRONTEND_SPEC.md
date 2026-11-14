@@ -406,6 +406,17 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 - **`/llms.txt`**: AI 向けのサイト案内として提供する。
   - `text/plain; charset=utf-8` を返し、主要ページ案内・データ出典/更新頻度・登録者数上位50人の詳細URLを含める。
 
+### 6.2 画面遷移の体感速度（2026-11-14 策定）
+
+- **方針**: タップしたら**まず遷移してから読み込む**。遷移先のデータ取得が終わるまで前の画面に留まる作りにしない。
+- **原因（2026-11-14 調査）**: サーバーでデータを読むページ（`/`、`/vtuber`、`/vtuber/[channelId]`、`/ranking`、`/events`、`/events/[date]`、`/news`）に `loading.tsx` も `<Suspense>` も無く、ページ本体の先頭で `await` している。さらに複数ページが `export const instant = false` で即時遷移の検証を外している。このため、`cacheComponents` + `partialPrefetching` を有効にしていても先読みできる App Shell が空で、クライアント遷移はサーバーの描画が終わるまで止まる（キャッシュが温まった 2 回目以降だけ速い）。
+- **ルール**:
+  - サーバーでデータを読むルートには `loading.tsx` を置き、共通スケルトン（`components/PageSkeleton.tsx`）を返す。スケルトンは遷移先の大まかな形（見出し＋カード／行の並び）に合わせ、読み込み後のレイアウトずれを小さくする。
+  - 新しいサーバーページを追加するときも、`loading.tsx` か `<Suspense>` を必ず用意する。`instant = false` は「即時表示がどうしても不可能」な場合に理由をコメントで残したうえでのみ使う。
+  - 下部ナビ・ヘッダーのリンクは、押した直後から押下中の表示（`useLinkStatus`）を出す。
+  - `next dev` は先読みしないため、体感の確認は `npm run build && npm start` か Vercel のプレビューで行う。
+- **SEO**: `loading.tsx` を置いてもページ本文は同じ HTML レスポンス内にストリーミングで出る（JSON-LD・内部リンクも含む）。`generateMetadata` は変更しない。
+
 ## 7. SPEC.md との差異（コード基準）
 1. 下部ナビは 4 項目（ランキングは画面内タブバー）。SPEC.md は 5 タブ。
 2. 過去アーカイブの「30 日以内」制限はコードに無い（今日より前すべて）。

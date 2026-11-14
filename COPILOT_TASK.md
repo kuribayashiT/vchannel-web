@@ -607,6 +607,35 @@
     - 上記 6 ページの HTML に `<link rel="canonical" href="https://www.vchannel.net/...">` が 1 つだけ出る（本番）。
     - `FRONTEND_SPEC.md` 6.1（PM 更新済み）の記述と実装が一致している。
 
+### P0-NAV: タップしたらすぐ画面を切り替える（2026-11-14 追加・P0-DOMAIN の次、P0-FILTER より先に着手）
+
+> **背景**: 全体的に、タップしてから別のページに切り替わるまでが遅い。特に初回（キャッシュが温まる前）が顕著。原因は、サーバーでデータを読むページに `loading.tsx` も `<Suspense>` も無く、さらに `instant = false` で即時遷移の検証を外しているため、遷移先の描画が終わるまで前の画面に留まっていること。詳細は `FRONTEND_SPEC.md` 6.2。
+
+- [ ] **NAV-1. データを読む各ルートに `loading.tsx` を置き、タップ直後にスケルトンへ切り替える**
+  - **対象ファイル**: 新規 `components/PageSkeleton.tsx`、新規 `app/loading.tsx`・`app/vtuber/loading.tsx`・`app/vtuber/[channelId]/loading.tsx`・`app/ranking/loading.tsx`・`app/events/loading.tsx`・`app/events/[date]/loading.tsx`・`app/news/loading.tsx`、`instant = false` を書いている各 `page.tsx`
+  - **仕様**:
+    - `PageSkeleton` は Server Component。`variant`（`"list"` = 行の並び / `"grid"` = カードの並び / `"detail"` = アバター＋見出し＋本文）を受け取り、`animate-pulse` の灰色ブロック（`bg-zinc-200 dark:bg-zinc-800`、角丸）で形だけを出す。外側の `<main>` の幅・余白は各ページと同じクラス（例: `mx-auto w-full max-w-6xl flex-1 px-4 py-5 md:px-6 md:py-8`）にそろえ、読み込み後にレイアウトがずれないようにする。`aria-busy="true"` と画面読み上げ用の「読み込み中」テキスト（`sr-only`）を付ける。
+    - 各 `loading.tsx` は `PageSkeleton` を返すだけにする。variant の割り当て: `/`・`/news`・`/events/[date]` = list、`/vtuber`・`/ranking` = grid（ランキングは list でも可。実際の見た目に近い方）、`/vtuber/[channelId]` = detail、`/events` = grid。
+    - `app/loading.tsx` は `/admin` 配下にも効くが、管理画面は対象外のため触らない（`app/admin/` に何も追加しない）。
+    - `/vtuber/[channelId]`・`/ranking`・`/events`・`/events/[date]` の `export const instant = false` を削除する。削除で `npm run build` が失敗する（静的シェルの検証エラー）ページだけは残し、理由をコメントで書く。
+    - ページ本体のデータ取得・表示内容・`generateMetadata` は変えない。
+  - **完了条件**:
+    - `npx tsc --noEmit` / `npm run build` がエラーなし。
+    - `npm run build && npm start` で、キャッシュの無い状態（サーバー再起動直後）から下部ナビ・ヘッダー・一覧→詳細をタップすると、**押した直後に URL と画面がスケルトンへ切り替わり**、その後に中身が出る。
+    - `curl -s http://localhost:3000/vtuber/{channelId}` の HTML に、従来どおり JSON-LD と同じ事務所のメンバーへのリンクが含まれる。
+    - `FRONTEND_SPEC.md` 6.2 に `PageSkeleton` の props と variant の割り当てを追記する。
+
+- [ ] **NAV-2. ナビのリンクに押下中の表示を出す**（NAV-1 の後に着手）
+  - **対象ファイル**: `components/BottomNav.tsx`、`components/AppShell.tsx`（ヘッダーのお気に入り・イベント・設定リンク）
+  - **仕様**:
+    - `next/link` の `useLinkStatus()` を使う小さな Client Component（例: `components/LinkPendingIndicator.tsx`）を作り、各 `<Link>` の子に置く。`pending` の間、アイコンを薄くする（`opacity-60`）か、項目の下に細いバーを出す。遷移が速いときにちらつかないよう、表示は 100ms 遅らせる（CSS の `transition-delay` か `animation-delay` で）。
+    - 押した項目は、遷移完了を待たずに選択中の見た目（現行のアクティブ色）にする。
+    - 既存のリンク先・アイコン・ラベルは変えない。
+  - **完了条件**:
+    - `npx tsc --noEmit` / `npm run build` がエラーなし。
+    - 本番ビルドで、遅いネットワーク（DevTools の Slow 4G）でナビを押すと、押した直後に押下中の表示が出る。
+    - `FRONTEND_SPEC.md` 5.0 アプリシェルに押下中表示のルールを追記する。
+
 ### P0-FILTER: 事務所フィルターの初期状態と「空 = すべて」の統一（2026-11-11 追加・P0-CHAT の次に着手）
 
 > **背景**: `selectedChannelIds` が空のとき、配信とランキングは全件を表示するのに、VTuber タブは何も表示しない。掲示板は 1 人でも選ぶと、選んだ事務所のスレッドだけに絞られる。フィルター画面では全件が表示されているのにチェックが全部外れて見えるため、状態がわかりにくい。
