@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import Link from "next/link";
 import { X, CalendarDays, Settings, SlidersHorizontal, Star } from "lucide-react";
 import { BottomNav, TopNav } from "@/components/BottomNav";
+import { LinkPendingIndicator } from "@/components/LinkPendingIndicator";
 import { YouTubePlayer } from "@/components/YouTubePlayer";
 import { OfficeSelector } from "@/components/OfficeSelector";
 import { resetSelection, useSelectedChannels } from "@/hooks/useSelection";
@@ -105,21 +106,27 @@ export function AppShell({
               aria-label="お気に入り"
               className="rounded-full px-2.5 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800"
             >
-              <Star size={18} />
+              <LinkPendingIndicator>
+                <Star size={18} />
+              </LinkPendingIndicator>
             </Link>
             <Link
               href="/events"
               aria-label="イベントカレンダー"
               className="rounded-full px-2.5 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800"
             >
-              <CalendarDays size={18} />
+              <LinkPendingIndicator>
+                <CalendarDays size={18} />
+              </LinkPendingIndicator>
             </Link>
             <Link
               href="/settings"
               aria-label="設定"
               className="rounded-full px-2.5 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800"
             >
-              <Settings size={18} />
+              <LinkPendingIndicator>
+                <Settings size={18} />
+              </LinkPendingIndicator>
             </Link>
             <div className="ml-1">
               <FilterChip onOpen={() => setMenuOpen(true)} />

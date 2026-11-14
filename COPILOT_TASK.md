@@ -625,7 +625,7 @@
     - `curl -s http://localhost:3000/vtuber/{channelId}` の HTML に、従来どおり JSON-LD と同じ事務所のメンバーへのリンクが含まれる。
     - `FRONTEND_SPEC.md` 6.2 に `PageSkeleton` の props と variant の割り当てを追記する。
 
-- [ ] **NAV-2. ナビのリンクに押下中の表示を出す**（NAV-1 の後に着手）
+- [x] **NAV-2. ナビのリンクに押下中の表示を出す**（NAV-1 の後に着手）
   - **対象ファイル**: `components/BottomNav.tsx`、`components/AppShell.tsx`（ヘッダーのお気に入り・イベント・設定リンク）
   - **仕様**:
     - `next/link` の `useLinkStatus()` を使う小さな Client Component（例: `components/LinkPendingIndicator.tsx`）を作り、各 `<Link>` の子に置く。`pending` の間、アイコンを薄くする（`opacity-60`）か、項目の下に細いバーを出す。遷移が速いときにちらつかないよう、表示は 100ms 遅らせる（CSS の `transition-delay` か `animation-delay` で）。
