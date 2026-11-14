@@ -656,19 +656,52 @@
     - フィルターで 1 人だけ選んでも、掲示板に全事務所のスレッドが表示され、選んだ事務所のスレッドが先頭に ★ 付きで出る。
     - `FRONTEND_SPEC.md` 5.6（PM 更新済み）の記述と実装が一致している。
 
-- [ ] **FILTER-2. VTuber タブの「選択なし」を空画面にしない**
+- [ ] **FILTER-2. 🚨 不具合: フィルターを「すべて表示」にすると VTuber タブに何も出ない**（2026-11-14 改訂・最優先。DOMAIN-1 より先に着手）
+  - **症状**: フィルターで `すべて表示` を押すと（＝保存値が空）、`/vtuber` のタブ一覧が `Vtuberリストがありません（フィルターで事務所を選択してください）` だけになる。
+  - **原因**: FILTER-3 で「全選択は空として保存する（空 = すべて）」に変えたが、`components/VTuberTabs.tsx` だけが「空 = 何も選んでいない」のままで、`index.items.filter((m) => sel.has(m.channelId))` で 0 人になる。配信・ランキング・急上昇 TOP3 は `channelIds.length === 0` なら全件にしているので正しく出る。
+  - **方針の変更**: 旧仕様の「空なら案内カードを出す」は取りやめる。VT-GROUP-1/2 で事務所ごとの折りたたみ・事務所チップができたので、全員（約 1,400 人）を出しても一覧が長くなりすぎない。フィルター画面で「すべて表示」が全チェックに見えている以上、VTuber タブも全員を出すのが自然。
   - **対象ファイル**: `components/VTuberTabs.tsx`
   - **仕様**:
-    - `channelIds` が空のときに、`Vtuberリストがありません（フィルターで事務所を選択してください）` を出すのをやめる。
-    - 代わりに、案内カードを 1 枚表示する（角丸・薄い背景。アイコンは lucide-react の `SlidersHorizontal`）。
-      - 文言: `気になる事務所やVTuberをフィルターで選ぶと、ここにタブで並びます。下の「事務所から探す」からも見られます。`
-      - ボタン `フィルターを開く` を付ける。押すとサイドメニューが開くこと。`AppShell` の `menuOpen` を開ける手段（例: `window` のカスタムイベント `vchannel:open-filter`）を用意する。
-    - 選択があるのに該当メンバーが 0 人の場合（事務所が消えた等）は、従来の文言のままでよい。
-    - 全員分のタブは出さない（1000 人超になるため）。
+    - 「選択中かどうか」の判定を 1 つの関数にまとめる（例: `const isInSelection = (id) => channelIds.length === 0 || sel.has(id)`）。`sel.has(...)` を直接使っている次の箇所をすべてこれに置き換える。
+      - `members` の絞り込み（空なら `index.items` 全件）
+      - `searchPinned` を外す判定、検索結果を選んだときの判定
+      - 検索結果の `選択外` バッジ（空のときに全員に `選択外` が付く不具合も同時に直る）
+      - タブ一覧の `検索から表示中` ラベル
+    - 空のときの表示:
+      - PC（VT-GROUP-1）: 全事務所の見出しを出し、表示中の VTuber の事務所だけ開く（現行の動き）。閉じた事務所のメンバーは描画しない（現行どおり）。
+      - スマホ（VT-GROUP-2）: 事務所チップの `すべて` を**出さない**（1,400 個のチップが並ぶのを避ける）。初期の事務所チップは表示中の VTuber の事務所。
+      - 初期表示の VTuber は `members[0]`（事務所の初出順の先頭）のままでよい。
+    - `Vtuberリストがありません（フィルターで事務所を選択してください）` は「選択があるのに該当 0 人」のときだけ出す。
   - **完了条件**:
     - `npx tsc --noEmit` / `npm run build` がエラーなし。
-    - localStorage を空にして `/vtuber` を開くと案内カードが出て、ボタンでフィルターが開く。
+    - localStorage を空にして `/vtuber` を開くと、PC は事務所の折りたたみ、スマホは事務所チップ＋メンバーチップで全事務所が出る。
+    - フィルターで `すべて表示` を押すと同じ表示になる。事務所を 1 つ選ぶと、その事務所だけになる（現行どおり）。
+    - 選択が空のとき、VTuber 検索の結果に `選択外` バッジが付かない。
     - `FRONTEND_SPEC.md` 5.4（PM 更新済み）の記述と実装が一致している。
+
+- [ ] **FILTER-8. フィルターの VTuber チップで、「すべて表示」のときにチェックマークが消えている**（FILTER-2 の次に着手）
+  - **症状**: `すべて表示` の状態でフィルターの事務所を開くと、VTuber チップの背景は選択色なのに、右端の ✓ だけ灰色（未選択の見た目）になる。
+  - **原因**: `components/OfficeSelector.tsx` のチップの ✓ の色だけが `sel.has(m.channelId)` を見ている。背景と `aria-checked` は `isSelected(m.channelId)`（空 = すべて対応済み）を使っている。
+  - **対象ファイル**: `components/OfficeSelector.tsx`
+  - **仕様**: ✓ の色の判定を `isSelected(m.channelId)` に変える。ほかに `sel.has` を直接使っている箇所が無いか確認し、表示用の判定はすべて `isSelected` にそろえる。
+  - **完了条件**:
+    - `npx tsc --noEmit` / `npm run build` がエラーなし。
+    - localStorage を空にしてフィルターを開き、事務所を展開すると全チップに紫の ✓ が付いている。
+
+- [ ] **FILTER-9. 旧 UI の「全選択」で全 ID が保存されたままの人を「すべて表示」に戻す**（FILTER-8 の次に着手）
+  - **症状**: FILTER-3 より前の `全選択` ボタンを押した人は、localStorage の `selectedChannelIds` に当時の全 ID（約 1,400 件）が残っている。この人は、ヘッダーに `絞り込み中 1400人` のチップが出続け、そのあと自動登録で増えた VTuber が配信・ランキング・VTuber タブに出ない。
+  - **原因**: 「全員 = 空」への正規化は保存するとき（`setChannelIds(next, allIds)`）にしか行われない。読み込み時は正規化しないため、古い値が残る。しかも VTuber が増えると「全 ID と完全一致」しなくなるので、今のままの判定では二度と空に戻らない。
+  - **対象ファイル**: `hooks/useSelection.ts`, `components/AppShell.tsx`
+  - **仕様**:
+    - `useSelection.ts` に `migrateLegacyFullSelection(allIds: readonly string[])` を追加する。`AppShell`（`offices` から全 ID を作れる場所）でマウント時に 1 回呼ぶ。
+    - 処理: localStorage の `selectionMigratedV1` が `"1"` なら何もしない。そうでなければ、保存中の ID のうち現在も存在するものが**全 ID の 95% 以上**なら `resetSelection()` する。最後に、結果に関係なく `selectionMigratedV1 = "1"` を書く（1 回だけ実行。以降に自分で選んだ大きな選択を勝手に消さないため）。
+    - 95% の理由: 旧「全選択」の後に VTuber が増えても一致とみなすため。数十人だけ外した選択も「すべて」に戻るが、旧 UI でそれをしている人はほぼいない想定（PM 判断）。
+    - localStorage の読み書きは try/catch で囲む（使えない環境では何もしない）。
+  - **完了条件**:
+    - `npx tsc --noEmit` / `npm run build` がエラーなし。
+    - DevTools で `selectedChannelIds` に全 ID の配列を入れ、`selectionMigratedV1` を消してリロードすると、絞り込み中チップが消えて全件表示になる。
+    - 1 事務所だけ選んだ状態では、リロードしても選択が残る。
+    - `FRONTEND_SPEC.md` 4 章（PM 更新済み）の記述と実装が一致している。
 
 - [ ] **VDIR-1. 「事務所別VTuber一覧」を事務所ごとの折りたたみに変える（見た目の改善・SEO は維持）**
   - **対象ファイル**: `components/VTuberDirectory.tsx`
@@ -862,6 +895,30 @@
     - `npx tsc --noEmit` / `npm run build` がエラーなし。
     - 絞り込み中はどのページでもチップが見え、`X` で全件表示に戻る。
     - `FRONTEND_SPEC.md` 5.0（PM 更新済み）の記述と実装が一致している。
+
+- [ ] **VT-ICON-1. VTuber タブの名前・事務所名の横にアイコンを出す（フィルターとそろえる）**（2026-11-14 追加・VT-PROFILE-1 の次に着手。FILTER-2 が終わっていること）
+  - **背景**: フィルターでは VTuber・事務所にアイコンが付いて見やすくなった（FILTER-6/7）。VTuber タブは文字だけで、見た目がそっけない。タブのボタンには `m.thumbnail` があれば画像を出す処理があるが、`/vtuber` の初期データ（`toVTuberTabItems()`）は HTML を軽くするためにサムネイルを落としているので、実際には一度も出ていない。
+  - **方針**: HTML は増やさない。**VTuber のアイコンは、フィルターと同じ `/api/office-thumbnails` をマウント後に 1 回だけ取得して使う**。事務所のアイコンは 24 件だけなので、FILTER-7 と同じ短縮形でサーバーから渡してよい。
+  - **対象ファイル**: `components/VTuberTabs.tsx`, `components/OfficeSelector.tsx`, 新規 `hooks/useChannelThumbnails.ts`, `lib/server-data.ts`, `types/index.ts`
+  - **仕様**:
+    - **取得の共通化**: `OfficeSelector` にあるサムネイル取得（モジュール変数のキャッシュと、取得中のリクエストの共有）を `hooks/useChannelThumbnails.ts` に移し、`useChannelThumbnails(): Record<string, string> | null` として `OfficeSelector` と `VTuberTabs` の両方から使う。フィルターと VTuber タブのどちらを先に開いても、取得は 1 回だけにする。画像 URL は `ytThumbUrl(short, 48)` で作る（FILTER-6 と同じ）。
+    - **アイコンを出す場所**:
+      | 場所 | アイコン | 大きさ |
+      |---|---|---|
+      | タブのボタン（PC の縦一覧・スマホのメンバーチップ） | VTuber | `size-7`（今の `img` と同じ） |
+      | 検索結果の行（名前＋事務所名の 2 行） | VTuber | `size-8` |
+      | PC の事務所見出し（VT-GROUP-1） | 事務所 | `size-5` |
+      | スマホの事務所チップ（VT-GROUP-2） | 事務所 | `size-4` |
+    - 表示は既存の `SafeImage`（`variant="avatar"`、`loading="lazy"`、`rounded-full object-cover shrink-0`）を使う。取得前・取得失敗・URL なしのときは、同じ大きさで**名前の頭文字の丸**を出す（フィルターと同じ見た目。画像が後から来ても横幅が動かないように）。
+    - 選択中のタブ（`bg-blue-600`）では、頭文字の丸を `bg-white/20 text-white` にする。
+    - **事務所のアイコン**: `VTuberOfficeGroup` に `thumbnail?: string`（FILTER-7 と同じ短縮形）を足し、`buildOfficeGroups()` で公式チャンネル（`officeFlg`）のサムネイルを入れる。公式チャンネルが無い事務所は、頭文字の丸にする。`/api/vtuber` から組み立てる場合（`buildOfficeGroupsFromIndex`）も同じにする。
+    - 事務所名・人数・並び順・開閉の動作は変えない。
+  - **完了条件**:
+    - `npx tsc --noEmit` / `npm run build` がエラーなし。
+    - `/vtuber` のタブ・検索結果・事務所見出し（PC）・事務所チップ（スマホ）にアイコンが出る。DevTools で `/api/office-thumbnails` を失敗させても、頭文字の丸が出てレイアウトが崩れない。
+    - `/vtuber` の HTML サイズの増加が 5KB 以内（`npm run build` 後の `.next/server/app/vtuber.html` で比べる）。
+    - フィルターを開いてから `/vtuber` に移っても、`/api/office-thumbnails` へのリクエストが 2 回目に飛ばない。
+    - `FRONTEND_SPEC.md` 5.4（PM 更新済み）の記述と実装が一致している。
 
 ### P0-CHATUX: 掲示板の見た目の整理と「書き込むきっかけ」づくり（2026-11-14 追加・P0-VTFIND の次に着手。FILTER-1 が終わっていること）
 

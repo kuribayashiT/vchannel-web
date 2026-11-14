@@ -133,7 +133,8 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 | キー（Flutter の SharedPreferences） | 型 | 意味 |
 |---|---|---|
 | `favoriteOffices` | string[] | 選択中の事務所（絞り込み対象） |
-| `selectedChannelIds` | string[] | Web の絞り込み対象チャンネル。**空の場合は絞り込みなし（すべて表示）**。UI では全選択状態として表示する。全チャンネルを選んだ状態は空に正規化して保存し、全 ID は保存しない（自動登録で増えた VTuber が漏れないようにするため） |
+| `selectedChannelIds` | string[] | Web の絞り込み対象チャンネル。**空の場合は絞り込みなし（すべて表示）**。UI では全選択状態として表示する。全チャンネルを選んだ状態は空に正規化して保存し、全 ID は保存しない（自動登録で増えた VTuber が漏れないようにするため）。旧 UI の `全選択` で全 ID が残っている場合は、初回に 1 回だけ「現在の全 ID の 95% 以上を含むなら空に戻す」移行を行う（FILTER-9） |
+| `selectionMigratedV1` | `"1"` | FILTER-9 の移行を実行済みかどうか（1 回だけ実行するため） |
 | `favorites` | string[] | お気に入り動画の videoID |
 | `cached*` / `lastUpdate_*` | JSON 文字列 / ISO 日時 | データキャッシュ（TTL 1 時間）。Next.js では不要（fetch キャッシュに任せる） |
 | `interAdCount` | int | 広告カウンタ（Web 不要） |
@@ -195,7 +196,7 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 - `/vtuber` は Server Component で `loadVTubers()` の index を取得し、`getCachedVTuberPageData()`（`"use cache"` + `cacheLife("hours")`）で 1 時間キャッシュする。取得できた index（軽量版）を `VTuberTabs` の `initialIndex` として渡し、初期 HTML に一覧を含める。
 - `VTuberTabs` は `initialIndex` がある場合に `/api/vtuber` を再 fetch しない。`/api/vtuber/[channelId]` の詳細取得は従来どおりクライアントで行う。
 - h1 直下に要約文を表示し、`generateMetadata` で title を `VTuber一覧（事務所別）`、description に事務所数・人数を含める。
-- 選択が空のときはタブを出さず、案内カード（`SlidersHorizontal` アイコン、`気になる事務所やVTuberをフィルターで選ぶと、ここにタブで並びます。下の「事務所から探す」からも見られます。`、`フィルターを開く` ボタン）を表示する。選択があるのに該当 0 人なら `Vtuberリストがありません（フィルターで事務所を選択してください）`。
+- **選択が空 = すべて表示**（2026-11-14 改訂、FILTER-2）: 選択が空のときは全 VTuber をタブに出す（配信・ランキングと同じ「空 = すべて」）。PC は事務所ごとの折りたたみ（表示中の事務所だけ開く）、スマホは事務所チップ＋メンバーチップで、スマホの事務所チップ `すべて` は選択が空のときは出さない。「選択中か」の判定は `channelIds.length === 0 || sel.has(id)` に一本化し、検索の `選択外` バッジ・`検索から表示中` ラベルも同じ判定を使う。選択があるのに該当 0 人なら `Vtuberリストがありません（フィルターで事務所を選択してください）`。
 - タブ UI の下に `VTuberDirectory`（Server Component）を配置し、見出し `事務所から探す` で全事務所をサーバーレンダリングする（フィルターの影響を受けない）。事務所ごとに `<details>`（初期は閉じる）で包み、`<summary>` 内の `<h2>` に事務所名・人数・開閉矢印を出す。中身は各メンバーへのリンク（`/vtuber/{channelId}`、名前＋登録者数）を丸チップで並べる。リンクは CSS で隠さず、閉じた `<details>` の中身として初期 HTML に含める。
 - `/vtuber/[channelId]` は Server Component で `loadVTubers()` から詳細を取得し、存在しない `channelId` は `notFound()` で 404 を返す。データは `getCachedVTuberDetail()`（`"use cache"` + `cacheLife("hours")`）で 1 時間キャッシュする。
 - 詳細ページは `generateMetadata` で個別 title/description/canonical を生成し、OGP 画像にチャンネルサムネイルを設定する。本文先頭に「誰が・何人・いつ時点」を含む要約文を置く。
@@ -213,7 +214,7 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
   - 元データの書き方はそろっていない（`05-15` / `05/23`、`2018/3/22` / `2018/09/07` など）。`lib/profile-date.ts` で正規化し、`VTuberDetail` には `birthday?: { month; day }` と `debut?: { year?; month; day }` の形で持たせる。
   - 詳細ページの要約文の末尾に、ある分だけ `誕生日は5月15日、デビューは2017年9月7日です。` を足す。JSON-LD の `birthDate` は、誕生日に年が無いため入れない。
 - 詳細の「登録者数の推移」と「最新動画」の間に `AffiliateLinks` を表示する（キーワード `${name} グッズ`、見出し横に `PR` バッジ、楽天ボタン1つ）。
-- 選択事務所のメンバーを **1 人 1 タブ**で横並び。順序：事務所の初出順 → 各事務所内で `officeFlg == true` を先頭。
+- 選択事務所のメンバー（選択が空なら全員）を **1 人 1 タブ**で横並び。順序：事務所の初出順 → 各事務所内で `officeFlg == true` を先頭。
 - 背景：選択中チャンネルのサムネをぼかして拡大＋暗いオーバーレイ。
 - 詳細：サムネ・名前・事務所、登録者数・総再生数・動画本数、**登録者数推移の折れ線グラフ（30 日、`youtubeSubscriberCountTransition`）**、最新動画（最大 30 件、サムネ・お気に入り・再生）。
 - 空/エラー: `Vtuberリストがありません` / `Vtuberリストの取得に失敗しました` / `Vtuberリストを読み込み中…`、チャート空 `データなし`、動画なし `動画データがありません`。
@@ -224,7 +225,7 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
   - 入力中はタブ一覧の代わりに結果リストを出す。各行は名前と事務所名で、最大 50 件。超えた分は `ほか N 人` と表示する。0 件なら `該当するVTuberが見つかりません`。
   - フィルターで選んでいない人の行には、小さな `選択外` バッジを付ける。
   - 結果をタップすると、検索欄を空にしてその人の詳細を表示する。選択外の人の場合は、タブ一覧の先頭に `検索から表示中` のラベル付きで一時的に 1 行足す。別のタブを選ぶと、この行は消える。
-  - 選択が空（案内カードの状態）でも検索欄を出す。結果を選ぶと、案内カードの代わりにその人の詳細を表示する。
+  - 選択が空（すべて表示）のときは、全員が選択中の扱いになるため `選択外` バッジと `検索から表示中` ラベルは出ない。
 - **事務所ごとの折りたたみ（VT-GROUP-1、PC `lg` 以上）**: 左の縦タブ一覧を事務所ごとの見出しでまとめる。
   - 見出し行には、事務所名・人数（例: `12人`）・`ChevronDown` を表示する。開いているときは矢印を回転させる。
   - 最初は、表示中の VTuber がいる事務所だけを開く。事務所が 1 つだけなら見出しを出さず、従来どおりのフラットな一覧にする。
@@ -232,6 +233,9 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 - **スマホの 2 段チップ（VT-GROUP-2、`lg` 未満）**: 選択中のメンバーが 2 事務所以上にまたがるときは、1 段目に事務所チップ（`すべて` ＋事務所名。横スクロール）、2 段目にその事務所のメンバーのタブ（従来の横スクロールチップ）を出す。
   - 初期の事務所チップは、表示中の VTuber の事務所にする。
   - 1 事務所だけなら 1 段目は出さない。
+- **アイコン（VT-ICON-1、2026-11-14 追加）**: タブのボタン・検索結果の行には VTuber のアイコン、PC の事務所見出し・スマホの事務所チップには事務所のアイコンを出す（フィルターとそろえる）。
+  - VTuber のアイコンは HTML に入れず、`useChannelThumbnails()`（`/api/office-thumbnails` をマウント後に 1 回取得。`OfficeSelector` と共有）から取る。事務所のアイコンは `VTuberOfficeGroup.thumbnail`（公式チャンネルのサムネイルの短縮形）から取る。
+  - 大きさ: タブ `size-7`、検索結果 `size-8`、PC 事務所見出し `size-5`、スマホ事務所チップ `size-4`。画像が無いとき・取得前は同じ大きさの頭文字の丸を出す（選択中のタブでは `bg-white/20 text-white`）。
 - 事務所の区切りはサーバーで作る。`getCachedVTuberPageData()` は `officeGroups: { name: string; count: number }[]`（`tabItems` の並び順。同じ事務所は連続させる）も返し、`VTuberTabs` に渡す。`tabItems` の各行に事務所名は持たせない（HTML 増加を事務所 24 件分に抑えるため）。`/api/vtuber` で取得した場合は、各行の `office` から同じ形に組み立てる。
 - 取得済みの詳細はクライアント側で保持し、タブのホバー／フォーカス時に先読みする。`/api/vtuber` と `/api/vtuber/[channelId]` は成功時のみ `Cache-Control: public, s-maxage=600, stale-while-revalidate=3600` で CDN にキャッシュする（エラー時は `no-store`）。
 
