@@ -62,7 +62,8 @@ function FilterChip({ onOpen }: { onOpen: () => void }) {
         aria-label={`絞り込み中 ${channelIds.length}人。フィルターを開く`}
         className="whitespace-nowrap py-1 pl-2.5 pr-1 hover:bg-violet-100 dark:hover:bg-violet-900/40"
       >
-        絞り込み中 {channelIds.length}人
+        <span className="sm:hidden">{channelIds.length}人</span>
+        <span className="hidden sm:inline">絞り込み中 {channelIds.length}人</span>
       </button>
       <button
         type="button"
@@ -91,7 +92,7 @@ export function AppShell({
         <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-2.5 md:px-6">
           <Link
             href="/"
-            className="bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-lg font-extrabold tracking-tight text-transparent"
+            className="shrink-0 whitespace-nowrap bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-lg font-extrabold tracking-tight text-transparent"
           >
             Vちゃんねる
           </Link>
