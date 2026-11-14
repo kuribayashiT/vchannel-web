@@ -39,9 +39,9 @@ test("empty selection toggles to only the chosen scope and full selection normal
 
 test("VTuber tabs treat an empty selection as all channels", () => {
   let channelIds = [];
+  let channelThumbnails = null;
   const Empty = () => null;
   const Tabs = loadModule("../components/VTuberTabs.tsx", {
-    "@/lib/url": { smallAvatar: () => "" },
     "lucide-react": {
       Cake: Empty,
       ChevronDown: Empty,
@@ -51,6 +51,10 @@ test("VTuber tabs treat an empty selection as all channels", () => {
     "next/link": { __esModule: true, default: Empty },
     "@/components/AffiliateLinks": { AffiliateLinks: Empty },
     "@/components/DateCountdown": { DateCountdown: Empty },
+    "@/components/SafeImage": {
+      SafeImage: ({ src, className }) =>
+        React.createElement("img", { src, className }),
+    },
     "@/components/Skeleton": {
       VTuberDetailSkeleton: Empty,
       VTuberTabsSkeleton: Empty,
@@ -59,12 +63,19 @@ test("VTuber tabs treat an empty selection as all channels", () => {
     "@/hooks/useSelection": {
       useSelectedChannels: () => ({ channelIds }),
     },
+    "@/hooks/useChannelThumbnails": {
+      useChannelThumbnails: () => channelThumbnails,
+    },
     "@/lib/format": {
       formatCompact: String,
       formatNumber: String,
     },
     "@/lib/search": { normalizeForSearch: (value) => value.toLowerCase() },
     "@/lib/events": { formatDateSlug: () => "" },
+    "@/lib/thumbnail": {
+      shortenYtThumb: (value) => value,
+      ytThumbUrl: (value, size) => `https://img.example/${value}/s${size}`,
+    },
   });
   const initialIndex = [
     { channelId: "a1", name: "A1" },
@@ -72,7 +83,7 @@ test("VTuber tabs treat an empty selection as all channels", () => {
     { channelId: "b1", name: "B1" },
   ];
   const initialOfficeGroups = [
-    { name: "事務所A", count: 2 },
+    { name: "事務所A", count: 2, thumbnail: "office-a" },
     { name: "事務所B", count: 1 },
   ];
   const render = () =>
@@ -90,6 +101,14 @@ test("VTuber tabs treat an empty selection as all channels", () => {
   assert.match(allHtml, />A2<\/span>/);
   assert.doesNotMatch(allHtml, />B1<\/span>/);
   assert.doesNotMatch(allHtml, />すべて<\/button>/);
+  assert.match(allHtml, /bg-white\/20 text-white/);
+  assert.equal(
+    (allHtml.match(/src="https:\/\/img\.example\/office-a\/s48"/g) ?? []).length,
+    2,
+  );
+  assert.match(allHtml, />事<\/span>/);
+  channelThumbnails = { a1: "member-a", a2: "member-a2" };
+  assert.match(render(), /src="https:\/\/img\.example\/member-a\/s48"/);
   assert.equal(
     Tabs.isInSelection([], new Set(), "outside"),
     true,
@@ -114,6 +133,7 @@ test("empty filter selection renders every office and member as checked", () => 
       ],
     },
     "@/components/SafeImage": { SafeImage: () => null },
+    "@/hooks/useChannelThumbnails": { useChannelThumbnails: () => null },
     "@/hooks/useSelection": {
       toggleChannelSelection: (current, ids) => [...new Set([...current, ...ids])],
     },
@@ -142,6 +162,73 @@ test("empty filter selection renders every office and member as checked", () => 
   assert.equal((html.match(/aria-checked="true"/g) ?? []).length, 4);
   assert.equal((html.match(/bg-violet-600 text-white/g) ?? []).length, 2);
   assert.doesNotMatch(html, /全選択|選択解除/);
+});
+
+test("VTuber office groups include compact official-channel thumbnails", () => {
+  const thumbnail = loadModule("../lib/thumbnail.ts");
+  const { buildOfficeGroups } = loadModule("../lib/server-data.ts", {
+    "next/cache": { cacheLife: () => {} },
+    "@/types": { GCS_FILES: {} },
+    "@/lib/gcs": {
+      fetchGcsJson: () => {},
+      normalizeVTuber: () => {},
+      normalizeVideo: () => {},
+    },
+    "@/lib/profile-date": { parseDebut: () => null, parseMonthDay: () => null },
+    "@/lib/thumbnail": thumbnail,
+  });
+
+  assert.deepEqual(
+    buildOfficeGroups([
+      {
+        office: "事務所A",
+        officeFlg: true,
+        thumbnail: "https://yt3.ggpht.com/official-avatar=s88",
+      },
+      { office: "事務所A", officeFlg: false, thumbnail: "" },
+      { office: "事務所B", officeFlg: false, thumbnail: "member-avatar" },
+    ]),
+    [
+      { name: "事務所A", count: 2, thumbnail: "official-avatar" },
+      { name: "事務所B", count: 1 },
+    ],
+  );
+});
+
+test("channel thumbnail hook shares one request between consumers", async () => {
+  const effects = [];
+  const values = [];
+  let fetchCount = 0;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    assert.equal(url, "/api/office-thumbnails");
+    fetchCount += 1;
+    return { ok: true, json: async () => ({ a: "avatar-a" }) };
+  };
+  try {
+    const { useChannelThumbnails } = loadModule(
+      "../hooks/useChannelThumbnails.ts",
+      {
+        react: {
+          useState: (initial) => [initial, (value) => values.push(value)],
+          useEffect: (effect) => effects.push(effect),
+        },
+      },
+    );
+    useChannelThumbnails();
+    useChannelThumbnails();
+    const cleanups = effects.map((effect) => effect());
+    await new Promise((resolve) => setImmediate(resolve));
+
+    assert.equal(fetchCount, 1);
+    assert.deepEqual(values, [
+      { a: "avatar-a" },
+      { a: "avatar-a" },
+    ]);
+    cleanups.forEach((cleanup) => cleanup());
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("office summaries use compact official thumbnails and display fallbacks beside names", () => {
@@ -204,6 +291,7 @@ test("office summaries use compact official thumbnails and display fallbacks bes
       SafeImage: ({ src, className, loading }) =>
         React.createElement("img", { src, className, loading }),
     },
+    "@/hooks/useChannelThumbnails": { useChannelThumbnails: () => null },
     "@/hooks/useSelection": {
       toggleChannelSelection: (current, ids) => [...new Set([...current, ...ids])],
     },

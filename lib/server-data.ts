@@ -12,6 +12,7 @@ import {
 } from "@/types";
 import { fetchGcsJson, normalizeVTuber, normalizeVideo } from "@/lib/gcs";
 import { parseDebut, parseMonthDay } from "@/lib/profile-date";
+import { shortenYtThumb } from "@/lib/thumbnail";
 
 /**
  * officedataList.json(約19MB) / allvideos.json(約16MB) は Next.js の fetch キャッシュ上限(2MB)を
@@ -101,16 +102,25 @@ export function toVTuberTabItems(index: VTuberIndexItem[]): VTuberTabItem[] {
 }
 
 export function buildOfficeGroups(
-  index: Pick<VTuberIndexItem, "office">[],
+  index: Pick<VTuberIndexItem, "office" | "officeFlg" | "thumbnail">[],
 ): VTuberOfficeGroup[] {
   const groups: VTuberOfficeGroup[] = [];
   for (const item of index) {
     const last = groups[groups.length - 1];
     if (last && last.name === item.office) {
       last.count += 1;
+      if (!last.thumbnail && item.officeFlg && item.thumbnail) {
+        last.thumbnail = shortenYtThumb(item.thumbnail);
+      }
       continue;
     }
-    groups.push({ name: item.office, count: 1 });
+    groups.push({
+      name: item.office,
+      count: 1,
+      ...(item.officeFlg && item.thumbnail
+        ? { thumbnail: shortenYtThumb(item.thumbnail) }
+        : {}),
+    });
   }
   return groups;
 }

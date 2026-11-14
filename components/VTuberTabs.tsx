@@ -1,6 +1,5 @@
 "use client";
 
-import { smallAvatar } from "@/lib/url";
 import { Cake, ChevronDown, PartyPopper, Search } from "lucide-react";
 import Link from "next/link";
 import {
@@ -13,12 +12,15 @@ import {
 } from "react";
 import { AffiliateLinks } from "@/components/AffiliateLinks";
 import { DateCountdown } from "@/components/DateCountdown";
+import { SafeImage } from "@/components/SafeImage";
 import { VTuberDetailSkeleton, VTuberTabsSkeleton } from "@/components/Skeleton";
 import { VideoCard } from "@/components/VideoCard";
+import { useChannelThumbnails } from "@/hooks/useChannelThumbnails";
 import { useSelectedChannels } from "@/hooks/useSelection";
 import { formatCompact, formatNumber } from "@/lib/format";
 import { normalizeForSearch } from "@/lib/search";
 import { formatDateSlug } from "@/lib/events";
+import { shortenYtThumb, ytThumbUrl } from "@/lib/thumbnail";
 import type {
   VTuberDetail,
   VTuberIndexItem,
@@ -26,7 +28,94 @@ import type {
   VTuberTabItem,
 } from "@/types";
 
-type SearchItem = VTuberTabItem & { office: string; normalizedName: string };
+type SearchItem = Omit<VTuberTabItem, "thumbnail"> & {
+  office: string;
+  normalizedName: string;
+};
+
+function InitialAvatar({
+  name,
+  className,
+  selected = false,
+  fontSize = "text-[11px]",
+}: {
+  name: string;
+  className: string;
+  selected?: boolean;
+  fontSize?: "text-[9px]" | "text-[11px]";
+}) {
+  return (
+    <span
+      aria-hidden
+      className={`flex shrink-0 items-center justify-center rounded-full ${fontSize} font-semibold ${
+        selected
+          ? "bg-white/20 text-white"
+          : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+      } ${className}`}
+    >
+      {name.slice(0, 1)}
+    </span>
+  );
+}
+
+function ChannelAvatar({
+  channelId,
+  name,
+  thumbnails,
+  size,
+  selected = false,
+}: {
+  channelId: string;
+  name: string;
+  thumbnails: Record<string, string> | null;
+  size: "size-7" | "size-8";
+  selected?: boolean;
+}) {
+  const thumbnail = thumbnails?.[channelId];
+  if (thumbnail) {
+    return (
+      <SafeImage
+        src={ytThumbUrl(thumbnail, 48)}
+        alt=""
+        variant="avatar"
+        loading="lazy"
+        className={`${size} shrink-0 rounded-full object-cover`}
+      />
+    );
+  }
+  return (
+    <InitialAvatar
+      name={name}
+      selected={selected}
+      className={`${size} shrink-0`}
+    />
+  );
+}
+
+function OfficeAvatar({
+  name,
+  thumbnail,
+  size,
+}: {
+  name: string;
+  thumbnail?: string;
+  size: "size-4" | "size-5";
+}) {
+  if (thumbnail) {
+    return (
+      <SafeImage
+        src={ytThumbUrl(thumbnail, 48)}
+        alt=""
+        variant="avatar"
+        loading="lazy"
+        className={`${size} shrink-0 rounded-full object-cover`}
+      />
+    );
+  }
+  return (
+    <InitialAvatar name={name} className={`${size} shrink-0`} fontSize="text-[9px]" />
+  );
+}
 
 export function isInSelection(
   channelIds: readonly string[],
@@ -281,9 +370,18 @@ function buildOfficeGroupsFromIndex(items: VTuberIndexItem[]): VTuberOfficeGroup
     const last = groups[groups.length - 1];
     if (last && last.name === item.office) {
       last.count += 1;
+      if (!last.thumbnail && item.officeFlg && item.thumbnail) {
+        last.thumbnail = shortenYtThumb(item.thumbnail);
+      }
       continue;
     }
-    groups.push({ name: item.office, count: 1 });
+    groups.push({
+      name: item.office,
+      count: 1,
+      ...(item.officeFlg && item.thumbnail
+        ? { thumbnail: shortenYtThumb(item.thumbnail) }
+        : {}),
+    });
   }
   return groups;
 }
@@ -292,7 +390,6 @@ function toSearchItemsFromIndex(items: VTuberIndexItem[]) {
   return items.map((item) => ({
     channelId: item.channelId,
     name: item.name,
-    thumbnail: item.thumbnail,
     office: item.office,
     normalizedName: normalizeForSearch(item.name),
   }));
@@ -315,7 +412,6 @@ function toSearchItemsFromTabs(
     return {
       channelId: item.channelId,
       name: item.name,
-      thumbnail: item.thumbnail,
       office,
       normalizedName: normalizeForSearch(item.name),
     };
@@ -325,7 +421,7 @@ function toSearchItemsFromTabs(
 function groupMembersByOffice(
   members: SearchItem[],
   officeGroups: VTuberOfficeGroup[],
-): Array<{ name: string; members: SearchItem[] }> {
+): Array<{ name: string; thumbnail?: string; members: SearchItem[] }> {
   if (members.length === 0) return [];
   const officeToMembers = new Map<string, SearchItem[]>();
   for (const member of members) {
@@ -337,13 +433,18 @@ function groupMembersByOffice(
   const groupedByOrder = officeGroups
     .map((group) => ({
       name: group.name,
+      thumbnail: group.thumbnail,
       members: officeToMembers.get(group.name) ?? [],
     }))
     .filter((group) => group.members.length > 0);
 
   if (groupedByOrder.length > 0) return groupedByOrder;
 
-  const fallback: Array<{ name: string; members: SearchItem[] }> = [];
+  const fallback: Array<{
+    name: string;
+    thumbnail?: string;
+    members: SearchItem[];
+  }> = [];
   for (const member of members) {
     const last = fallback[fallback.length - 1];
     if (last && last.name === member.office) {
@@ -386,6 +487,7 @@ function SearchInput({
 
 export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProps) {
   const { channelIds } = useSelectedChannels();
+  const channelThumbnails = useChannelThumbnails();
   const [index, setIndex] = useState<IndexState>(() =>
     initialIndex
       ? {
@@ -605,16 +707,13 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
           : "bg-zinc-200 dark:bg-zinc-800"
       } ${className}`}
     >
-      {m.thumbnail && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={smallAvatar(m.thumbnail)}
-          referrerPolicy="no-referrer"
-          alt=""
-          loading="lazy"
-          className="size-7 rounded-full object-cover"
-        />
-      )}
+      <ChannelAvatar
+        channelId={m.channelId}
+        name={m.name}
+        thumbnails={channelThumbnails}
+        size="size-7"
+        selected={m.channelId === current?.channelId}
+      />
       <span className="max-w-40 truncate lg:max-w-none">{m.name}</span>
     </button>
   );
@@ -647,6 +746,12 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
                   onClick={() => handleSearchSelect(item)}
                   className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
                 >
+                  <ChannelAvatar
+                    channelId={item.channelId}
+                    name={item.name}
+                    thumbnails={channelThumbnails}
+                    size="size-8"
+                  />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium">
                       {item.name}
@@ -734,13 +839,19 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
                     key={group.name}
                     type="button"
                     onClick={() => setMobileOfficeFilter(group.name)}
-                    className={`shrink-0 rounded-full border px-2.5 py-1 text-xs ${
+                    className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs ${
                       mobileOfficeFilter === group.name
                         ? "border-violet-500 bg-violet-100 text-violet-800 dark:border-violet-700 dark:bg-violet-900/40 dark:text-violet-200"
                         : "border-zinc-300 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300"
                     }`}
                   >
-                    {group.name} {group.members.length}
+                    <OfficeAvatar
+                      name={group.name}
+                      thumbnail={group.thumbnail}
+                      size="size-4"
+                    />
+                    <span>{group.name}</span>
+                    <span>{group.members.length}</span>
                   </button>
                 ))}
               </div>
@@ -777,6 +888,11 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
                         }
                         className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm font-semibold hover:bg-zinc-100 dark:hover:bg-zinc-800/60"
                       >
+                        <OfficeAvatar
+                          name={group.name}
+                          thumbnail={group.thumbnail}
+                          size="size-5"
+                        />
                         <span className="min-w-0 flex-1 truncate">{group.name}</span>
                         <span className="shrink-0 text-xs tabular-nums text-zinc-500">
                           {group.members.length}人

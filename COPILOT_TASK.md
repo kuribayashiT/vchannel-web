@@ -896,7 +896,7 @@
     - 絞り込み中はどのページでもチップが見え、`X` で全件表示に戻る。
     - `FRONTEND_SPEC.md` 5.0（PM 更新済み）の記述と実装が一致している。
 
-- [ ] **VT-ICON-1. VTuber タブの名前・事務所名の横にアイコンを出す（フィルターとそろえる）**（2026-11-14 追加・VT-PROFILE-1 の次に着手。FILTER-2 が終わっていること）
+- [x] **VT-ICON-1. VTuber タブの名前・事務所名の横にアイコンを出す（フィルターとそろえる）**（2026-11-14 追加・VT-PROFILE-1 の次に着手。FILTER-2 が終わっていること）
   - **背景**: フィルターでは VTuber・事務所にアイコンが付いて見やすくなった（FILTER-6/7）。VTuber タブは文字だけで、見た目がそっけない。タブのボタンには `m.thumbnail` があれば画像を出す処理があるが、`/vtuber` の初期データ（`toVTuberTabItems()`）は HTML を軽くするためにサムネイルを落としているので、実際には一度も出ていない。
   - **方針**: HTML は増やさない。**VTuber のアイコンは、フィルターと同じ `/api/office-thumbnails` をマウント後に 1 回だけ取得して使う**。事務所のアイコンは 24 件だけなので、FILTER-7 と同じ短縮形でサーバーから渡してよい。
   - **対象ファイル**: `components/VTuberTabs.tsx`, `components/OfficeSelector.tsx`, 新規 `hooks/useChannelThumbnails.ts`, `lib/server-data.ts`, `types/index.ts`

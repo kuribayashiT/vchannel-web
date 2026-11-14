@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Building2, User } from "lucide-react";
 import { SafeImage } from "@/components/SafeImage";
+import { useChannelThumbnails } from "@/hooks/useChannelThumbnails";
 import { toggleChannelSelection } from "@/hooks/useSelection";
 import type { OfficeSummary } from "@/lib/offices";
 import { normalizeForSearch } from "@/lib/search";
@@ -21,9 +22,6 @@ const circle: Record<State, string> = {
   none: "border-zinc-300 bg-white text-zinc-400 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-500",
 };
 
-let thumbnailCache: Record<string, string> | null = null;
-let thumbnailRequest: Promise<Record<string, string>> | null = null;
-
 /** 検索・事務所の展開/折りたたみ・事務所ごとの一括トグルを持つ選択 UI */
 export function OfficeSelector({
   offices,
@@ -36,9 +34,7 @@ export function OfficeSelector({
 }) {
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [thumbnails, setThumbnails] = useState<Record<string, string> | null>(
-    thumbnailCache,
-  );
+  const thumbnails = useChannelThumbnails();
   const sel = useMemo(() => new Set(selected), [selected]);
   const allIds = useMemo(
     () => [...new Set(offices.flatMap((o) => o.members.map((m) => m.channelId)))],
@@ -90,38 +86,6 @@ export function OfficeSelector({
       if (!next.delete(name)) next.add(name);
       return next;
     });
-
-  useEffect(() => {
-    if (!thumbnailRequest) {
-      const request = thumbnailCache
-        ? Promise.resolve(thumbnailCache)
-        : fetch("/api/office-thumbnails").then((res) =>
-            res.ok
-              ? (res.json() as Promise<Record<string, string>>)
-              : Promise.reject(new Error(`HTTP ${res.status}`)),
-          );
-      thumbnailRequest = request
-        .then((data) => {
-          thumbnailCache = data;
-          return data;
-        })
-        .catch((e) => {
-          console.error("Failed to fetch office thumbnails", e);
-          thumbnailCache = {};
-          return {};
-        })
-        .finally(() => {
-          thumbnailRequest = null;
-        });
-    }
-    let cancelled = false;
-    thumbnailRequest.then((data) => {
-      if (!cancelled) setThumbnails(data);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3">

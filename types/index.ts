@@ -129,6 +129,7 @@ export type VTuberTabItem = {
 export type VTuberOfficeGroup = {
   name: string;
   count: number;
+  thumbnail?: string;
 };
 
 export interface VTuberDetail extends VTuberIndexItem {

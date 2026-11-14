@@ -197,6 +197,7 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 - `VTuberTabs` は `initialIndex` がある場合に `/api/vtuber` を再 fetch しない。`/api/vtuber/[channelId]` の詳細取得は従来どおりクライアントで行う。
 - h1 直下に要約文を表示し、`generateMetadata` で title を `VTuber一覧（事務所別）`、description に事務所数・人数を含める。
 - **選択が空 = すべて表示**（2026-11-14 改訂、FILTER-2）: 選択が空のときは全 VTuber をタブに出す（配信・ランキングと同じ「空 = すべて」）。PC は事務所ごとの折りたたみ（表示中の事務所だけ開く）、スマホは事務所チップ＋メンバーチップで、スマホの事務所チップ `すべて` は選択が空のときは出さない。「選択中か」の判定は `channelIds.length === 0 || sel.has(id)` に一本化し、検索の `選択外` バッジ・`検索から表示中` ラベルも同じ判定を使う。選択があるのに該当 0 人なら `Vtuberリストがありません（フィルターで事務所を選択してください）`。
+- **タブ・事務所アイコン（VT-ICON-1）**: VTuber のサムネイル短縮 URL はフィルターと共有の `useChannelThumbnails()` で `/api/office-thumbnails` からマウント後に一度だけ取得し、`ytThumbUrl(..., 48)` と `SafeImage` で表示する。タブは `size-7`、検索結果は `size-8`。取得前・取得失敗・画像 URL がない場合は同じ寸法の名前頭文字アイコンを表示し、選択中タブでは `bg-white/20 text-white` にする。事務所は公式チャンネルの短縮サムネイルを初期データに含め、PC 見出しは `size-5`、スマホチップは `size-4`。公式チャンネル画像がない場合は事務所名の頭文字を表示し、個々の VTuber サムネイルを初期 HTML に追加しない。
 - タブ UI の下に `VTuberDirectory`（Server Component）を配置し、見出し `事務所から探す` で全事務所をサーバーレンダリングする（フィルターの影響を受けない）。事務所ごとに `<details>`（初期は閉じる）で包み、`<summary>` 内の `<h2>` に事務所名・人数・開閉矢印を出す。中身は各メンバーへのリンク（`/vtuber/{channelId}`、名前＋登録者数）を丸チップで並べる。リンクは CSS で隠さず、閉じた `<details>` の中身として初期 HTML に含める。
 - `/vtuber/[channelId]` は Server Component で `loadVTubers()` から詳細を取得し、存在しない `channelId` は `notFound()` で 404 を返す。データは `getCachedVTuberDetail()`（`"use cache"` + `cacheLife("hours")`）で 1 時間キャッシュする。
 - 詳細ページは `generateMetadata` で個別 title/description/canonical を生成し、OGP 画像にチャンネルサムネイルを設定する。本文先頭に「誰が・何人・いつ時点」を含む要約文を置く。
