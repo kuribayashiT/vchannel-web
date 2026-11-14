@@ -738,7 +738,7 @@
     - `/api/office-thumbnails` のレスポンスが gzip 後おおよそ 100KB 以下。
     - `FRONTEND_SPEC.md` 5.1（PM 更新済み）の記述と実装が一致している。
 
-- [ ] **FILTER-7. フィルターの事務所名の左に、事務所のアイコン（公式チャンネルのサムネイル）を出す**（2026-11-14 追加・FILTER-6 の次に着手）
+- [x] **FILTER-7. フィルターの事務所名の左に、事務所のアイコン（公式チャンネルのサムネイル）を出す**（2026-11-14 追加・FILTER-6 の次に着手）
   - **対象ファイル**: `lib/offices.ts`, `components/OfficeSelector.tsx`
   - **前提（2026-11-14 計測）**: 24 事務所のうち 19 事務所に、公式アカウント（`officeFlg: true`）が 1 人いる。いない事務所は `KAMITSUBAKI` / `Phase Connect` / `Crazy Raccoon` / `REJECT` / `個人`。
   - **仕様**:

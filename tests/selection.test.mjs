@@ -51,6 +51,9 @@ test("empty filter selection renders every office and member as checked", () => 
       toggleChannelSelection: (current, ids) => [...new Set([...current, ...ids])],
     },
     "@/lib/search": { normalizeForSearch: (value) => value.toLowerCase() },
+    "@/lib/thumbnail": {
+      ytThumbUrl: (value, size) => `https://yt3.ggpht.com/${value}=s${size}`,
+    },
   }).OfficeSelector;
   const html = renderToStaticMarkup(
     React.createElement(Selector, {
@@ -71,6 +74,90 @@ test("empty filter selection renders every office and member as checked", () => 
   assert.match(html, /事務所やVTuberをタップすると、そこだけに絞り込みます/);
   assert.equal((html.match(/aria-checked="true"/g) ?? []).length, 4);
   assert.doesNotMatch(html, /全選択|選択解除/);
+});
+
+test("office summaries use compact official thumbnails and display fallbacks beside names", () => {
+  const thumbnail = loadModule("../lib/thumbnail.ts");
+  assert.equal(
+    thumbnail.shortenYtThumb(
+      "https://yt3.ggpht.com/official-avatar=s88-c-k-c0x00ffffff-no-rj",
+    ),
+    "official-avatar",
+  );
+  assert.equal(
+    thumbnail.shortenYtThumb("https://cdn.example.com/avatar.png"),
+    "https://cdn.example.com/avatar.png",
+  );
+  assert.equal(
+    thumbnail.ytThumbUrl("official-avatar", 48),
+    "https://yt3.ggpht.com/official-avatar=s48-c-k-c0x00ffffff-no-rj",
+  );
+
+  const { summarizeOffices } = loadModule("../lib/offices.ts", {
+    "next/cache": { cacheLife: () => {} },
+    "@/lib/gcs": { getOfficeDataList: () => ({}) },
+    "@/lib/thumbnail": thumbnail,
+  });
+  const summaries = summarizeOffices({
+    事務所A: [
+      {
+        channelId: "a",
+        name: "公式",
+        officeFlg: true,
+        channelThumbnail: "https://yt3.ggpht.com/official-avatar=s88",
+      },
+    ],
+    個人: [
+      {
+        channelId: "b",
+        name: "配信者",
+        officeFlg: false,
+        channelThumbnail: "https://yt3.ggpht.com/member-avatar=s88",
+      },
+    ],
+    事務所B: [
+      {
+        channelId: "c",
+        name: "配信者C",
+        officeFlg: false,
+        channelThumbnail: "",
+      },
+    ],
+  });
+  assert.equal(summaries[0].thumbnail, "official-avatar");
+  assert.equal("thumbnail" in summaries[1], false);
+
+  const Selector = loadModule("../components/OfficeSelector.tsx", {
+    react: {
+      ...React,
+      useState: (initial) => [initial, () => {}],
+    },
+    "@/components/SafeImage": {
+      SafeImage: ({ src, className, loading }) =>
+        React.createElement("img", { src, className, loading }),
+    },
+    "@/hooks/useSelection": {
+      toggleChannelSelection: (current, ids) => [...new Set([...current, ...ids])],
+    },
+    "@/lib/search": { normalizeForSearch: (value) => value.toLowerCase() },
+    "@/lib/thumbnail": thumbnail,
+    "lucide-react": {
+      Building2: () => React.createElement("svg", { "data-icon": "building" }),
+      User: () => React.createElement("svg", { "data-icon": "user" }),
+    },
+  }).OfficeSelector;
+  const html = renderToStaticMarkup(
+    React.createElement(Selector, {
+      offices: summaries,
+      selected: [],
+      onChange: () => {},
+    }),
+  );
+  assert.match(html, /src="https:\/\/yt3\.ggpht\.com\/official-avatar=s48-c-k-c0x00ffffff-no-rj"/);
+  assert.match(html, /data-icon="building"/);
+  assert.match(html, /data-icon="user"/);
+  assert.match(html, /truncate/);
+  assert.match(html, /shrink-0 text-xs text-zinc-500/);
 });
 
 function renderShell(menuOpen, selected) {

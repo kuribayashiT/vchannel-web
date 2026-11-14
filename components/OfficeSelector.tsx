@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Building2, User } from "lucide-react";
 import { SafeImage } from "@/components/SafeImage";
 import { toggleChannelSelection } from "@/hooks/useSelection";
 import type { OfficeSummary } from "@/lib/offices";
 import { normalizeForSearch } from "@/lib/search";
+import { ytThumbUrl } from "@/lib/thumbnail";
 
 type State = "all" | "some" | "none";
 
@@ -21,13 +23,6 @@ const circle: Record<State, string> = {
 
 let thumbnailCache: Record<string, string> | null = null;
 let thumbnailRequest: Promise<Record<string, string>> | null = null;
-
-function restoreThumbnailUrl(shortOrUrl: string): string {
-  if (shortOrUrl.startsWith("http://") || shortOrUrl.startsWith("https://")) {
-    return shortOrUrl;
-  }
-  return `https://yt3.ggpht.com/${shortOrUrl}=s48-c-k-c0x00ffffff-no-rj`;
-}
 
 /** 検索・事務所の展開/折りたたみ・事務所ごとの一括トグルを持つ選択 UI */
 export function OfficeSelector({
@@ -98,14 +93,14 @@ export function OfficeSelector({
 
   useEffect(() => {
     if (!thumbnailRequest) {
-        const request = thumbnailCache
-          ? Promise.resolve(thumbnailCache)
-          : fetch("/api/office-thumbnails").then((res) =>
+      const request = thumbnailCache
+        ? Promise.resolve(thumbnailCache)
+        : fetch("/api/office-thumbnails").then((res) =>
             res.ok
               ? (res.json() as Promise<Record<string, string>>)
               : Promise.reject(new Error(`HTTP ${res.status}`)),
           );
-        thumbnailRequest = request
+      thumbnailRequest = request
         .then((data) => {
           thumbnailCache = data;
           return data;
@@ -192,14 +187,34 @@ export function OfficeSelector({
                     {officeState === "all" && "✓"}
                     {officeState === "some" && "−"}
                   </button>
+                  {o.thumbnail ? (
+                    <SafeImage
+                      src={ytThumbUrl(o.thumbnail, 48)}
+                      alt=""
+                      variant="avatar"
+                      loading="lazy"
+                      className="size-6 shrink-0 rounded-full object-cover"
+                    />
+                  ) : (
+                    <span
+                      aria-hidden
+                      className="flex size-6 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+                    >
+                      {o.name === "個人" ? (
+                        <User size={14} />
+                      ) : (
+                        <Building2 size={14} />
+                      )}
+                    </span>
+                  )}
                   <button
                     type="button"
                     aria-expanded={open}
                     onClick={() => toggleExpand(o.name)}
-                    className="flex flex-1 items-center justify-between text-left text-sm font-medium"
+                    className="flex min-w-0 flex-1 items-center justify-between gap-2 text-left text-sm font-medium"
                   >
-                    <span>{o.name}</span>
-                    <span className="text-xs text-zinc-500">
+                    <span className="min-w-0 truncate">{o.name}</span>
+                    <span className="shrink-0 text-xs text-zinc-500">
                       {open ? "▲" : "▼"}
                     </span>
                   </button>
@@ -221,7 +236,7 @@ export function OfficeSelector({
                         >
                           {thumbnails?.[m.channelId] ? (
                             <SafeImage
-                              src={restoreThumbnailUrl(thumbnails[m.channelId])}
+                              src={ytThumbUrl(thumbnails[m.channelId], 48)}
                               alt={`${m.name}のチャンネルアイコン`}
                               variant="avatar"
                               loading="lazy"
