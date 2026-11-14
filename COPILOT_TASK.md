@@ -569,7 +569,7 @@
 >
 > **人手で行う作業（Copilot は不要）**: Vercel の Domains で `www.vchannel.net` を本番、`vchannel.net` → `www.vchannel.net`（308）に設定済み。残りは、`vchannel-web.vercel.app` → `www.vchannel.net`（308）の転送設定、環境変数 `SITE_URL=https://www.vchannel.net`（Production）の設定、Search Console への `vchannel.net` ドメイン プロパティ追加（DNS TXT）とサイトマップ送信、旧プロパティでのアドレス変更ツールの実行。**リダイレクトは Vercel 側で行うため、`next.config.ts` に redirects を追加しないこと。**
 
-- [ ] **FIX-1. 🚨 VTuber 詳細ページの `Date.now()` プリレンダーエラーと、2MB 超 fetch キャッシュ警告を解消する**（DOMAIN-1 より先に着手）
+- [x] **FIX-1. 🚨 VTuber 詳細ページの `Date.now()` プリレンダーエラーと、2MB 超 fetch キャッシュ警告を解消する**（DOMAIN-1 より先に着手）
   - **背景（2026-11-14 本番ログ）**:
     - `/vtuber/[channelId]` で `Error: Route "/vtuber/[channelId]": Next.js encountered the unstable value 'Date.now()' while prerendering.` が全詳細ページで出ている。原因は `app/vtuber/[channelId]/page.tsx` の本文が、同じ事務所のメンバー一覧を作るために `loadVTubers()` を**キャッシュなしで直接**呼んでいること。`loadVTubers` の `memo()`（`lib/server-data.ts`）が `Date.now()` を使うため、`cacheComponents` のプリレンダー中に不安定な値として検出される（`memo` のコメントどおり Route Handler 専用で、ページから直接呼んではいけない）。
     - `/api/streams` で `Failed to set Next.js data cache for .../allvideos.json` が出ている。`lib/gcs.ts` の `getAllVideos()` が、約 16MB の `allvideos.json` を既定の `revalidate` で fetch しており、Next.js の fetch キャッシュ上限（2MB）を超えるため。
@@ -694,3 +694,40 @@
 - [x] **P0-2. 数値の短縮表記ユーティリティ**
   - 対象ファイル: 新規 `lib/format.ts`、`components/RankingTabs.tsx`, `components/GrowthTop3.tsx`, `components/VTuberTabs.tsx`, `components/VideoCard.tsx`
 - [x] **P0-3.
+
+---
+
+### 🤖 AI 提案タスク（自動追加・PM 未レビュー。上の PM のタスクがすべて終わってから着手）
+
+- [ ] **AI-20261114. ランキング・急上昇・配信カードのチャンネル名から VTuber 詳細ページへ内部リンクを張る**
+  - **対象ファイル**:
+    `components/RankingTabs.tsx`
+    `components/GrowthTop3.tsx`（急上昇タブの行・上位 3 人表示を含む）
+    `components/VideoCard.tsx`
+    `FRONTEND_SPEC.md`
+  - **背景**: data.vmato.jp は、ランキングの行から VTuber の個別ページへ 1 タップで移動できる。Vちゃんねるでは、ランキング行・急上昇行・配信カードのチャンネル名がテキスト表示のみで、詳細ページ（`/vtuber/{channelId}`）へ移動できない。そのため次の問題がある。
+    - 「気になった VTuber の登録者推移や最新動画を見る」という自然な回遊が起きない。
+    - 詳細ページへの内部リンクが少なく、クロールや評価が伝わりにくい。
+  - **仕様**:
+    - ランキング（週間同時視聴者数・YouTube 登録者数・動画本数）の各行で、サムネイルと VTuber 名を `next/link` の `<Link href={`/vtuber/${channelId}`}>` で包む。
+      - 行全体は包まない。週間同時視聴者数タブでは行内に動画への導線があるため、タップ領域を分ける。
+      - 週間同時視聴者数タブの既存の動画再生導線は変えない。
+    - 登録者急上昇タブの各行と上位 3 人表示（`GrowthTop3`）も、サムネイルと名前を同じ `<Link>` にする。
+    - 配信カード（`VideoCard`）のチャンネル名を、`channelId` がある場合だけ `<Link href={`/vtuber/${channelId}`}>` にする。
+      - カード本体のタップ（動画再生）と干渉しないよう、リンクのクリックでは `e.stopPropagation()` を呼ぶ。
+      - `channelId` が空なら、従来どおりテキスト表示にする。
+    - `channelId` が空の行はリンクにせず、従来どおりテキスト表示にする。
+    - リンクのスタイルは次のとおり。
+      - ホバーで下線または violet 系の文字色にする。
+      - ダークモード対応にする。
+      - 375px 幅でレイアウトが崩れないようにする。
+      - 名前は `truncate` で省略表示し、行の高さを変えない。
+    - `onClick` だけの遷移にはしない（6.1 の内部リンク方針）。必ず `<a href>` になる `<Link>` を使う。
+    - サーバーが `RankingTabs` に渡す `RankingRow` には、すでに `channelId` が含まれている。新しいフィールドは追加しない。`/ranking` の HTML 増加は 500KB 制限の範囲内に収める。
+    - `FRONTEND_SPEC.md` の 5.2（配信カード）と 5.5（ランキング行）に、「サムネイル・名前・チャンネル名から `/vtuber/{channelId}` へリンクする」旨を追記する。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - `curl -s <URL>/ranking` の HTML に `href="/vtuber/` のリンクが複数含まれ、HTML サイズが 500KB 以下のまま。
+    - ランキング各タブ・急上昇タブの行をタップすると、該当 VTuber の詳細ページへ遷移する。
+    - 配信カードのチャンネル名をタップすると詳細ページへ遷移し、動画プレーヤーは開かない。カード本体をタップした場合は従来どおり再生される。
+    - 選択事務所フィルター、期間切替、お気に入りボタンの挙動が従来どおり。

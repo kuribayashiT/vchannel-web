@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { cacheLife } from "next/cache";
 import { notFound } from "next/navigation";
 import { DetailView } from "@/components/VTuberTabs";
 import { formatCompact, formatNumber } from "@/lib/format";
 import { getCachedVTuberDetail, loadVTubers } from "@/lib/server-data";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
 import { smallAvatar } from "@/lib/url";
-import type { VTuberDetail } from "@/types";
+import type { VTuberDetail, VTuberIndexItem } from "@/types";
 
 type PageProps = { params: Promise<{ channelId: string }> };
 export const instant = false;
@@ -17,6 +18,25 @@ const jstDate = new Intl.DateTimeFormat("ja-JP", {
   month: "long",
   day: "numeric",
 });
+
+/**
+ * 同じ事務所のメンバー（登録者数の降順で上位 limit 件）。
+ * loadVTubers() の memo() は Date.now() を使うため、ページ本文から直接呼ばず
+ * "use cache" 関数の中から呼ぶ（プリレンダーの unstable value 検出を避ける）。
+ */
+async function getCachedOfficeMembers(
+  office: string,
+  excludeChannelId: string,
+  limit = 12,
+): Promise<VTuberIndexItem[]> {
+  "use cache";
+  cacheLife("hours");
+  const { index } = await loadVTubers();
+  return index
+    .filter((item) => item.office === office && item.channelId !== excludeChannelId)
+    .sort((a, b) => b.subscriberCount - a.subscriberCount)
+    .slice(0, limit);
+}
 
 function parseYmd(ymd: string): Date | null {
   if (!/^\d{8}$/.test(ymd)) return null;
@@ -98,11 +118,11 @@ export default async function VTuberDetailPage({ params }: PageProps) {
   const detail = await getCachedVTuberDetail(channelId);
   if (!detail) notFound();
 
-  const { index } = await loadVTubers();
-  const officeMembers = index
-    .filter((item) => item.office === detail.office && item.channelId !== detail.channelId)
-    .sort((a, b) => b.subscriberCount - a.subscriberCount)
-    .slice(0, 12);
+  const officeMembers = await getCachedOfficeMembers(
+    detail.office,
+    detail.channelId,
+    12,
+  );
 
   const canonicalUrl = `${SITE_URL}/vtuber/${channelId}`;
   const jsonLd = {
