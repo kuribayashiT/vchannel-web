@@ -22,10 +22,10 @@ export const GCS_BASE_URL =
   process.env.GCS_BASE_URL ??
   "https://storage.googleapis.com/vtuber-335811.appspot.com";
 
-/** 再検証間隔（秒）。仕様 §6: 通常 1 時間、ライブ関連は 5 分周期で更新 */
+/** 再検証間隔（秒）。仕様 §6: 通常 1 時間、ライブ関連は 60 秒周期で更新 */
 export const REVALIDATE = {
   default: 3600,
-  live: 300,
+  live: 60,
 } as const;
 
 export class GcsFetchError extends Error {
@@ -232,7 +232,8 @@ export async function getVideoCountRanking(): Promise<VideoCountRankingItem[]> {
 /** YYYYMMDD 形式の日付キーのみ採用し、日付昇順に並べる */
 export async function getSubscriberTransitionList(): Promise<SubscriberTransitionMap> {
   const raw = toArray<RawSubscriberTransitionList[number]>(
-    await fetchGcsJson(GCS_FILES.subscriberTransition),
+    // 2MB 超のため Next.js fetch キャッシュへ載せない（集計済み結果は呼び出し側で "use cache" 保持）
+    await fetchGcsJson(GCS_FILES.subscriberTransition, 0),
   );
   const out: SubscriberTransitionMap = {};
   for (const obj of raw) {

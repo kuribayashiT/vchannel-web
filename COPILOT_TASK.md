@@ -1097,7 +1097,7 @@
 > 3. `StreamTabs` はマウント時に `/api/streams` を 1 回取得するだけ。開きっぱなしのタブや、スマホでアプリを切り替えて戻ってきた画面は二度と更新されない。
 > 4. ユーザーが手動で更新する手段がない。iOS Safari・ホーム画面追加（PWA）では引っ張って更新もできない。
 
-- [ ] **STREAM-1. 配信中データのキャッシュを短くする（バックエンド＋API）**
+- [x] **STREAM-1. 配信中データのキャッシュを短くする（バックエンド＋API）**
   - **対象ファイル**:
     `backend-repo/functions/index.js`（`scheduledLiveDataUpdate` の `file.save`、2697 行目付近）
     `lib/gcs.ts`
@@ -1112,7 +1112,7 @@
     - `curl -sI <URL>/api/streams` に `cache-control: no-store` が含まれる。
     - （運営者のデプロイ後）`curl -sI https://storage.googleapis.com/vtuber-335811.appspot.com/livevideoList.json` が `cache-control: public, max-age=60` を返す。
 
-- [ ] **STREAM-2. 配信タブに更新ボタン・引っ張って更新・復帰時の自動更新を付ける**（STREAM-1 の次に着手）
+- [x] **STREAM-2. 配信タブに更新ボタン・引っ張って更新・復帰時の自動更新を付ける**（STREAM-1 の次に着手）
   - **対象ファイル**:
     `components/StreamTabs.tsx`
     新規 `components/PullToRefresh.tsx`（または `lib/use-pull-to-refresh.ts`）

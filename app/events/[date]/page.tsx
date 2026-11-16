@@ -5,7 +5,6 @@ import { cacheLife } from "next/cache";
 import { AffiliateLinks } from "@/components/AffiliateLinks";
 import { GcsFetchError, getEventList } from "@/lib/gcs";
 import {
-  allDateSlugs,
   dayKey,
   eventLabel,
   formatDateSlug,
@@ -48,10 +47,6 @@ async function getCurrentJstYear(): Promise<number> {
 
 function titleText(month: number, day: number): string {
   return `${month}月${day}日が誕生日・デビュー記念日のVTuber`;
-}
-
-export async function generateStaticParams() {
-  return allDateSlugs().map((date) => ({ date }));
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {

@@ -25,5 +25,9 @@ export async function GET() {
   return Response.json({
     liveVideos: liveVideos.map(toLiveStreamCardVideo),
     allVideos: allVideos.map(toStreamCardVideo),
+  }, {
+    headers: {
+      "Cache-Control": "no-store",
+    },
   });
 }
