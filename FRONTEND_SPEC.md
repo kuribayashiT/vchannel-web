@@ -389,6 +389,25 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 | `POST /api/admin/offices` | `{ key, name }` 事務所追加 |
 | `GET /api/admin/pending` / `POST /api/admin/pending/[channelId]` | 保留候補の取得・登録（body に `officeKey`, `action: "register" \| "reject"`） |
 
+### 5.12.1 X 投稿案 `/admin/x`（2026-11-16 追加）
+
+検索以外の流入口として、運営者が X に毎日 1〜3 件投稿するための文面を用意する。**X API は使わない**（2026 年 2 月から従量課金で、URL 付き投稿は 1 件約 0.20 ドルのため）。「X で投稿」ボタンで `https://x.com/intent/post?text=…` を開き、運営者が自分のアカウントで投稿する。
+
+- 実装: `app/admin/x/page.tsx`（Server Component。`connection()` 後に `<Suspense>` 内で取得）、`lib/admin/xPosts.ts`（文面を作る純粋関数）、`components/admin/XPostCard.tsx`（編集・文字数・X で投稿・コピー）。`/admin` ヘッダーの「X 投稿案」ボタンから開く。認証は `proxy.ts`（`/admin/:path*`）。Firebase は使わないので `FIREBASE_SERVICE_ACCOUNT` が無くても動く。
+- 日付: 既定は今日（JST）。`?date=MM-DD` で前後の日に切り替えられる（前日・翌日の矢印）。
+- データ: `eventList.json`（その日の誕生日・周年）、`ranking_youtube`（登録者数）、`getGrowthData().week`（週間の急上昇）。どれかの取得に失敗しても、残りのデータで投稿案を出し、失敗したデータ名を表示する。
+- 投稿案の種類（`buildXPostDrafts`）:
+  | 種類 | 条件 | リンク先 |
+  |---|---|---|
+  | 誕生日まとめ | その日の誕生日が 1 人以上。名前は登録者数の多い順で最大 4 人＋「ほか N 人」 | `/events/MM-DD` |
+  | デビュー記念日まとめ | 周年（1 周年以上）が 1 人以上 | `/events/MM-DD` |
+  | 個別の誕生日 | 登録者 1 万人以上の誕生日の人、上位 3 人 | `/vtuber/{id}` |
+  | 週間 急上昇 TOP5 | 週間の増加数上位 5 人 | `/ranking?tab=growth` |
+  | 節目の突破 | 週間の増加で 10 万〜90 万（10 万刻み）、100 万〜500 万（50 万刻み）を超えた人、最大 5 人 | `/vtuber/{id}` |
+- リンクには `utm_source=x&utm_medium=social` を付ける（Vercel Analytics の UTM で効果を測る。canonical があるので重複扱いにはならない）。
+- 名前は `displayName()` で短くする: 【】〖〗『』[] の中を外し、「/」「Ch.」「Channel」で区切った部分のうち日本語を含む側を使い、「 - 事務所名」「日本語名の後ろのローマ字」「末尾のチャンネル」「末尾の hololive / にじさんじ」を外す。ハッシュタグは `#VTuber` と、空白・記号の無い名前だけ `#名前` を付ける。
+- 文字数は X の数え方（日本語などは 2、URL は 23、上限 280）で表示し、超えたら「X で投稿」を押せなくする。
+
 ---
 
 ## 6. 非機能・移行時の注意

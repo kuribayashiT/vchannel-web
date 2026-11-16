@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Plus, RefreshCw, Search, X } from "lucide-react";
+import Link from "next/link";
+import { Plus, RefreshCw, Search, Send, X } from "lucide-react";
 import { adminApi } from "@/components/admin/api";
 import { EditPanel } from "@/components/admin/EditPanel";
 import { OfficeBoard, type BoardGroup } from "@/components/admin/OfficeBoard";
@@ -373,6 +374,13 @@ export function AdminApp() {
             {tabBtn("excluded", "除外済み")}
           </nav>
           <div className="ml-auto flex items-center gap-2">
+            <Link
+              href="/admin/x"
+              className="flex items-center gap-1 rounded-md border border-zinc-300 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+            >
+              <Send size={14} />
+              X 投稿案
+            </Link>
             <button
               type="button"
               onClick={() => void load()}
