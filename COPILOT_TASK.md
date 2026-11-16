@@ -619,7 +619,7 @@
     - デプロイ後、Vercel の Runtime Logs で `/vtuber/...` の `unstable value 'Date.now()'` エラーと `/api/streams` の `Failed to set Next.js data cache` が出なくなる。
     - `/vtuber/{channelId}` の HTML に同じ事務所のメンバーへのリンクが従来どおり出る。
 
-- [ ] **DOMAIN-1. `SITE_URL` の本番フォールバックを `https://www.vchannel.net` にする**
+- [x] **DOMAIN-1. `SITE_URL` の本番フォールバックを `https://www.vchannel.net` にする**
   - **対象ファイル**: `lib/site.ts`
   - **仕様**:
     - `SITE_URL` の決め方を次の順にする: 環境変数 `SITE_URL` → `process.env.VERCEL_ENV === "production"` なら `"https://www.vchannel.net"` → `VERCEL_PROJECT_PRODUCTION_URL` → `http://localhost:3000`。末尾スラッシュの除去は現行どおり。環境変数の設定漏れがあっても、本番の canonical とサイトマップが旧ドメインや www なしにならないようにするため。
@@ -1128,3 +1128,52 @@
     - フィルターで 1 事務所だけを選ぶと、バッジの件数が、そのタブに表示される動画数と一致する。
     - 375px 幅で 5 つのサブタブが横スクロールのまま崩れず、タブの高さが変わらない。ダークモードでも読める。
     - `curl -s <URL>/ -o top.html && wc -c top.html` が変更前と比べて +2KB 以内。
+
+- [ ] **AI-20261116. 配信カードに「あと N 分で開始」「開始から N 時間」の相対時刻バッジを付ける**
+  - **対象ファイル**:
+    `components/VideoCard.tsx`
+    `components/RelativeStartBadge.tsx`（新規・Client Component）
+    `lib/relative-time.ts`（新規・純粋関数）
+    `lib/stream.ts`（`toStreamCardVideo` に開始時刻が無い場合のみ。下記参照）
+    `FRONTEND_SPEC.md`
+  - **背景**: data.vmato.jp の配信一覧は「あと何分で始まるか」「始まってどれくらい経つか」がカード上で分かる。Vちゃんねるの配信カードは絶対時刻（日時）しか出さない。そのため次の問題がある。
+    - 「今日の配信」では、時刻を現在時刻と見比べて計算する必要がある。
+    - 「配信中」では、見始めて間に合うか（序盤か終盤か）が分からない。
+    - 開始直前の配信を見つけにくく、再訪やタップのきっかけが弱い。
+  - **仕様**:
+    - `lib/relative-time.ts` に純粋関数 `getStreamRelativeLabel(v: { scheduledStartTime?: string; actualStartTime?: string; actualEndTime?: string }, live: boolean, now: Date): { text: string; tone: "soon" | "live" | "normal" } | null` を追加する。
+      - `live === true` かつ `actualStartTime` が有効な日時で、現在より前の場合は、経過時間から `開始から N分`（60 分未満）または `開始から N時間M分`（60 分以上。M が 0 なら `N時間`）を返す。`tone` は `"live"`。
+      - `live === false` で `actualEndTime` が空、かつ `scheduledStartTime` が有効で現在より後の場合を扱う。
+        - 差が 60 分未満なら、`あと N分`（N は切り上げ、最小 1）を `tone: "soon"` で返す。
+        - 60 分以上 6 時間未満なら、`あと N時間M分`（M が 0 なら `あと N時間`）を `tone: "normal"` で返す。
+        - 6 時間以上先は `null`（既存の日時表示で十分なため）。
+      - 開始予定時刻を過ぎていて `live` でない場合は `null`。日時が不正な場合も `null`。`Date.now()` は関数内で使わず、必ず引数 `now` を使う。
+    - `RelativeStartBadge`（Client Component）を作る。
+      - Props: `video`（上記 3 フィールド）, `live: boolean`。
+      - **マウント後にだけ描画する**。マウント前は `null`（トップは ISR でキャッシュされた HTML のため、サーバーの現在時刻とずれてハイドレーションの不一致を起こさないようにする）。
+      - 現在時刻は 60 秒ごとに更新する。タイマーはカードごとに持たず、モジュール内で共有する。`useSyncExternalStore` を使い、購読者が 0 になったら `setInterval` を止める。タブが非表示（`document.visibilityState === "hidden"`）の間は更新しない。復帰時は即座に 1 回更新する。
+      - 見た目: `inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums whitespace-nowrap`。
+        - `soon`: `bg-amber-100 text-amber-800`（ダーク: `dark:bg-amber-900/30 dark:text-amber-300`）。lucide-react の `Clock` `size={11}` を先頭に付ける。
+        - `live`: `bg-red-100 text-red-700`（ダーク: `dark:bg-red-900/30 dark:text-red-300`）。
+        - `normal`: `bg-zinc-100 text-zinc-600`（ダーク: `dark:bg-zinc-800 dark:text-zinc-300`）。
+      - `getStreamRelativeLabel` が `null` のときは何も出さない。
+    - `VideoCard` の既存の日時表示の近くにバッジを置く。
+      - サムネイルへの重ね置きはしない。メタ情報の行に並べ、折り返し可（`flex-wrap gap-x-2 gap-y-1`）にする。
+      - 動画への `<a>` の内側・外側のどちらでもよいが、タップ動作（再生）と他のリンクを変えない。
+      - 対象は、配信中・今日の配信・明日の配信・明日以降の配信のカード。過去アーカイブ、お気に入り、VTuber 詳細の動画一覧には出さない。
+      - 表示対象かどうかの判定は `getStreamRelativeLabel` の戻り値に任せる。ただし、バッジの有無でカードの高さが変わらないよう、メタ情報の行の最小高さを固定する（`min-h-5`）。
+    - `StreamCardVideo`（`toStreamCardVideo` の戻り値）に `scheduledStartTime` / `actualStartTime` / `actualEndTime` が無い場合だけ、この 3 つを追加する。
+      - すでにあればそのまま使う。他のフィールドは追加しない。
+      - 追加したときも `/` の HTML は変更前から +5KB 以内に収める。
+    - `any` は使わない。新しいパッケージは追加しない。
+    - `FRONTEND_SPEC.md` 5.2 に次を追記する。
+      - 配信カードに相対時刻バッジを出す（`あと N分`＝開始前 60 分未満は amber、`あと N時間M分`＝6 時間以内、`開始から N分/N時間M分`＝配信中は赤）。
+      - 表示はマウント後にクライアントで計算し、60 秒ごとに更新する。
+      - 過去アーカイブ・お気に入り・VTuber 詳細には出さない。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - 配信中タブのカードに `開始から N分/N時間M分` の赤バッジが出る。今日の配信タブで開始 60 分以内のカードには `あと N分` の amber バッジが出る。6 時間より先のカードにはバッジが出ない。
+    - 約 1 分待つと、ページを再読み込みしなくてもバッジの分数が更新される。タブを別のタブに切り替えている間は更新されず、戻ると即座に更新される。
+    - `curl -s <URL>/ -o top.html && wc -c top.html` が変更前から +5KB 以内。ブラウザのコンソールにハイドレーションの警告が出ない。
+    - 375px 幅でカードのレイアウトが崩れない。ダークモードで読める。バッジの有無でカードの高さが変わらない。
+    - タップによる動画再生、お気に入りボタン、`感想を書く` リンク（CHAT-7）、選択事務所フィルターの挙動が従来どおり。
