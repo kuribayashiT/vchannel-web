@@ -131,26 +131,49 @@ function Calendar({
         <div className="space-y-4">
           <ul>
             {dayEvents.map((e, i) => (
-              <li
-                key={`${e.channelId}-${e.eventType}-${i}`}
-                className="flex items-center gap-3 border-b border-zinc-200 py-2 dark:border-zinc-800"
-              >
-                {e.channelThumbnail && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={e.channelThumbnail}
-                    alt=""
-                    loading="lazy"
-                    className="size-10 rounded-full object-cover"
-                  />
+              <li key={`${e.channelId}-${e.eventType}-${i}`}>
+                {e.channelId ? (
+                  <Link
+                    href={`/vtuber/${e.channelId}`}
+                    className="flex items-center gap-3 rounded border-b border-zinc-200 px-1 py-2 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+                  >
+                    {e.channelThumbnail && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={e.channelThumbnail}
+                        alt=""
+                        loading="lazy"
+                        className="size-10 rounded-full object-cover"
+                      />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{e.name}</p>
+                      <p className="truncate text-xs text-zinc-500">{e.office}</p>
+                    </div>
+                    <span className="shrink-0 rounded bg-pink-100 px-2 py-0.5 text-xs text-pink-700">
+                      {eventLabel(e, year)}
+                    </span>
+                  </Link>
+                ) : (
+                  <div className="flex items-center gap-3 border-b border-zinc-200 py-2 dark:border-zinc-800">
+                    {e.channelThumbnail && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={e.channelThumbnail}
+                        alt=""
+                        loading="lazy"
+                        className="size-10 rounded-full object-cover"
+                      />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{e.name}</p>
+                      <p className="truncate text-xs text-zinc-500">{e.office}</p>
+                    </div>
+                    <span className="shrink-0 rounded bg-pink-100 px-2 py-0.5 text-xs text-pink-700">
+                      {eventLabel(e, year)}
+                    </span>
+                  </div>
                 )}
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{e.name}</p>
-                  <p className="truncate text-xs text-zinc-500">{e.office}</p>
-                </div>
-                <span className="shrink-0 rounded bg-pink-100 px-2 py-0.5 text-xs text-pink-700">
-                  {eventLabel(e, year)}
-                </span>
               </li>
             ))}
           </ul>
