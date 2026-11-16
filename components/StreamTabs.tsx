@@ -49,6 +49,7 @@ export function StreamTabs() {
   const [failed, setFailed] = useState(false);
   const playingVideoId = usePlayingVideo();
   const lastLoadedAtRef = useRef<number>(0);
+  const hasDataRef = useRef(false);
   const refreshingRef = useRef(false);
   const clearRefreshFailedTimer = useRef<number | null>(null);
 
@@ -61,6 +62,7 @@ export function StreamTabs() {
       if (!response.ok) throw new Error("Stream data request failed");
       const nextData = (await response.json()) as StreamData;
       setData(nextData);
+      hasDataRef.current = true;
       setFailed(false);
       setRefreshFailed(false);
       if (clearRefreshFailedTimer.current !== null) {
@@ -79,12 +81,12 @@ export function StreamTabs() {
         setRefreshFailed(false);
         clearRefreshFailedTimer.current = null;
       }, 4000);
-      setFailed((prev) => prev || data === null);
+      setFailed((prev) => prev || !hasDataRef.current);
     } finally {
       refreshingRef.current = false;
       setRefreshing(false);
     }
-  }, [data]);
+  }, []);
 
   useEffect(() => {
     void load();
