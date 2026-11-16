@@ -1,6 +1,6 @@
 # COPILOT_TASK: ランキングへの「登録者 急上昇」タブ追加および UI 改善バックログ
 
-> 最終更新: 2026-11-14 / 担当: プロダクトデザイナー → 実装: GitHub Copilot
+> 最終更新: 2026-11-16 / 担当: プロダクトデザイナー → 実装: GitHub Copilot
 
 ---
 
@@ -641,6 +641,66 @@
     - `npx tsc --noEmit` / `npm run build` がエラーなし。
     - 上記 6 ページの HTML に `<link rel="canonical" href="https://www.vchannel.net/...">` が 1 つだけ出る（本番）。
     - `FRONTEND_SPEC.md` 6.1（PM 更新済み）の記述と実装が一致している。
+
+### P0-INDEX: 「クロール済み - インデックス未登録」を減らす（2026-11-16 追加・P0-DOMAIN の次、P0-NAV より先に着手）
+
+> **背景（2026-11-16 Search Console）**: `vchannel.net` ドメイン プロパティで、登録済み 19 件・未登録 464 件。未登録の理由は 1 種類で、すべて「**クロール済み - インデックス未登録**」だった。Google はページを読んだうえで、「登録する価値が低い」と判断している。新しいドメインで評価がまだ低いことも一因だが、ページ側の原因は次の 3 つ。
+>
+> - (1) **VTuber 詳細（約 1,500 ページ）の文章がテンプレートのみ**: 本文のテキストは約 900 文字で、名前と数字以外は全ページ同じ文章。登録者数が丸められているため、多くのページで「過去30日間の増減は確認できませんでした。」になる。「個人に所属するVTuberです」という不自然な文もある。
+> - (2) **「個人」のページ（738 人・全体の約半分）は「同じ事務所のVTuber」がどのページも同じ 12 人**: 個人勢の登録者数上位（海外のチャンネルを含む）が並ぶだけで、そのページの VTuber と関係がない。738 ページに同じブロックが重複している。
+> - (3) **日付別イベント（366 ページ）は 1 日あたり 1〜5 人ほどの短い一覧**: 0〜1 人しかいない日もある（例: 11/19、12/28 は 1 人）。title に VTuber 名が入っていないため、「〇〇 誕生日」の検索にも合いにくい。
+>
+> **方針**: 既にあるデータ（登録者数・総再生数・動画本数・誕生日・デビュー日・全 VTuber の順位）から、**ページごとに違う文章とリンク**を増やす。新しい GCS ファイルやバックエンドの変更は不要。見た目は既存のトーンに合わせる（Tailwind・lucide-react）。
+>
+> **完了後に PM が行うこと**: 1〜2 週間後に Search Console の「ページ」で、未登録件数の推移を確認する。
+
+- [ ] **IDX-1. VTuber 詳細の本文を、そのページにしかない文章にする（順位・数値・よくある質問）**
+  - **対象ファイル**: `app/vtuber/[channelId]/page.tsx`、`lib/server-data.ts`
+  - **仕様**:
+    - `lib/server-data.ts` に、`"use cache"` + `cacheLife("hours")` 付きの `getCachedVTuberRanks(channelId: string): Promise<{ overall: number; total: number; inOffice: number; officeTotal: number } | null>` を追加する。`loadVTubers()` の `index` を登録者数の降順に並べた順位（全体・同じ `office` 内）を返す。同じ数は同じ順位にしなくてよい（並び順どおり）。ページから `loadVTubers()` を直接呼ばないルール（FIX-1）は守る。
+    - `buildSummary` を次のように直す。
+      - `office === "個人"` のときは「〇〇は個人で活動するVTuberです。」、それ以外は「〇〇は{office}に所属するVTuberです。」。
+      - 30 日の増減が 0 のときは「過去30日間の登録者数は横ばいです。」、`transition` が 2 件未満のときは増減の文を出さない（「確認できませんでした」は使わない）。
+      - 「Vちゃんねるに登録している{total}人のVTuberのうち、登録者数は{overall}位です。」を加える。事務所所属なら「{office}の中では{officeTotal}人中{inOffice}位です。」も加える。
+      - 「YouTubeの総再生数は{formatCompact(viewCount)}回、動画本数は{videoCount}本です。」を加える（`viewCount` / `videoCount` が 0 のときは省く）。
+    - ページの最後（関連 VTuber の下）に **「よくある質問」** セクション（`<h2>` + `<dl>`）を置く。データがある項目だけ出す。
+      - 「{name}のYouTube登録者数は？」→「{日付}時点で{formatNumber}人（全体{overall}位）です。」
+      - 「{name}の誕生日はいつ？」→「{m}月{d}日です。」＋同じ日の一覧 `/events/MM-DD` への `<Link>`（「{m}月{d}日が誕生日のVTuberを見る」）
+      - 「{name}のデビュー日はいつ？」→「{y}年{m}月{d}日です。」＋ `/events/MM-DD` への `<Link>`。`year` があれば、今年で何周年かも書く（JST の現在年は既存の `"use cache"` パターンで取得し、プリレンダー中に `Date.now()` を直接使わない）。
+      - 「{name}はどこの事務所？」→ 事務所名、または「個人で活動しています。」
+    - FAQ の構造化データ（FAQPage）は**付けない**（Google のリッチリザルト対象外のため）。既存の JSON-LD は変えない。
+    - 誕生日・デビュー日の表示（`DetailView` 内）は変えない。
+  - **完了条件**:
+    - `npx tsc --noEmit` / `npm run build` がエラーなし。ビルドログに `Date.now()` の警告が出ない。
+    - `curl -s <URL>/vtuber/UCt30jJgChL8qeT9VPadidSw`（しぐれうい・個人）の本文に「個人で活動する」「位です」「よくある質問」「/events/05-30」が含まれ、「確認できませんでした」「個人に所属」が含まれない。
+    - `FRONTEND_SPEC.md` の VTuber 詳細ページの節に、要約文のルールと「よくある質問」の項目を追記する。
+
+- [ ] **IDX-2. 「同じ事務所のVTuber」を、そのページに合った関連 VTuber にする**（IDX-1 の次に着手）
+  - **対象ファイル**: `app/vtuber/[channelId]/page.tsx`、`lib/server-data.ts`
+  - **仕様**:
+    - `lib/server-data.ts` に、`"use cache"` + `cacheLife("hours")` 付きの `getCachedNearbyVTubers(channelId: string, limit = 12): Promise<VTuberIndexItem[]>` を追加する。全 VTuber を登録者数の降順に並べ、その VTuber の**前後 `limit / 2` 人ずつ**（端では片側を多めにして合計 `limit` 人）を返す。本人は含めない。
+    - `office === "個人"` のページは、「同じ事務所のVTuber（登録者数上位）」を出さず、代わりに **「登録者数が近いVTuber」**（`getCachedNearbyVTubers`、12 人）を出す。カードには名前の下に登録者数（`formatCompact`）を小さく出す。
+    - 事務所所属のページは、既存の「同じ事務所のVTuber（登録者数上位）」（12 人）をそのまま残し、その下に「登録者数が近いVTuber」（6 人）を追加する。同じ事務所のブロックと重複する人は除く。
+    - カードの見た目は既存の事務所メンバーのカードと同じにする（共通コンポーネントに切り出してよい）。
+  - **完了条件**:
+    - `npx tsc --noEmit` / `npm run build` がエラーなし。
+    - 個人の VTuber 2 人のページで、関連 VTuber のブロックが**違う顔ぶれ**になっている（`curl` の HTML で `href="/vtuber/` の並びを比較）。
+    - 事務所所属のページに、2 つのブロックが重複なしで出る。
+    - `FRONTEND_SPEC.md` の VTuber 詳細ページの節に、関連 VTuber の出し分けを追記する。
+
+- [ ] **IDX-3. 日付別イベントページを厚くする（title に名前・前後の日・0 件の日は noindex）**（IDX-2 の次に着手）
+  - **対象ファイル**: `app/events/[date]/page.tsx`、`app/sitemap.ts`、新規 `lib/events-data.ts`（サーバー専用）
+  - **仕様**:
+    - `app/events/[date]/page.tsx` の `getEventsMap()`（`"use cache"` + `cacheLife("days")`）を `lib/events-data.ts` に移し、ページとサイトマップの両方から使う。
+    - **title と description に VTuber 名を入れる**: その日の VTuber を登録者数の多い順（イベントデータに登録者数が無ければデータの並び順）に最大 3 人選び、title を「{m}月{d}日が誕生日・デビュー記念日のVTuber（{名前1}・{名前2}ほか）」にする。1 人なら「（{名前1}）」、0 人なら現行の title のまま。description にも同じ名前を入れる。
+    - ページの最後に **「前後の日の誕生日・記念日」** セクションを追加する。前後 3 日（計 6 日）について、日付の見出し（`/events/MM-DD` へのリンク）と、その日の VTuber 名（詳細ページへのリンク、最大 5 人＋「ほか N 人」）を並べる。0 人の日は「該当なし」とだけ書く。
+    - その日の誕生日・記念日が**合計 0 人**のときは、`generateMetadata` で `robots: { index: false, follow: true }` にし、`app/sitemap.ts` の `eventDateEntries` からも除く（`eventDateEntries` は async にし、`lib/events-data.ts` を使う。取得に失敗したときは現行どおり全日付を出す）。ページ自体は 200 のまま表示する。
+    - 既存の「誕生日」「デビュー記念日（周年）」の一覧、前日・翌日リンク、JSON-LD、アフィリエイトは変えない。
+  - **完了条件**:
+    - `npx tsc --noEmit` / `npm run build` がエラーなし。
+    - `curl -s <URL>/events/05-30` の `<title>` に VTuber 名が含まれ、本文に「前後の日の誕生日・記念日」と前後 3 日分のリンクがある。
+    - 0 人の日があれば、その日の HTML に `noindex` が出て、`/sitemap.xml` にその日の URL が無い（0 人の日が無ければ、その旨を完了報告に書く）。
+    - `FRONTEND_SPEC.md` の日付別イベントページの節に、title のルール・前後の日セクション・noindex の条件を追記する。
 
 ### P0-NAV: タップしたらすぐ画面を切り替える（2026-11-14 追加・P0-DOMAIN の次、P0-FILTER より先に着手）
 
