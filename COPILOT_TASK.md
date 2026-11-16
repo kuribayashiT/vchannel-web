@@ -1066,6 +1066,84 @@
 
 ---
 
+### P1-EVENTS: イベントカレンダーの重複表示の整理（2026-11-16 追加・小粒なので手が空いたら先に着手してよい）
+
+- [ ] **EVENTS-1. `/events` 上部の「今日のイベント」一覧を削除し、カレンダー下の一覧をリンク付きにする**
+  - **対象ファイル**:
+    `app/events/page.tsx`
+    `components/EventCalendar.tsx`
+    `FRONTEND_SPEC.md`（5.7）
+  - **背景**: `/events` では今日のイベントが 2 回表示されている。上部の一覧（青文字リンク・サムネ無し）と、カレンダー下の日付選択一覧（サムネ有り・リンク無し）の中身は同じ。1 画面目が同じ一覧で埋まり、カレンダーがスクロールしないと見えない。S404-2 で上部一覧を追加した当時は `EventCalendar` がマウントまで「読み込み中…」を返していた。今はマウント待ちが無くなり、カレンダー下の一覧も初期 HTML にサーバー描画されるため、上部一覧は不要になった。
+  - **仕様**:
+    - `app/events/page.tsx` から「今日（yyyy年M月d日）のイベント」の `<section>` を丸ごと削除する。h1 直下の要約文（`今日（M月d日）が誕生日・デビュー記念日のVTuberは N 人です。`）は SEO 用に残す。
+    - 上部一覧が持っていた `/vtuber/{channelId}` への内部リンクを失わないよう、`EventCalendar` の日付選択一覧の各行（サムネ＋名前）を `next/link` の `<Link href={`/vtuber/${channelId}`}>` で包む。
+      - 行全体をリンクにしてよい（行内に他のタップ要素は無い）。ホバーで背景を薄く変える（`hover:bg-zinc-50 dark:hover:bg-zinc-900`）。名前の文字色は黒のまま（青文字にしない）。
+      - `channelId` が空の行はリンクにせず、従来どおりの表示にする。
+    - 0 件の日の文言は、カレンダー側の `イベントはありません` を使う（ページ側の `今日のイベントはありません` は削除される）。
+    - `FRONTEND_SPEC.md` 5.7 の 274 行目付近（「当日のイベント一覧を…初期 HTML に含める」）を、「上部の別一覧は置かない。カレンダーの日付選択一覧（初期値は今日）がサーバー描画され、各行は `/vtuber/{channelId}` へリンクする」に書き換える。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - `curl -s <URL>/events` の HTML に、今日のイベントの VTuber 名と `href="/vtuber/` のリンクが含まれる（同じ VTuber 名が一覧として 2 回並ばない）。
+    - 375px 幅で、1 画面目に要約文のすぐ下のカレンダーが見える。
+    - 日付をタップすると一覧が切り替わり、行をタップすると VTuber 詳細ページへ遷移する。
+
+---
+
+### P1-LIVEFRESH: 「配信中」に終わった配信が残る問題（2026-11-16 追加・EVENTS-1 の次に着手。STREAM-1 → STREAM-2 の順）
+
+> **調査結果（2026-11-16）**: 終了した配信が「配信中」に残る原因は 4 つ重なっている。最悪で 1 時間以上古い一覧が出る。
+> 1. バックエンド `scheduledLiveDataUpdate` は 5 分ごとに `livevideoList.json` を書き込むが、`cacheControl` を指定していない。そのため GCS 公開オブジェクトの既定値 `Cache-Control: public, max-age=3600` が付き、Google のエッジキャッシュが最大 1 時間古いファイルを返す（`curl -sI .../livevideoList.json` で確認済み）。
+> 2. `getLiveVideoList()` は `revalidate: 300`（stale-while-revalidate）で取得する。アクセスが少ない時間帯は、期限切れ後の最初の 1 回にも古いデータが返る。
+> 3. `StreamTabs` はマウント時に `/api/streams` を 1 回取得するだけ。開きっぱなしのタブや、スマホでアプリを切り替えて戻ってきた画面は二度と更新されない。
+> 4. ユーザーが手動で更新する手段がない。iOS Safari・ホーム画面追加（PWA）では引っ張って更新もできない。
+
+- [ ] **STREAM-1. 配信中データのキャッシュを短くする（バックエンド＋API）**
+  - **対象ファイル**:
+    `backend-repo/functions/index.js`（`scheduledLiveDataUpdate` の `file.save`、2697 行目付近）
+    `lib/gcs.ts`
+    `app/api/streams/route.ts`
+  - **仕様**:
+    - `livevideoList.json` の `file.save` の `metadata` に `cacheControl: 'public, max-age=60'` を追加する。同じ関数内で保存している `weeklyLiveViewRanking.json` は変更しない。
+    - `REVALIDATE.live` を `300` → `60` にする（`getLiveVideoList` 用）。
+    - `/api/streams` のレスポンスに `Cache-Control: no-store` ヘッダーを付け、ブラウザや CDN が古いレスポンスを返さないようにする。
+    - ⚠ Functions のデプロイは運営者が行う。Copilot はコードの変更とコミットまでとし、完了報告に「`firebase deploy --only functions:scheduledLiveDataUpdate` が必要」と書く。`firebase deploy --only firestore` は実行しない（P0-CHAT の注意を参照）。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - `curl -sI <URL>/api/streams` に `cache-control: no-store` が含まれる。
+    - （運営者のデプロイ後）`curl -sI https://storage.googleapis.com/vtuber-335811.appspot.com/livevideoList.json` が `cache-control: public, max-age=60` を返す。
+
+- [ ] **STREAM-2. 配信タブに更新ボタン・引っ張って更新・復帰時の自動更新を付ける**（STREAM-1 の次に着手）
+  - **対象ファイル**:
+    `components/StreamTabs.tsx`
+    新規 `components/PullToRefresh.tsx`（または `lib/use-pull-to-refresh.ts`）
+    `FRONTEND_SPEC.md`（5.2）
+  - **仕様**:
+    - **取得処理の共通化**: `StreamTabs` の `fetch("/api/streams")` を `load()` 関数にまとめ、`{ cache: "no-store" }` を付ける。取得中フラグ `refreshing` と最終取得時刻 `updatedAt` を state に持つ。
+      - 再取得中は今の一覧を表示したままにする（「読み込み中…」に戻さない）。
+      - 再取得に失敗したら今の一覧を残し、タブ列の右の時刻表示を `更新に失敗しました` に一時的に変える（初回の失敗だけ従来の `動画の読み込みに失敗しました。` を表示する）。
+      - 選択中のサブタブとスクロール位置は再取得で変えない。
+    - **更新ボタン**: サブタブ列の右端に、lucide-react の `RotateCw`（16px）と最終取得時刻 `HH:mm 更新` を並べたボタンを置く。
+      - タップで `load()` を呼ぶ。取得中はアイコンを `animate-spin` で回し、ボタンを `disabled` にする。
+      - `aria-label="配信一覧を更新"`。タップ領域は 44px 以上。
+      - 375px 幅ではサブタブ列が横スクロールするため、ボタンはスクロール領域の外に固定する（タブ列と一緒にスクロールさせない）。狭い幅では時刻表示を省いてアイコンだけでよい。
+    - **引っ張って更新（タッチ端末のみ）**: トップページで `window.scrollY === 0` の状態から下に引っ張ったら `load()` を呼ぶ。
+      - 引っ張った距離に応じて、画面上部に `RotateCw` のインジケーターを下ろす（最大 80px、指の移動量の半分だけ動かす）。64px を超えて指を離したら更新し、更新中はインジケーターを回し続ける。届かずに離したら戻す。
+      - `touchstart` / `touchmove` / `touchend` で実装する。`touchmove` は `{ passive: false }` にし、引っ張り中だけ `preventDefault()` する。上方向のスクロールや横スクロール（サブタブ列）、ピンチは妨げない。
+      - Android Chrome の標準の引っ張って更新（ページ全体の再読み込み）と二重にならないよう、トップページ表示中だけ `document.documentElement.style.overscrollBehaviorY = "contain"` にし、アンマウント時に戻す。
+      - 動画プレーヤー（`YouTubePlayer`）を開いている間は無効にする。
+      - 外部ライブラリは追加しない。
+    - **復帰時の自動更新**: `visibilitychange` で画面に戻ってきたとき、最終取得から 60 秒以上たっていれば `load()` を呼ぶ。また、表示中は 3 分ごとに `load()` を呼ぶ（非表示中は呼ばない）。
+    - `FRONTEND_SPEC.md` 5.2 に、更新ボタン・引っ張って更新・自動更新（復帰時 60 秒、表示中 3 分）の仕様を追記する。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - 更新ボタンをタップすると `/api/streams` が再取得され、時刻表示が更新される。取得中はアイコンが回る。
+    - スマホ実機（iOS Safari と Android Chrome）で、一番上から引っ張って離すと一覧が再取得される。Android でページ全体の再読み込みは起きない。
+    - スクロール途中で下に引っ張っても更新されず、通常どおりスクロールする。サブタブ列の横スクロールも従来どおり動く。
+    - 別アプリに切り替えて 1 分以上たってから戻ると、自動で再取得される。
+    - 375px 幅でサブタブ列と更新ボタンが重ならない。
+
+---
+
 ### 🤖 AI 提案タスク（自動追加・PM 未レビュー。上の PM のタスクがすべて終わってから着手）
 
 - [ ] **AI-20261114. ランキング・急上昇・配信カードのチャンネル名から VTuber 詳細ページへ内部リンクを張る**
