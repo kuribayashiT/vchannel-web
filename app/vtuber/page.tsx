@@ -45,7 +45,15 @@ export default async function VTuberPage() {
       <h1 className="mb-3 text-2xl font-extrabold tracking-tight">
         VTuber一覧（事務所別）
       </h1>
-      <p className="mb-5 text-sm text-zinc-600 dark:text-zinc-300">{summary}</p>
+      <p className="text-sm text-zinc-600 dark:text-zinc-300">{summary}</p>
+      <p className="mb-5 mt-2">
+        <a
+          href="#offices"
+          className="text-sm text-blue-600 hover:underline dark:text-blue-400"
+        >
+          事務所から探す ↓
+        </a>
+      </p>
       <VTuberTabsIsland
         initialIndex={initialIndex}
         initialOfficeGroups={initialOfficeGroups}
