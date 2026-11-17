@@ -635,8 +635,19 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
       current && members.some((m) => m.channelId === current.channelId)
         ? current.office
         : groupedMembers[0]?.name;
+    if (channelIds.length === 0) {
+      setOpenOfficeNames(new Set());
+      return;
+    }
     setOpenOfficeNames(currentOffice ? new Set([currentOffice]) : new Set());
-  }, [current, groupSignature, groupedMembers, members, useDesktopGrouping]);
+  }, [
+    channelIds.length,
+    current,
+    groupSignature,
+    groupedMembers,
+    members,
+    useDesktopGrouping,
+  ]);
 
   useEffect(() => {
     if (!useMobileOfficeChips) {
@@ -672,6 +683,13 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
   ) => {
     setQuery("");
     setActive(item.channelId);
+    if (useDesktopGrouping) {
+      setOpenOfficeNames((prev) => {
+        const next = new Set(prev);
+        next.add(item.office);
+        return next;
+      });
+    }
     if (!isSelected(item.channelId)) {
       setSearchPinned(item);
       return;
@@ -870,6 +888,7 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
                 groupedMembers.map((group, idx) => {
                   const panelId = `vtuber-office-panel-${idx}`;
                   const isOpen = openOfficeNames.has(group.name);
+                  const isCurrentOffice = current?.office === group.name;
                   return (
                     <section
                       key={group.name}
@@ -886,7 +905,11 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
                             return next;
                           })
                         }
-                        className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm font-semibold hover:bg-zinc-100 dark:hover:bg-zinc-800/60"
+                        className={`flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm font-semibold hover:bg-zinc-100 dark:hover:bg-zinc-800/60 ${
+                          isCurrentOffice
+                            ? "text-blue-600 dark:text-blue-400"
+                            : ""
+                        }`}
                       >
                         <OfficeAvatar
                           name={group.name}
@@ -895,6 +918,12 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
                         />
                         <span className="min-w-0 flex-1 truncate">{group.name}</span>
                         <span className="shrink-0 text-xs tabular-nums text-zinc-500">
+                          {isCurrentOffice && (
+                            <span
+                              aria-hidden
+                              className="mr-1.5 inline-block size-1.5 rounded-full bg-blue-600"
+                            />
+                          )}
                           {group.members.length}人
                         </span>
                         <ChevronDown
