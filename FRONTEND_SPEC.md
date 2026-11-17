@@ -203,6 +203,13 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 - **選択が空 = すべて表示**（2026-11-14 改訂、FILTER-2）: 選択が空のときは全 VTuber をタブに出す（配信・ランキングと同じ「空 = すべて」）。PC は事務所ごとの折りたたみ（表示中の事務所だけ開く）、スマホは事務所チップ＋メンバーチップで、スマホの事務所チップ `すべて` は選択が空のときは出さない。「選択中か」の判定は `channelIds.length === 0 || sel.has(id)` に一本化し、検索の `選択外` バッジ・`検索から表示中` ラベルも同じ判定を使う。選択があるのに該当 0 人なら `Vtuberリストがありません（フィルターで事務所を選択してください）`。
 - **タブ・事務所アイコン（VT-ICON-1）**: VTuber のサムネイル短縮 URL はフィルターと共有の `useChannelThumbnails()` で `/api/office-thumbnails` からマウント後に一度だけ取得し、`ytThumbUrl(..., 48)` と `SafeImage` で表示する。タブは `size-7`、検索結果は `size-8`。取得前・取得失敗・画像 URL がない場合は同じ寸法の名前頭文字アイコンを表示し、選択中タブでは `bg-white/20 text-white` にする。事務所は公式チャンネルの短縮サムネイルを初期データに含め、PC 見出しは `size-5`、スマホチップは `size-4`。公式チャンネル画像がない場合は事務所名の頭文字を表示し、個々の VTuber サムネイルを初期 HTML に追加しない。
 - タブ UI の下に `VTuberDirectory`（Server Component）を配置し、見出し `事務所から探す` で全事務所をサーバーレンダリングする（フィルターの影響を受けない）。事務所ごとに `<details>`（初期は閉じる）で包み、`<summary>` 内の `<h2>` に事務所名・人数・開閉矢印を出す。中身は各メンバーへのリンク（`/vtuber/{channelId}`、名前＋登録者数）を丸チップで並べる。リンクは CSS で隠さず、閉じた `<details>` の中身として初期 HTML に含める。
+- **事務所から探す の見た目（VDIR-2、2026-11-17 改訂）**: 事務所ごとの別カード（影付きの箱が 33 個縦に並ぶ）をやめ、左の事務所一覧（VT-GROUP-1）と同じトーンの **1 枚のパネル＋区切り線の行** にする。
+  - セクションに `id="offices"` を付ける。見出しは `<h2>` 相当の大きさの `事務所から探す`、その下に `text-sm text-zinc-500` で `{事務所数}事務所・{人数}人のVTuberを事務所ごとに一覧できます。`。
+  - パネル: `rounded-xl border border-zinc-200 bg-white shadow-sm divide-y divide-zinc-100`（ダーク: `dark:border-zinc-800 dark:bg-zinc-900 dark:divide-zinc-800`）。行ごとの枠線・影は付けない。
+  - 行（`<summary>`）: 事務所アイコン `size-6`（`VTuberOfficeGroup.thumbnail` を `ytThumbUrl(..., 48)`、`loading="lazy"`。無ければ頭文字の丸）＋ `<h2>` 事務所名（`text-sm font-semibold`）＋ 人数（`text-xs tabular-nums text-zinc-500`）＋右端の `ChevronDown`。名前の下に、登録者数上位 3 人の名前を `text-xs text-zinc-500 truncate` で `ときのそら、ロボ子さん、さくらみこ ほか87人` の形で出す（閉じた状態でも中身が分かるように）。行の高さは `py-2.5`、ホバーで `bg-zinc-50`（ダーク: `bg-zinc-800/60`）。
+  - 開いた中身: メンバーチップを `flex-wrap gap-1.5` で並べる（`rounded-full border px-3 py-1 text-xs`、名前＋小さい登録者数、ホバーで violet 系）。メンバーが 60 人を超える事務所は中身を `max-h-72 overflow-y-auto` にして、ページが極端に伸びないようにする（リンクは HTML に全件残す）。
+  - h1 下の要約文の右（または次の行）に、`#offices` へのページ内リンク `事務所から探す ↓`（`text-sm text-blue-600`）を置く。スマホでは最新動画 30 件の下まで遠いため。
+  - HTML サイズの制約は VDIR-1 と同じ（メンバー一覧は `escapeHtml` した文字列を `dangerouslySetInnerHTML` で出し、`<Link>` は使わない）。
 - `/vtuber/[channelId]` は Server Component で `loadVTubers()` から詳細を取得し、存在しない `channelId` は `notFound()` で 404 を返す。データは `getCachedVTuberDetail()`（`"use cache"` + `cacheLife("hours")`）で 1 時間キャッシュする。
 - 詳細ページは `generateMetadata` で個別 title/description/canonical を生成し、OGP 画像にチャンネルサムネイルを設定する。本文先頭に「誰が・何人・いつ時点」を含む要約文を置く。
   - 要約文はページごとに固有の文にする。`office === "個人"` は「個人で活動するVTuberです」、それ以外は「{office}に所属するVTuberです」。増減は推移データが 2 件以上ある場合のみ出し、増減 0 は「過去30日間の登録者数は横ばいです」とする。
@@ -241,7 +248,9 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
   - 選択が空（すべて表示）のときは、全員が選択中の扱いになるため `選択外` バッジと `検索から表示中` ラベルは出ない。
 - **事務所ごとの折りたたみ（VT-GROUP-1、PC `lg` 以上）**: 左の縦タブ一覧を事務所ごとの見出しでまとめる。
   - 見出し行には、事務所名・人数（例: `12人`）・`ChevronDown` を表示する。開いているときは矢印を回転させる。
-  - 最初は、表示中の VTuber がいる事務所だけを開く。事務所が 1 つだけなら見出しを出さず、従来どおりのフラットな一覧にする。
+  - **最初の開閉（VT-GROUP-3、2026-11-17 改訂）**: フィルターの選択が空（全事務所を表示）のときは、**最初はすべての事務所を閉じる**（どんな事務所があるかを一覧で見せるため。ホロライブ 90 人を開くと他の事務所が画面外に押し出される）。選択があるときは従来どおり、表示中の VTuber がいる事務所だけを開く。事務所が 1 つだけなら見出しを出さず、従来どおりのフラットな一覧にする。
+  - 閉じていても、表示中の VTuber がいる事務所の見出しは、文字を `text-blue-600`（ダーク: `text-blue-400`）にし、人数の左に小さな青い丸（`size-1.5 rounded-full bg-blue-600`）を出して「いま右に出ているのはこの事務所の人」と分かるようにする。
+  - 検索結果・前後ナビ（VT-NAV-1）で別の事務所の VTuber に切り替えたときは、その事務所を自動で開く（ほかの事務所は閉じない）。
   - 開閉の状態はコンポーネント内で持つ（保存しない）。タブを切り替えても、ほかの事務所は自動で閉じない。
 - **スマホの 2 段チップ（VT-GROUP-2、`lg` 未満）**: 選択中のメンバーが 2 事務所以上にまたがるときは、1 段目に事務所チップ（`すべて` ＋事務所名。横スクロール）、2 段目にその事務所のメンバーのタブ（従来の横スクロールチップ）を出す。
   - 初期の事務所チップは、表示中の VTuber の事務所にする。
@@ -253,6 +262,14 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 - 取得済みの詳細はクライアント側で保持し、タブのホバー／フォーカス時に先読みする。`/api/vtuber` と `/api/vtuber/[channelId]` は成功時のみ `Cache-Control: public, s-maxage=600, stale-while-revalidate=3600` で CDN にキャッシュする（エラー時は `no-store`）。
 
 ### 5.5 ランキング（3 カテゴリのタブ）
+- **前後の VTuber へ移動（VT-NAV-1、2026-11-17 追加）**: `/vtuber` の詳細（右側）に、一覧の前後の VTuber へ移動するナビを付ける。スワイプ操作は採用しない（縦スクロール中の誤操作、横スクロールするチップ列・グラフとの競合、操作の存在に気付けないため）。
+  - 順番は左のタブ一覧と同じ（`listItems`。事務所の区切りをまたいで続く）。先頭では `前` を、末尾では `次` を出さない（ループしない）。
+  - 詳細の **上** に 1 行のナビ: 左に `ChevronLeft`＋前の人のアイコン（`size-6`）＋名前、右に名前＋アイコン＋`ChevronRight`。名前は `truncate`（375px 幅で 1 行に収める）。`text-sm`、ボタンは `rounded-full px-2 py-1 hover:bg-zinc-100`。
+  - 詳細の **下**（最新動画の後）に、`次のVTuber` ラベル付きの大きめのカード型ボタン（アイコン `size-10`＋名前＋事務所名＋`ChevronRight`）。押したら次の人に切り替え、詳細の先頭（ナビ行）までスクロールする。
+  - PC（`lg` 以上）では `←` / `→` キーでも移動する。入力欄にフォーカスがあるときは反応しない。
+  - 移動したら、その人のタブを選択状態にし、`scrollIntoView` で見える位置に出す。PC はその事務所の見出しを開く。スマホは事務所チップをその事務所に切り替える。
+  - 表示中の人の前後 1 人ずつを先読みする（`prefetchDetail`）。
+  - ナビは `VTuberTabs` 側で `Detail` の外に描画する。`DetailView` は変更せず、`/vtuber/[channelId]` には出さない。
 1. **週間同時視聴者数**（見出し `MM/dd 〜 MM/ddの同時視聴者数`＝今日から 6 日前〜今日、`weeklyLiveViewRanking.json`）
 2. **YouTube 登録者数**（`rankingYoutubeRegiData.json`）
 3. **動画本数**（`rankingVideoCountData.json`）

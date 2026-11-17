@@ -1,6 +1,6 @@
 # COPILOT_TASK: ランキングへの「登録者 急上昇」タブ追加および UI 改善バックログ
 
-> 最終更新: 2026-11-16 / 担当: プロダクトデザイナー → 実装: GitHub Copilot
+> 最終更新: 2026-11-17 / 担当: プロダクトデザイナー → 実装: GitHub Copilot
 
 ---
 
@@ -1349,3 +1349,58 @@
     - 絞り込みを切り替えても `news.json` への追加リクエストが発生しない（DevTools の Network で確認）。
     - 375px 幅でチップ列が横スクロールし、ページ全体の横スクロールが出ない。ダークモードで読める。
     - `curl -s <URL>/news -o news.html && wc -c news.html` が変更前から +2KB 以内。
+
+### P1-VTLIST: VTuber 一覧ページの回遊改善（2026-11-17 追加）
+
+- [ ] **VT-GROUP-3. PC の事務所折りたたみを、全事務所表示のときは最初すべて閉じる**
+  - **対象ファイル**: `components/VTuberTabs.tsx`
+  - **背景**: `/vtuber` を開くと左の一覧でホロライブ（90 人）が開いた状態になり、ほかの 32 事務所が画面外に押し出される。どんな事務所があるかが初見で分からない。
+  - **仕様**（`FRONTEND_SPEC.md` 5.4 の VT-GROUP-1 / VT-GROUP-3 の記述どおり）:
+    - `openOfficeNames` の初期化（`groupSignature` が変わったときの `useEffect`）で、`channelIds.length === 0` なら空の `Set` にする。選択があるときは従来どおり表示中の事務所だけ開く。
+    - 表示中の VTuber（`current`）が属する事務所の見出しは、閉じていても `text-blue-600 dark:text-blue-400` にし、人数の左に `size-1.5 rounded-full bg-blue-600` の丸を出す。
+    - 検索結果から別の事務所の人を選んだときは、その事務所を `openOfficeNames` に追加する（ほかは閉じない）。
+    - スマホ（`lg` 未満）の 2 段チップは変更しない。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - localStorage が空の状態で PC 幅の `/vtuber` を開くと、左の一覧は事務所見出しだけが並び、ホロライブの見出しが青字＋青い丸になっている。右には従来どおり先頭の VTuber の詳細が出る。
+    - フィルターで 2 事務所を選んだ状態では、従来どおり表示中の事務所だけ開いている。
+    - 検索で別事務所の人を選ぶと、その事務所が開き、タブが選択状態で見える。
+
+- [ ] **VT-NAV-1. VTuber 詳細に「前へ／次へ」ナビを付ける**（VT-GROUP-3 の次に着手）
+  - **対象ファイル**: `components/VTuberTabs.tsx`（ナビ部品を同ファイル内に作るか、`components/VTuberStepNav.tsx` を新規作成）
+  - **背景**: 1 人見終わったら、左（スマホは上）のタブ列に戻って次の人を探す必要がある。特にスマホは最新動画 30 件の下まで読んだ後、タブ列が遠い。スワイプは誤操作・発見しにくさ・横スクロール要素との競合があるため採用せず、明示的なボタンにする。
+  - **仕様**（`FRONTEND_SPEC.md` 5.4 VT-NAV-1 の記述どおり）:
+    - 順番は `listItems` の並び。`current` の位置から前後を求める。端ではその側のボタンを出さない。
+    - 詳細の上に前後ナビの 1 行、詳細の下に `次のVTuber` カード型ボタンを置く。どちらも `Detail` の外（`VTuberTabs` 側）に描画し、`DetailView` は変更しない。
+    - 移動は `handleTabSelect(channelId)` を通す。移動先が別の事務所なら、PC は `openOfficeNames` にその事務所を追加、スマホは `setMobileOfficeFilter(その事務所)` にする。
+    - 下のボタンで移動したときは、上のナビ行へ `scrollIntoView({ block: "start" })` する（固定ヘッダーに隠れないよう `scroll-mt-20`）。
+    - PC は `←` / `→` キーで移動する（`window` の `keydown`。`input` / `textarea` / `contenteditable` にフォーカスがあるとき、修飾キー付きのときは無視）。
+    - 先読みを「次の 1 人」から「前後 1 人ずつ」に広げる。
+    - 検索から表示中（`searchPinned`）の人の前後も `listItems` の並びに従う。
+    - `any` は使わない。新しいパッケージは追加しない。アイコンは lucide-react の `ChevronLeft` / `ChevronRight`。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - `/vtuber` で `次` を押すと次の人の詳細に切り替わり、タブ列の選択も移る。ホロライブ最後の人で `次` を押すと次の事務所の先頭の人になり、PC はその事務所が開き、スマホは事務所チップが切り替わる。
+    - 先頭の人では `前` が、最後の人では `次` が出ない。
+    - 下の `次のVTuber` を押すと、次の人の詳細の先頭までスクロールする。
+    - PC で `→` キーでも移動し、検索欄に入力中は移動しない。
+    - 375px 幅でナビ行が 1 行に収まり、ページ全体の横スクロールが出ない。ダークモードで読める。
+    - `/vtuber/[channelId]` にはナビが出ない。
+
+- [ ] **VDIR-2. 「事務所から探す」を 1 枚のパネルにして、ページに馴染ませる**（VDIR-1 の HTML サイズ対応と同じ PR で行ってよい。VT-NAV-1 の次に着手）
+  - **対象ファイル**: `components/VTuberDirectory.tsx`、`app/vtuber/page.tsx`
+  - **背景**: 現在は影付きの箱が 33 個縦に並び、上のタブ UI や左の事務所一覧とトーンが合わず、「SEO 用に後付けした一覧」に見える。閉じた状態では中に誰がいるか分からず、開く動機も弱い。
+  - **仕様**（`FRONTEND_SPEC.md` 5.4 VDIR-2 の記述どおり）:
+    - セクションに `id="offices"`、見出しの下に事務所数・人数の 1 行説明を付ける。
+    - 全事務所を 1 枚のパネル（`rounded-xl border ... divide-y`）に入れ、各 `<details>` は区切り線の行にする。行ごとの枠線・影・`space-y-2` はやめる。
+    - `<summary>`: 事務所アイコン（`getCachedVTuberPageData()` の `officeGroups[].thumbnail` を `ytThumbUrl(..., 48)`、`loading="lazy"`、無ければ頭文字の丸）＋ `<h2>` 事務所名＋人数＋ `ChevronDown`。名前の下に登録者数上位 3 人の名前と `ほかN人`。
+    - 中身: メンバーチップ（violet 系ホバー）。60 人を超える事務所は `max-h-72 overflow-y-auto`。
+    - メンバー一覧は VDIR-1 の追記どおり、`escapeHtml` した HTML 文字列を `dangerouslySetInnerHTML` で出す（`<Link>` は使わない）。リンクを CSS で隠さない。
+    - `app/vtuber/page.tsx` の要約文の後に `<a href="#offices">事務所から探す ↓</a>`（`text-sm text-blue-600`）を置く。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - `/vtuber` の初期 HTML に全メンバーの `<a href="/vtuber/...">` と事務所ごとの `<h2>` が含まれる（閉じた `<details>` の中身として）。
+    - `.next/server/app/vtuber.html` が 830KB 以下（VDIR-1 の目安）。
+    - 閉じた状態で各行に事務所アイコン・名前・人数・上位 3 人の名前が見える。`個人` を開いても中身がスクロール領域に収まる。
+    - `事務所から探す ↓` を押すとセクションへ移動する。375px 幅・ダークモードで崩れない。
+
