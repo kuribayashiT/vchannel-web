@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Radio, Sparkles, Trophy, Users } from "lucide-react";
 import { GrowthTop3 } from "@/components/GrowthTop3";
@@ -7,6 +8,10 @@ import { StreamTabs } from "@/components/StreamTabs";
 import { GcsFetchError } from "@/lib/gcs";
 import { getGrowthData } from "@/lib/growth-data";
 import type { SubscriberGrowthItem } from "@/types";
+
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+};
 
 const TOP_CANDIDATES = 30;
 
