@@ -631,7 +631,7 @@
     - デプロイ後、`curl -s https://www.vchannel.net/sitemap.xml` の `<loc>` がすべて `https://www.vchannel.net/` で始まる。
     - `https://www.vchannel.net/ranking` の canonical が `https://www.vchannel.net/ranking` になっている。
 
-- [ ] **DOMAIN-2. canonical が無い公開ページに canonical を追加する**
+- [x] **DOMAIN-2. canonical が無い公開ページに canonical を追加する**
   - **対象ファイル**: `app/page.tsx`、`app/vtuber/page.tsx`、`app/events/page.tsx`、`app/news/page.tsx`、`app/chat/page.tsx`、`app/privacy/page.tsx`
   - **仕様**:
     - 各ページの `metadata` / `generateMetadata` に `alternates: { canonical: "<パス>" }` を追加する（`/`、`/vtuber`、`/events`、`/news`、`/chat`、`/privacy`）。`metadataBase` が `SITE_URL` なので、相対パスで書けば絶対 URL になる。
@@ -1315,3 +1315,37 @@
     - `curl -s <URL>/ -o top.html && wc -c top.html` が変更前から +5KB 以内。ブラウザのコンソールにハイドレーションの警告が出ない。
     - 375px 幅でカードのレイアウトが崩れない。ダークモードで読める。バッジの有無でカードの高さが変わらない。
     - タップによる動画再生、お気に入りボタン、`感想を書く` リンク（CHAT-7）、選択事務所フィルターの挙動が従来どおり。
+
+- [ ] **AI-20261117. ニュース一覧に「媒体チップ」と「動画あり」の絞り込みを付ける**
+  - **対象ファイル**:
+    `components/NewsList.tsx`（ニュース一覧を描画している Client Component。ファイル名が異なる場合は `app/news/page.tsx` から辿って該当ファイルを修正する）
+    `lib/news.ts`（媒体名の正規化と集計の純粋関数を追加する。無ければ新規作成）
+    `FRONTEND_SPEC.md`（5.3）
+  - **背景**: data.vmato.jp は、ニュースを情報源や種類で切り替えて読める。Vちゃんねるのニュースは `news.json` の順に全件を縦に並べるだけで、絞り込み手段がない（現行仕様は「検索・カテゴリ絞り込みなし」）。そのため次の問題がある。
+    - 特定の媒体の記事や、解説動画つきの記事だけを読みたい人が、全件をスクロールして探すことになる。
+    - 記事が増えるほど一覧が長くなり、離脱しやすい。
+  - **仕様**:
+    - `lib/news.ts` に次の純粋関数を追加する。
+      - `normalizeNewsSource(n: { channel?: string; sourceName?: string }): string`。表示名と同じ規則で媒体名を返す（`channel` が空、または `YouTube` などで媒体名として使えない場合は、既存のカード表示と同じ「ブログ記事」にそろえる）。
+      - `summarizeNewsSources(items): { name: string; count: number }[]`。媒体名ごとの件数を、件数の多い順（同数なら初出順）に返す。
+    - ニュース一覧の上、カード群の前に、横スクロールのチップ列を置く。
+      - 先頭は `すべて`、続けて `動画あり`（`videoUrl` を持つ記事だけ。1 件以上あるときだけ表示）、続けて媒体名チップ（件数の上位 8 媒体まで。それ以外の媒体は `すべて` でのみ表示）。
+      - 各チップは `名前 + 件数` を表示する（例: `ブログ記事 12`）。件数は `tabular-nums`。
+      - 選択はラジオ的に 1 つだけ。初期値は `すべて`。選択状態は `useState` で持ち、保存はしない。
+      - 見た目は、`rounded-full border px-3 py-1 text-xs whitespace-nowrap shrink-0`、非選択は `border-zinc-200 text-zinc-600`（ダーク: `dark:border-zinc-700 dark:text-zinc-300`）、選択中は violet 系の塗り（`bg-violet-600 text-white border-violet-600`）。
+      - `role="tablist"` ではなく、`aria-pressed` を使うトグルボタンにする。
+      - 横スクロール領域はページ全体の横スクロールを発生させない（`overflow-x-auto`、`-mx-4 px-4` など）。375px 幅で崩れないこと。
+    - 絞り込みは、`news.json` の並び順を保ったまま `filter` する。フロントで再ソートしない。
+    - 絞り込み後が 0 件のときは `該当するニュースがありません` と、`すべて表示に戻す` ボタンを出す。
+    - 絞り込みを切り替えても、ニュースの取得（再 fetch）はしない。取得済みの配列から `useMemo` で求める。
+    - チップ列の下に、現在の表示件数を `text-xs text-zinc-500` で `N件` と表示する。
+    - 既存のローディング表示、エラー表示（`再読み込み`）、カードのリンク先や見た目、動画導線の挙動は変えない。
+    - サーバーから渡すデータ・props は増やさない（`/news` の HTML サイズを増やさない）。`any` は使わない。新しいパッケージは追加しない。
+    - `FRONTEND_SPEC.md` 5.3 の「検索・カテゴリ絞り込みなし」を、「媒体名チップ（件数付き、上位 8 媒体）と `動画あり` で絞り込める。並び順は `news.json` のまま」に書き換える。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - `/news` の上部にチップ列が出る。媒体チップをタップすると、その媒体の記事だけが `news.json` の順で表示され、件数表示と一致する。
+    - `動画あり` を選ぶと、`videoUrl` を持つ記事だけが表示される。`すべて` に戻すと全件に戻る。
+    - 絞り込みを切り替えても `news.json` への追加リクエストが発生しない（DevTools の Network で確認）。
+    - 375px 幅でチップ列が横スクロールし、ページ全体の横スクロールが出ない。ダークモードで読める。
+    - `curl -s <URL>/news -o news.html && wc -c news.html` が変更前から +2KB 以内。
