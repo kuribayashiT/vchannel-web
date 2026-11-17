@@ -217,6 +217,9 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 - 詳細ページは `app/vtuber/[channelId]/opengraph-image.tsx` で動的 OGP 画像（1200x630）を生成し、`generateMetadata` の `openGraph.images` / `twitter.images` に設定する。`twitter.card` は `summary_large_image` を使う。
 - 詳細表示は `VTuberTabs` の `Detail` を「取得（Detail）」と「表示（DetailView）」に分離し、一覧タブはクライアント取得したデータを `DetailView` へ渡す。詳細ページはサーバー取得したデータを `DetailView` へ直接渡す。
 - 詳細ページにはパンくず（ホーム › VTuber › 名前）、`ProfilePage` + `Person` と `BreadcrumbList` の JSON-LD、同じ事務所の他メンバー（登録者数上位12人）へのリンクを表示する。
+- 関連 VTuber は所属で出し分ける。
+  - `office === "個人"`: 「同じ事務所のVTuber」は出さず、「登録者数が近いVTuber」を 12 人表示する（前後の順位から選ぶ）。カードは既存と同じ見た目で、名前の下に登録者数（`formatCompact`）を小さく出す。
+  - 事務所所属: 「同じ事務所のVTuber（登録者数上位）」12 人を出し、その下に「登録者数が近いVTuber」を 6 人出す。2 つのブロックで同じ VTuber は重複させない。
 - 関連 VTuber の下に「よくある質問」セクション（`<h2>` + `<dl>`）を置き、データがある項目だけ出す。
   - `{name}のYouTube登録者数は？` → `{日付}時点で{人数}人（全体{overall}位）です。`
   - `{name}の誕生日はいつ？` → `{m}月{d}日です。` + `/events/MM-DD` へのリンク。
@@ -260,8 +263,6 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
   - 大きさ: タブ `size-7`、検索結果 `size-8`、PC 事務所見出し `size-5`、スマホ事務所チップ `size-4`。画像が無いとき・取得前は同じ大きさの頭文字の丸を出す（選択中のタブでは `bg-white/20 text-white`）。
 - 事務所の区切りはサーバーで作る。`getCachedVTuberPageData()` は `officeGroups: { name: string; count: number }[]`（`tabItems` の並び順。同じ事務所は連続させる）も返し、`VTuberTabs` に渡す。`tabItems` の各行に事務所名は持たせない（HTML 増加を事務所 24 件分に抑えるため）。`/api/vtuber` で取得した場合は、各行の `office` から同じ形に組み立てる。
 - 取得済みの詳細はクライアント側で保持し、タブのホバー／フォーカス時に先読みする。`/api/vtuber` と `/api/vtuber/[channelId]` は成功時のみ `Cache-Control: public, s-maxage=600, stale-while-revalidate=3600` で CDN にキャッシュする（エラー時は `no-store`）。
-
-### 5.5 ランキング（3 カテゴリのタブ）
 - **前後の VTuber へ移動（VT-NAV-1、2026-11-17 追加）**: `/vtuber` の詳細（右側）に、一覧の前後の VTuber へ移動するナビを付ける。スワイプ操作は採用しない（縦スクロール中の誤操作、横スクロールするチップ列・グラフとの競合、操作の存在に気付けないため）。
   - 順番は左のタブ一覧と同じ（`listItems`。事務所の区切りをまたいで続く）。先頭では `前` を、末尾では `次` を出さない（ループしない）。
   - 詳細の **上** に 1 行のナビ: 左に `ChevronLeft`＋前の人のアイコン（`size-6`）＋名前、右に名前＋アイコン＋`ChevronRight`。名前は `truncate`（375px 幅で 1 行に収める）。`text-sm`、ボタンは `rounded-full px-2 py-1 hover:bg-zinc-100`。
@@ -270,6 +271,8 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
   - 移動したら、その人のタブを選択状態にし、`scrollIntoView` で見える位置に出す。PC はその事務所の見出しを開く。スマホは事務所チップをその事務所に切り替える。
   - 表示中の人の前後 1 人ずつを先読みする（`prefetchDetail`）。
   - ナビは `VTuberTabs` 側で `Detail` の外に描画する。`DetailView` は変更せず、`/vtuber/[channelId]` には出さない。
+
+### 5.5 ランキング（3 カテゴリのタブ）
 1. **週間同時視聴者数**（見出し `MM/dd 〜 MM/ddの同時視聴者数`＝今日から 6 日前〜今日、`weeklyLiveViewRanking.json`）
 2. **YouTube 登録者数**（`rankingYoutubeRegiData.json`）
 3. **動画本数**（`rankingVideoCountData.json`）

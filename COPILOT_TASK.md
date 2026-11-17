@@ -675,7 +675,7 @@
     - `curl -s <URL>/vtuber/UCt30jJgChL8qeT9VPadidSw`（しぐれうい・個人）の本文に「個人で活動する」「位です」「よくある質問」「/events/05-30」が含まれ、「確認できませんでした」「個人に所属」が含まれない。
     - `FRONTEND_SPEC.md` の VTuber 詳細ページの節に、要約文のルールと「よくある質問」の項目を追記する。
 
-- [ ] **IDX-2. 「同じ事務所のVTuber」を、そのページに合った関連 VTuber にする**（IDX-1 の次に着手）
+- [x] **IDX-2. 「同じ事務所のVTuber」を、そのページに合った関連 VTuber にする**（IDX-1 の次に着手）
   - **対象ファイル**: `app/vtuber/[channelId]/page.tsx`、`lib/server-data.ts`
   - **仕様**:
     - `lib/server-data.ts` に、`"use cache"` + `cacheLife("hours")` 付きの `getCachedNearbyVTubers(channelId: string, limit = 12): Promise<VTuberIndexItem[]>` を追加する。全 VTuber を登録者数の降順に並べ、その VTuber の**前後 `limit / 2` 人ずつ**（端では片側を多めにして合計 `limit` 人）を返す。本人は含めない。

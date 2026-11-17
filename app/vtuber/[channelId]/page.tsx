@@ -7,6 +7,7 @@ import { formatDateSlug, todayJstParts } from "@/lib/events";
 import { formatCompact, formatNumber } from "@/lib/format";
 import {
   getCachedVTuberDetail,
+  getCachedNearbyVTubers,
   getCachedVTuberPageData,
   getCachedVTuberRanks,
 } from "@/lib/server-data";
@@ -127,6 +128,50 @@ function anniversaryText(year: number, currentYear: number): string {
   return `今年で${formatNumber(currentYear - year)}周年です。`;
 }
 
+function RelatedVTuberGrid({
+  title,
+  members,
+  showSubscriberCount = false,
+}: {
+  title: string;
+  members: VTuberIndexItem[];
+  showSubscriberCount?: boolean;
+}) {
+  if (members.length === 0) return null;
+  return (
+    <section className="mt-8">
+      <h2 className="mb-3 text-base font-bold">{title}</h2>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
+        {members.map((member) => (
+          <Link
+            key={member.channelId}
+            href={`/vtuber/${member.channelId}`}
+            className="flex items-center gap-2 rounded-lg border border-zinc-200 p-2 text-sm transition hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+          >
+            {member.thumbnail && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={smallAvatar(member.thumbnail, 64)}
+                alt=""
+                className="size-9 rounded-full object-cover"
+                loading="lazy"
+              />
+            )}
+            <div className="min-w-0">
+              <span className="block truncate">{member.name}</span>
+              {showSubscriberCount && (
+                <span className="block text-xs text-zinc-500">
+                  登録者数 {formatCompact(member.subscriberCount)}
+                </span>
+              )}
+            </div>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function metadataDescription(detail: VTuberDetail): string {
   return `${detail.office}所属のVTuber「${detail.name}」のYouTube登録者数（${formatCompact(detail.subscriberCount)}人）、登録者数推移、最新動画をまとめています。`;
 }
@@ -171,11 +216,19 @@ export default async function VTuberDetailPage({ params }: PageProps) {
   const detail = await getCachedVTuberDetail(channelId);
   if (!detail) notFound();
 
-  const [officeMembers, ranks, currentYear] = await Promise.all([
+  const [officeMembers, nearbyCandidates, ranks, currentYear] = await Promise.all([
     getCachedOfficeMembers(detail.office, detail.channelId, 12),
+    getCachedNearbyVTubers(detail.channelId, detail.office === "個人" ? 12 : 24),
     getCachedVTuberRanks(detail.channelId),
     getCurrentJstYear(),
   ]);
+  const officeMemberIds = new Set(officeMembers.map((member) => member.channelId));
+  const nearbyMembers =
+    detail.office === "個人"
+      ? nearbyCandidates
+      : nearbyCandidates
+          .filter((member) => !officeMemberIds.has(member.channelId))
+          .slice(0, 6);
   const latest = detail.transition.at(-1);
   const birthdaySlug = detail.birthday
     ? formatDateSlug(detail.birthday.month, detail.birthday.day)
@@ -276,32 +329,24 @@ export default async function VTuberDetailPage({ params }: PageProps) {
 
       <DetailView detail={detail} />
 
-      {officeMembers.length > 0 && (
-        <section className="mt-8">
-          <h2 className="mb-3 text-base font-bold">
-            同じ事務所のVTuber（登録者数上位）
-          </h2>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
-            {officeMembers.map((member) => (
-              <Link
-                key={member.channelId}
-                href={`/vtuber/${member.channelId}`}
-                className="flex items-center gap-2 rounded-lg border border-zinc-200 p-2 text-sm transition hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
-              >
-                {member.thumbnail && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={smallAvatar(member.thumbnail, 64)}
-                    alt=""
-                    className="size-9 rounded-full object-cover"
-                    loading="lazy"
-                  />
-                )}
-                <span className="truncate">{member.name}</span>
-              </Link>
-            ))}
-          </div>
-        </section>
+      {detail.office === "個人" ? (
+        <RelatedVTuberGrid
+          title="登録者数が近いVTuber"
+          members={nearbyMembers}
+          showSubscriberCount
+        />
+      ) : (
+        <>
+          <RelatedVTuberGrid
+            title="同じ事務所のVTuber（登録者数上位）"
+            members={officeMembers}
+          />
+          <RelatedVTuberGrid
+            title="登録者数が近いVTuber"
+            members={nearbyMembers}
+            showSubscriberCount
+          />
+        </>
       )}
 
       <section className="mt-8">

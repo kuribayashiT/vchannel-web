@@ -196,6 +196,35 @@ export async function getCachedVTuberRanks(channelId: string): Promise<{
   };
 }
 
+export async function getCachedNearbyVTubers(
+  channelId: string,
+  limit = 12,
+): Promise<VTuberIndexItem[]> {
+  "use cache";
+  cacheLife("hours");
+  const { index } = await loadVTubers();
+  const sorted = [...index].sort((a, b) => b.subscriberCount - a.subscriberCount);
+  const center = sorted.findIndex((item) => item.channelId === channelId);
+  if (center < 0 || sorted.length <= 1 || limit <= 0) return [];
+  const maxCount = Math.min(limit, sorted.length - 1);
+  const rangeLength = maxCount + 1;
+  let start = center - Math.floor(maxCount / 2);
+  let end = start + rangeLength;
+  if (start < 0) {
+    end += -start;
+    start = 0;
+  }
+  if (end > sorted.length) {
+    start -= end - sorted.length;
+    end = sorted.length;
+    if (start < 0) start = 0;
+  }
+  return sorted
+    .slice(start, end)
+    .filter((item) => item.channelId !== channelId)
+    .slice(0, maxCount);
+}
+
 export const loadAllVideos = memo(async () => {
   const raw = await fetchGcsJson<RawVideo[]>(GCS_FILES.allVideos, 0);
   const map = new Map<string, Video>();
