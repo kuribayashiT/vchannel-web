@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { cacheLife } from "next/cache";
 import { allDateSlugs } from "@/lib/events";
+import { getCachedSortedEventsMapByDateSlug } from "@/lib/events-data";
 import { loadVTubers } from "@/lib/server-data";
 import { SITE_URL } from "@/lib/site";
 
@@ -59,21 +60,35 @@ async function vtuberEntries(): Promise<MetadataRoute.Sitemap> {
   });
 }
 
-function eventDateEntries(): MetadataRoute.Sitemap {
-  return allDateSlugs().map((date) => ({
-    url: `${SITE_URL}/events/${date}`,
-    changeFrequency: "daily" as const,
-    priority: 0.5,
-  }));
+async function eventDateEntries(): Promise<MetadataRoute.Sitemap> {
+  "use cache";
+  cacheLife("days");
+  const sortedEventsMap = await getCachedSortedEventsMapByDateSlug();
+  return allDateSlugs()
+    .filter((date) => (sortedEventsMap.get(date)?.length ?? 0) > 0)
+    .map((date) => ({
+      url: `${SITE_URL}/events/${date}`,
+      changeFrequency: "daily" as const,
+      priority: 0.5,
+    }));
 }
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticPages = staticEntries();
   try {
-    const all = [...staticPages, ...eventDateEntries(), ...(await vtuberEntries())];
+    const all = [
+      ...staticPages,
+      ...(await eventDateEntries()),
+      ...(await vtuberEntries()),
+    ];
     // 現在は 1 ファイル運用。5万 URL を超えたら sitemap 分割ルートへ移行する。
     return all.slice(0, SITEMAP_PAGE_SIZE);
   } catch {
-    return staticPages;
+    const fallbackEventDates = allDateSlugs().map((date) => ({
+      url: `${SITE_URL}/events/${date}`,
+      changeFrequency: "daily" as const,
+      priority: 0.5,
+    }));
+    return [...staticPages, ...fallbackEventDates];
   }
 }

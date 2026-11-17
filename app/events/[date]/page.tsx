@@ -3,18 +3,20 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cacheLife } from "next/cache";
 import { AffiliateLinks } from "@/components/AffiliateLinks";
-import { GcsFetchError, getEventList } from "@/lib/gcs";
 import {
-  dayKey,
+  getCachedSortedEventsByDateSlug,
+  getCachedSortedEventsMapByDateSlug,
+} from "@/lib/events-data";
+import { GcsFetchError } from "@/lib/gcs";
+import {
   eventLabel,
   formatDateSlug,
-  mergeEvents,
   parseDateSlug,
   shiftDateSlug,
   todayJstParts,
 } from "@/lib/events";
 import { SITE_URL } from "@/lib/site";
-import type { EventList, VEvent } from "@/types";
+import type { VEvent } from "@/types";
 
 type PageProps = {
   params: Promise<{ date: string }>;
@@ -32,13 +34,6 @@ function splitEvents(events: VEvent[]): EventGroups {
   };
 }
 
-async function getEventsMap(): Promise<Map<string, VEvent[]>> {
-  "use cache";
-  cacheLife("days");
-  const list = await getEventList();
-  return mergeEvents(list);
-}
-
 async function getCurrentJstYear(): Promise<number> {
   "use cache";
   cacheLife("days");
@@ -47,6 +42,56 @@ async function getCurrentJstYear(): Promise<number> {
 
 function titleText(month: number, day: number): string {
   return `${month}月${day}日が誕生日・デビュー記念日のVTuber`;
+}
+
+function topNames(events: VEvent[], maxCount = 3): string[] {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  for (const event of events) {
+    const key = event.channelId || event.name;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    names.push(event.name);
+    if (names.length >= maxCount) break;
+  }
+  return names;
+}
+
+function namesSummary(names: string[]): string {
+  if (names.length === 0) return "";
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return `${names[0]}・${names[1]}`;
+  return `${names[0]}・${names[1]}ほか`;
+}
+
+function titleWithNames(month: number, day: number, events: VEvent[]): string {
+  const names = topNames(events, 3);
+  if (names.length === 0) return titleText(month, day);
+  return `${titleText(month, day)}（${namesSummary(names)}）`;
+}
+
+function descriptionWithNames(
+  month: number,
+  day: number,
+  events: VEvent[],
+): string {
+  const names = topNames(events, 3);
+  if (names.length === 0) {
+    return `${month}月${day}日が誕生日・デビュー記念日のVTuberをまとめています。`;
+  }
+  return `${month}月${day}日が誕生日・デビュー記念日のVTuber（${namesSummary(names)}）をまとめています。`;
+}
+
+function nearbyDateSlugs(dateSlug: string): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const delta of [-3, -2, -1, 1, 2, 3]) {
+    const shifted = shiftDateSlug(dateSlug, delta);
+    if (!shifted || seen.has(shifted)) continue;
+    seen.add(shifted);
+    out.push(shifted);
+  }
+  return out;
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -58,12 +103,25 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       robots: { index: false, follow: false },
     };
   }
-  const title = titleText(parsed.month, parsed.day);
+
+  let events: VEvent[] = [];
+  let loaded = false;
+  try {
+    events = await getCachedSortedEventsByDateSlug(date);
+    loaded = true;
+  } catch (error) {
+    if (!(error instanceof GcsFetchError)) throw error;
+  }
+
+  const title = titleWithNames(parsed.month, parsed.day, events);
   const canonical = `/events/${formatDateSlug(parsed.month, parsed.day)}`;
   return {
     title,
-    description: `${parsed.month}月${parsed.day}日が誕生日・デビュー記念日のVTuberをまとめています。`,
+    description: descriptionWithNames(parsed.month, parsed.day, events),
     alternates: { canonical },
+    ...(loaded && events.length === 0
+      ? { robots: { index: false, follow: true } }
+      : {}),
     openGraph: { title, url: canonical },
     twitter: { title },
   };
@@ -74,10 +132,11 @@ export default async function EventDatePage({ params }: PageProps) {
   const parsed = parseDateSlug(date);
   if (!parsed) notFound();
 
+  let sortedEventsMap = new Map<string, VEvent[]>();
   let events: VEvent[] = [];
   try {
-    const map = await getEventsMap();
-    events = map.get(dayKey(parsed.month, parsed.day)) ?? [];
+    sortedEventsMap = await getCachedSortedEventsMapByDateSlug();
+    events = sortedEventsMap.get(date) ?? [];
   } catch (error) {
     if (!(error instanceof GcsFetchError)) throw error;
     events = [];
@@ -104,7 +163,7 @@ export default async function EventDatePage({ params }: PageProps) {
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-5 md:px-6 md:py-8">
       <h1 className="mb-3 text-2xl font-extrabold tracking-tight">
-        {titleText(parsed.month, parsed.day)}
+        {titleWithNames(parsed.month, parsed.day, events)}
       </h1>
       <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-300">{summary}</p>
 
@@ -205,6 +264,54 @@ export default async function EventDatePage({ params }: PageProps) {
             ))}
           </ul>
         )}
+      </section>
+
+      <section className="mb-8">
+        <h2 className="mb-2 text-base font-bold">前後の日の誕生日・記念日</h2>
+        <div className="space-y-2">
+          {nearbyDateSlugs(date).map((slug) => {
+            const nearbyEvents = sortedEventsMap.get(slug) ?? [];
+            const parsedNearby = parseDateSlug(slug);
+            if (!parsedNearby) return null;
+            const headEvents = nearbyEvents.slice(0, 5);
+            return (
+              <article
+                key={slug}
+                className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800"
+              >
+                <h3 className="text-sm font-semibold">
+                  <Link
+                    href={`/events/${slug}`}
+                    className="text-blue-600 hover:underline dark:text-blue-400"
+                  >
+                    {parsedNearby.month}月{parsedNearby.day}日
+                  </Link>
+                </h3>
+                <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
+                  {headEvents.length === 0 ? (
+                    "該当なし"
+                  ) : (
+                    <>
+                      {headEvents.map((event, index) => (
+                        <span key={`${event.channelId}-${index}`}>
+                          {index > 0 ? "、" : ""}
+                          <Link
+                            href={`/vtuber/${event.channelId}`}
+                            className="text-blue-600 hover:underline dark:text-blue-400"
+                          >
+                            {event.name}
+                          </Link>
+                        </span>
+                      ))}
+                      {nearbyEvents.length > 5 &&
+                        ` ほか${nearbyEvents.length - 5}人`}
+                    </>
+                  )}
+                </p>
+              </article>
+            );
+          })}
+        </div>
       </section>
 
       {events[0]?.name?.trim() && (

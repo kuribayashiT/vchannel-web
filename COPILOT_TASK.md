@@ -688,7 +688,7 @@
     - 事務所所属のページに、2 つのブロックが重複なしで出る。
     - `FRONTEND_SPEC.md` の VTuber 詳細ページの節に、関連 VTuber の出し分けを追記する。
 
-- [ ] **IDX-3. 日付別イベントページを厚くする（title に名前・前後の日・0 件の日は noindex）**（IDX-2 の次に着手）
+- [x] **IDX-3. 日付別イベントページを厚くする（title に名前・前後の日・0 件の日は noindex）**（IDX-2 の次に着手）
   - **対象ファイル**: `app/events/[date]/page.tsx`、`app/sitemap.ts`、新規 `lib/events-data.ts`（サーバー専用）
   - **仕様**:
     - `app/events/[date]/page.tsx` の `getEventsMap()`（`"use cache"` + `cacheLife("days")`）を `lib/events-data.ts` に移し、ページとサイトマップの両方から使う。
