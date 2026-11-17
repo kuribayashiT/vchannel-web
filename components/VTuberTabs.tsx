@@ -1,6 +1,13 @@
 "use client";
 
-import { Cake, ChevronDown, PartyPopper, Search } from "lucide-react";
+import {
+  Cake,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  PartyPopper,
+  Search,
+} from "lucide-react";
 import Link from "next/link";
 import {
   useCallback,
@@ -68,7 +75,7 @@ function ChannelAvatar({
   channelId: string;
   name: string;
   thumbnails: Record<string, string> | null;
-  size: "size-7" | "size-8";
+  size: "size-6" | "size-7" | "size-8";
   selected?: boolean;
 }) {
   const thumbnail = thumbnails?.[channelId];
@@ -485,6 +492,13 @@ function SearchInput({
   );
 }
 
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  const tagName = target.tagName.toLowerCase();
+  return tagName === "input" || tagName === "textarea" || tagName === "select";
+}
+
 export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProps) {
   const { channelIds } = useSelectedChannels();
   const channelThumbnails = useChannelThumbnails();
@@ -503,6 +517,7 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
     SearchItem | null
   >(null);
   const tabRefs = useRef(new Map<string, HTMLButtonElement>());
+  const detailTopNavRef = useRef<HTMLDivElement | null>(null);
   const prevGroupSignatureRef = useRef("");
   const prevMobileGroupSignatureRef = useRef("");
   const [openOfficeNames, setOpenOfficeNames] = useState<Set<string>>(new Set());
@@ -600,10 +615,12 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
   // 表示中の詳細に加えて、次のタブ 1 件分を先読みする
   useEffect(() => {
     if (!current) return;
-    const i = members.findIndex((m) => m.channelId === current.channelId);
-    const next = i >= 0 ? members[i + 1] : undefined;
+    const i = listItems.findIndex((m) => m.channelId === current.channelId);
+    const prev = i >= 1 ? listItems[i - 1] : undefined;
+    const next = i >= 0 ? listItems[i + 1] : undefined;
+    if (prev) prefetchDetail(prev.channelId);
     if (next) prefetchDetail(next.channelId);
-  }, [members, current]);
+  }, [listItems, current]);
 
   useEffect(() => {
     if (!searchPinned) return;
@@ -677,19 +694,37 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
 
   const showSearchResults = normalizedQuery.length > 0;
   const showLeftColumn = members.length > 0;
+  const currentIndex = current
+    ? listItems.findIndex((item) => item.channelId === current.channelId)
+    : -1;
+  const previousItem = currentIndex > 0 ? listItems[currentIndex - 1] : null;
+  const nextItem =
+    currentIndex >= 0 && currentIndex + 1 < listItems.length
+      ? listItems[currentIndex + 1]
+      : null;
+
+  const openTargetOffice = useCallback(
+    (item: SearchItem) => {
+      if (useDesktopGrouping) {
+        setOpenOfficeNames((prev) => {
+          const next = new Set(prev);
+          next.add(item.office);
+          return next;
+        });
+      }
+      if (useMobileOfficeChips) {
+        setMobileOfficeFilter(item.office);
+      }
+    },
+    [useDesktopGrouping, useMobileOfficeChips],
+  );
 
   const handleSearchSelect = (
     item: SearchItem,
   ) => {
     setQuery("");
-    setActive(item.channelId);
-    if (useDesktopGrouping) {
-      setOpenOfficeNames((prev) => {
-        const next = new Set(prev);
-        next.add(item.office);
-        return next;
-      });
-    }
+    handleTabSelect(item.channelId);
+    openTargetOffice(item);
     if (!isSelected(item.channelId)) {
       setSearchPinned(item);
       return;
@@ -703,6 +738,39 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
       setSearchPinned(null);
     }
   };
+
+  const moveToItem = useCallback(
+    (item: SearchItem | null, options?: { scrollToTopNav?: boolean }) => {
+      if (!item) return;
+      handleTabSelect(item.channelId);
+      openTargetOffice(item);
+      if (options?.scrollToTopNav) {
+        requestAnimationFrame(() => {
+          detailTopNavRef.current?.scrollIntoView({ block: "start" });
+        });
+      }
+    },
+    [handleTabSelect, openTargetOffice],
+  );
+
+  useEffect(() => {
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (typeof window !== "undefined" && window.innerWidth < 1024) return;
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+      if (isEditableTarget(event.target)) return;
+      if (event.key === "ArrowLeft" && previousItem) {
+        event.preventDefault();
+        moveToItem(previousItem);
+      } else if (event.key === "ArrowRight" && nextItem) {
+        event.preventDefault();
+        moveToItem(nextItem);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [moveToItem, nextItem, previousItem]);
 
   const renderTabButton = (m: SearchItem, className = "") => (
     <button
@@ -952,7 +1020,76 @@ export function VTuberTabs({ initialIndex, initialOfficeGroups }: VTuberTabsProp
         )}
       </div>
       {current ? (
-        <Detail channelId={current.channelId} />
+        <div className="space-y-4">
+          <div
+            ref={detailTopNavRef}
+            className="scroll-mt-20 rounded-xl border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-900"
+          >
+            <div className="flex items-center justify-between gap-2 text-sm">
+              {previousItem ? (
+                <button
+                  type="button"
+                  onClick={() => moveToItem(previousItem)}
+                  className="inline-flex min-w-0 flex-1 items-center gap-1 rounded-full px-2 py-1 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                >
+                  <ChevronLeft size={16} aria-hidden className="shrink-0" />
+                  <ChannelAvatar
+                    channelId={previousItem.channelId}
+                    name={previousItem.name}
+                    thumbnails={channelThumbnails}
+                    size="size-6"
+                  />
+                  <span className="truncate">{previousItem.name}</span>
+                </button>
+              ) : (
+                <span className="flex-1" />
+              )}
+              {nextItem ? (
+                <button
+                  type="button"
+                  onClick={() => moveToItem(nextItem)}
+                  className="ml-auto inline-flex min-w-0 flex-1 items-center justify-end gap-1 rounded-full px-2 py-1 text-right hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                >
+                  <span className="truncate">{nextItem.name}</span>
+                  <ChannelAvatar
+                    channelId={nextItem.channelId}
+                    name={nextItem.name}
+                    thumbnails={channelThumbnails}
+                    size="size-6"
+                  />
+                  <ChevronRight size={16} aria-hidden className="shrink-0" />
+                </button>
+              ) : (
+                <span className="flex-1" />
+              )}
+            </div>
+          </div>
+
+          <Detail channelId={current.channelId} />
+
+          {nextItem && (
+            <button
+              type="button"
+              onClick={() => moveToItem(nextItem, { scrollToTopNav: true })}
+              className="w-full rounded-xl border border-zinc-200 bg-white p-3 text-left hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800/60"
+            >
+              <p className="text-xs text-zinc-500">次のVTuber</p>
+              <div className="mt-1 flex items-center gap-3">
+                <ChannelAvatar
+                  channelId={nextItem.channelId}
+                  name={nextItem.name}
+                  thumbnails={channelThumbnails}
+                  size="size-8"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold">{nextItem.name}</p>
+                  <p className="truncate text-xs text-zinc-500">{nextItem.office}</p>
+                </div>
+                <ChevronRight size={18} aria-hidden className="shrink-0 text-zinc-500" />
+              </div>
+            </button>
+          )}
+        </div>
       ) : channelIds.length > 0 ? (
         <p className="py-16 text-center text-zinc-500">
           Vtuberリストがありません（フィルターで事務所を選択してください）
