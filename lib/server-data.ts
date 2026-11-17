@@ -170,6 +170,32 @@ export async function getCachedVTuberDetail(
   return getVTuberDetail(channelId);
 }
 
+export async function getCachedVTuberRanks(channelId: string): Promise<{
+  overall: number;
+  total: number;
+  inOffice: number;
+  officeTotal: number;
+} | null> {
+  "use cache";
+  cacheLife("hours");
+  const { index } = await loadVTubers();
+  const sorted = [...index].sort((a, b) => b.subscriberCount - a.subscriberCount);
+  const overallIndex = sorted.findIndex((item) => item.channelId === channelId);
+  if (overallIndex < 0) return null;
+  const target = sorted[overallIndex];
+  const inOfficeList = sorted.filter((item) => item.office === target.office);
+  const inOfficeIndex = inOfficeList.findIndex(
+    (item) => item.channelId === channelId,
+  );
+  if (inOfficeIndex < 0) return null;
+  return {
+    overall: overallIndex + 1,
+    total: sorted.length,
+    inOffice: inOfficeIndex + 1,
+    officeTotal: inOfficeList.length,
+  };
+}
+
 export const loadAllVideos = memo(async () => {
   const raw = await fetchGcsJson<RawVideo[]>(GCS_FILES.allVideos, 0);
   const map = new Map<string, Video>();

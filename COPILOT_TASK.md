@@ -654,7 +654,7 @@
 >
 > **完了後に PM が行うこと**: 1〜2 週間後に Search Console の「ページ」で、未登録件数の推移を確認する。
 
-- [ ] **IDX-1. VTuber 詳細の本文を、そのページにしかない文章にする（順位・数値・よくある質問）**
+- [x] **IDX-1. VTuber 詳細の本文を、そのページにしかない文章にする（順位・数値・よくある質問）**
   - **対象ファイル**: `app/vtuber/[channelId]/page.tsx`、`lib/server-data.ts`
   - **仕様**:
     - `lib/server-data.ts` に、`"use cache"` + `cacheLife("hours")` 付きの `getCachedVTuberRanks(channelId: string): Promise<{ overall: number; total: number; inOffice: number; officeTotal: number } | null>` を追加する。`loadVTubers()` の `index` を登録者数の降順に並べた順位（全体・同じ `office` 内）を返す。同じ数は同じ順位にしなくてよい（並び順どおり）。ページから `loadVTubers()` を直接呼ばないルール（FIX-1）は守る。

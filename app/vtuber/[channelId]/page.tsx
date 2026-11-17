@@ -3,8 +3,13 @@ import Link from "next/link";
 import { cacheLife } from "next/cache";
 import { notFound } from "next/navigation";
 import { DetailView } from "@/components/VTuberTabs";
+import { formatDateSlug, todayJstParts } from "@/lib/events";
 import { formatCompact, formatNumber } from "@/lib/format";
-import { getCachedVTuberDetail, loadVTubers } from "@/lib/server-data";
+import {
+  getCachedVTuberDetail,
+  getCachedVTuberPageData,
+  getCachedVTuberRanks,
+} from "@/lib/server-data";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
 import { smallAvatar } from "@/lib/url";
 import type { VTuberDetail, VTuberIndexItem } from "@/types";
@@ -18,11 +23,6 @@ const jstDate = new Intl.DateTimeFormat("ja-JP", {
   day: "numeric",
 });
 
-/**
- * 同じ事務所のメンバー（登録者数の降順で上位 limit 件）。
- * loadVTubers() の memo() は Date.now() を使うため、ページ本文から直接呼ばず
- * "use cache" 関数の中から呼ぶ（プリレンダーの unstable value 検出を避ける）。
- */
 async function getCachedOfficeMembers(
   office: string,
   excludeChannelId: string,
@@ -30,11 +30,17 @@ async function getCachedOfficeMembers(
 ): Promise<VTuberIndexItem[]> {
   "use cache";
   cacheLife("hours");
-  const { index } = await loadVTubers();
-  return index
+  const { directoryItems } = await getCachedVTuberPageData();
+  return directoryItems
     .filter((item) => item.office === office && item.channelId !== excludeChannelId)
     .sort((a, b) => b.subscriberCount - a.subscriberCount)
     .slice(0, limit);
+}
+
+async function getCurrentJstYear(): Promise<number> {
+  "use cache";
+  cacheLife("days");
+  return todayJstParts().y;
 }
 
 function parseYmd(ymd: string): Date | null {
@@ -60,15 +66,50 @@ function latestDateText(latestYmd: string | undefined): string {
   return `${jstDate.format(d)}時点`;
 }
 
-function buildSummary(detail: VTuberDetail): string {
+function buildSummary(
+  detail: VTuberDetail,
+  ranks: Awaited<ReturnType<typeof getCachedVTuberRanks>>,
+): string {
   const first = detail.transition[0];
   const latest = detail.transition.at(-1);
-  const delta = latest && first ? latest.count - first.count : 0;
-  let deltaText = "過去30日間の増減は確認できませんでした。";
-  if (delta > 0) {
-    deltaText = `過去30日間で${formatNumber(delta)}人増加しました。`;
-  } else if (delta < 0) {
-    deltaText = `過去30日間で${formatNumber(Math.abs(delta))}人減少しました。`;
+  const summary: string[] = [];
+  if (detail.office === "個人") {
+    summary.push(`${detail.name}は個人で活動するVTuberです。`);
+  } else {
+    summary.push(`${detail.name}は${detail.office}に所属するVTuberです。`);
+  }
+  if (ranks) {
+    summary.push(
+      `Vちゃんねるに登録している${formatNumber(ranks.total)}人のVTuberのうち、登録者数は${formatNumber(ranks.overall)}位です。`,
+    );
+    if (detail.office !== "個人") {
+      summary.push(
+        `${detail.office}の中では${formatNumber(ranks.officeTotal)}人中${formatNumber(ranks.inOffice)}位です。`,
+      );
+    }
+  }
+  summary.push(
+    `${latestDateText(latest?.date)}のYouTube登録者数は${formatNumber(detail.subscriberCount)}人（${formatCompact(detail.subscriberCount)}）です。`,
+  );
+  if (detail.transition.length >= 2 && first && latest) {
+    const delta = latest.count - first.count;
+    if (delta > 0) {
+      summary.push(`過去30日間で${formatNumber(delta)}人増加しました。`);
+    } else if (delta < 0) {
+      summary.push(`過去30日間で${formatNumber(Math.abs(delta))}人減少しました。`);
+    } else {
+      summary.push("過去30日間の登録者数は横ばいです。");
+    }
+  }
+  const statSummary: string[] = [];
+  if (detail.viewCount > 0) {
+    statSummary.push(`YouTubeの総再生数は${formatCompact(detail.viewCount)}回`);
+  }
+  if (detail.videoCount > 0) {
+    statSummary.push(`動画本数は${formatNumber(detail.videoCount)}本`);
+  }
+  if (statSummary.length > 0) {
+    summary.push(`${statSummary.join("、")}です。`);
   }
   const profileDates = [
     detail.birthday &&
@@ -76,10 +117,14 @@ function buildSummary(detail: VTuberDetail): string {
     detail.debut &&
       `デビューは${detail.debut.year ? `${detail.debut.year}年` : ""}${detail.debut.month}月${detail.debut.day}日`,
   ].filter((value): value is string => Boolean(value));
-  const profileDateSummary = profileDates.length
-    ? `${profileDates.join("、")}です。`
-    : "";
-  return `${detail.name}は${detail.office}に所属するVTuberです。${latestDateText(latest?.date)}のYouTube登録者数は${formatNumber(detail.subscriberCount)}人（${formatCompact(detail.subscriberCount)}）で、${deltaText}${profileDateSummary}`;
+  if (profileDates.length > 0) {
+    summary.push(`${profileDates.join("、")}です。`);
+  }
+  return summary.join("");
+}
+
+function anniversaryText(year: number, currentYear: number): string {
+  return `今年で${formatNumber(currentYear - year)}周年です。`;
 }
 
 function metadataDescription(detail: VTuberDetail): string {
@@ -126,11 +171,18 @@ export default async function VTuberDetailPage({ params }: PageProps) {
   const detail = await getCachedVTuberDetail(channelId);
   if (!detail) notFound();
 
-  const officeMembers = await getCachedOfficeMembers(
-    detail.office,
-    detail.channelId,
-    12,
-  );
+  const [officeMembers, ranks, currentYear] = await Promise.all([
+    getCachedOfficeMembers(detail.office, detail.channelId, 12),
+    getCachedVTuberRanks(detail.channelId),
+    getCurrentJstYear(),
+  ]);
+  const latest = detail.transition.at(-1);
+  const birthdaySlug = detail.birthday
+    ? formatDateSlug(detail.birthday.month, detail.birthday.day)
+    : null;
+  const debutSlug = detail.debut
+    ? formatDateSlug(detail.debut.month, detail.debut.day)
+    : null;
 
   const canonicalUrl = `${SITE_URL}/vtuber/${channelId}`;
   const jsonLd = {
@@ -212,7 +264,7 @@ export default async function VTuberDetailPage({ params }: PageProps) {
 
       <h1 className="mb-2 text-2xl font-extrabold tracking-tight">{detail.name}</h1>
       <p className="mb-5 text-sm leading-7 text-zinc-700 dark:text-zinc-200">
-        {buildSummary(detail)}
+        {buildSummary(detail, ranks)}
       </p>
 
       <script
@@ -251,6 +303,69 @@ export default async function VTuberDetailPage({ params }: PageProps) {
           </div>
         </section>
       )}
+
+      <section className="mt-8">
+        <h2 className="mb-3 text-base font-bold">よくある質問</h2>
+        <dl className="space-y-2 text-sm leading-7 text-zinc-700 dark:text-zinc-200">
+          {ranks && (
+            <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+              <dt className="font-bold text-zinc-900 dark:text-zinc-100">
+                {detail.name}のYouTube登録者数は？
+              </dt>
+              <dd className="mt-1">
+                {latestDateText(latest?.date)}で{formatNumber(detail.subscriberCount)}
+                人（全体{formatNumber(ranks.overall)}位）です。
+              </dd>
+            </div>
+          )}
+          {detail.birthday && birthdaySlug && (
+            <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+              <dt className="font-bold text-zinc-900 dark:text-zinc-100">
+                {detail.name}の誕生日はいつ？
+              </dt>
+              <dd className="mt-1">
+                {detail.birthday.month}月{detail.birthday.day}日です。{" "}
+                <Link
+                  href={`/events/${birthdaySlug}`}
+                  className="text-blue-600 hover:underline dark:text-blue-400"
+                >
+                  {detail.birthday.month}月{detail.birthday.day}日が誕生日のVTuberを見る
+                </Link>
+              </dd>
+            </div>
+          )}
+          {detail.debut && debutSlug && (
+            <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+              <dt className="font-bold text-zinc-900 dark:text-zinc-100">
+                {detail.name}のデビュー日はいつ？
+              </dt>
+              <dd className="mt-1">
+                {detail.debut.year ? `${detail.debut.year}年` : ""}
+                {detail.debut.month}月{detail.debut.day}日です。{" "}
+                {detail.debut.year && (
+                  <>{anniversaryText(detail.debut.year, currentYear)} </>
+                )}
+                <Link
+                  href={`/events/${debutSlug}`}
+                  className="text-blue-600 hover:underline dark:text-blue-400"
+                >
+                  {detail.debut.month}月{detail.debut.day}日の記念日VTuberを見る
+                </Link>
+              </dd>
+            </div>
+          )}
+          <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
+            <dt className="font-bold text-zinc-900 dark:text-zinc-100">
+              {detail.name}はどこの事務所？
+            </dt>
+            <dd className="mt-1">
+              {detail.office === "個人"
+                ? "個人で活動しています。"
+                : `${detail.office}に所属しています。`}
+            </dd>
+          </div>
+        </dl>
+      </section>
     </main>
   );
 }

@@ -205,9 +205,17 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 - タブ UI の下に `VTuberDirectory`（Server Component）を配置し、見出し `事務所から探す` で全事務所をサーバーレンダリングする（フィルターの影響を受けない）。事務所ごとに `<details>`（初期は閉じる）で包み、`<summary>` 内の `<h2>` に事務所名・人数・開閉矢印を出す。中身は各メンバーへのリンク（`/vtuber/{channelId}`、名前＋登録者数）を丸チップで並べる。リンクは CSS で隠さず、閉じた `<details>` の中身として初期 HTML に含める。
 - `/vtuber/[channelId]` は Server Component で `loadVTubers()` から詳細を取得し、存在しない `channelId` は `notFound()` で 404 を返す。データは `getCachedVTuberDetail()`（`"use cache"` + `cacheLife("hours")`）で 1 時間キャッシュする。
 - 詳細ページは `generateMetadata` で個別 title/description/canonical を生成し、OGP 画像にチャンネルサムネイルを設定する。本文先頭に「誰が・何人・いつ時点」を含む要約文を置く。
+  - 要約文はページごとに固有の文にする。`office === "個人"` は「個人で活動するVTuberです」、それ以外は「{office}に所属するVTuberです」。増減は推移データが 2 件以上ある場合のみ出し、増減 0 は「過去30日間の登録者数は横ばいです」とする。
+  - 要約文には順位と数値を含める。`Vちゃんねるに登録している{total}人のVTuberのうち、登録者数は{overall}位`、事務所所属なら `{officeTotal}人中{inOffice}位` も追加する。`viewCount` / `videoCount` が 0 でないときだけ「YouTubeの総再生数」「動画本数」を含める。
 - 詳細ページは `app/vtuber/[channelId]/opengraph-image.tsx` で動的 OGP 画像（1200x630）を生成し、`generateMetadata` の `openGraph.images` / `twitter.images` に設定する。`twitter.card` は `summary_large_image` を使う。
 - 詳細表示は `VTuberTabs` の `Detail` を「取得（Detail）」と「表示（DetailView）」に分離し、一覧タブはクライアント取得したデータを `DetailView` へ渡す。詳細ページはサーバー取得したデータを `DetailView` へ直接渡す。
 - 詳細ページにはパンくず（ホーム › VTuber › 名前）、`ProfilePage` + `Person` と `BreadcrumbList` の JSON-LD、同じ事務所の他メンバー（登録者数上位12人）へのリンクを表示する。
+- 関連 VTuber の下に「よくある質問」セクション（`<h2>` + `<dl>`）を置き、データがある項目だけ出す。
+  - `{name}のYouTube登録者数は？` → `{日付}時点で{人数}人（全体{overall}位）です。`
+  - `{name}の誕生日はいつ？` → `{m}月{d}日です。` + `/events/MM-DD` へのリンク。
+  - `{name}のデビュー日はいつ？` → `{y}年{m}月{d}日です。` + `/events/MM-DD` へのリンク（年があるときは今年の周年数も出す）。
+  - `{name}はどこの事務所？` → 事務所名、または「個人で活動しています。」
+  - FAQPage の JSON-LD は追加しない。
 - **プロフィール行（VT-PROFILE-1、2026-11-14 追加）**: 詳細の数値（登録者数・総再生数・動画本数）の下、グラフの上に、誕生日とデビュー日を出す。
   - 行は 2 つ。lucide-react の `Cake` ＋ `誕生日 5月15日`、`PartyPopper` ＋ `デビュー 2017年9月7日` の形にする。日付は `/events/{MM-DD}` への `<Link>` にする。まとまりは半透明の白（ダークは半透明の暗色）背景にし、相対表示が 375px 幅で長い場合は次行へ折り返す。
   - 値がない行は出さない（`不明` とは書かない）。両方ないときは、プロフィール行のまとまりごと出さない。
