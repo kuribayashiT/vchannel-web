@@ -790,7 +790,7 @@
     - `npm run build` が成功する。
     - `/about` が 200 で、上記の見出しがすべて HTML に含まれる。sitemap に `/about` がある。
 
-- [ ] **ADS-3. お問い合わせページ `/contact` を作る**
+- [x] **ADS-3. お問い合わせページ `/contact` を作る**
   - **対象ファイル**: `app/contact/page.tsx`（新規）、`app/sitemap.ts`
   - **仕様**:
     - title: `お問い合わせ`
