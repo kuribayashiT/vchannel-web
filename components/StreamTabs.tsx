@@ -98,13 +98,19 @@ export function StreamTabs() {
       const elapsed = Date.now() - lastLoadedAtRef.current;
       if (elapsed >= 60_000) void load();
     };
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      void load();
+    };
     document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pageshow", onPageShow);
     const intervalId = window.setInterval(() => {
       if (document.visibilityState !== "visible") return;
       void load();
     }, 180_000);
     return () => {
       document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pageshow", onPageShow);
       window.clearInterval(intervalId);
     };
   }, [load]);

@@ -184,7 +184,7 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 - 取得処理は `/api/streams` を `cache: "no-store"` で読み込む `load()` に共通化し、再取得中も表示中の一覧は維持する。初回取得だけ失敗時は `動画の読み込みに失敗しました。` を表示し、再取得失敗時はタブ列右の時刻表示を一時的に `更新に失敗しました` に切り替える。
 - サブタブ列の右端に更新ボタン（`RotateCw` + 最終取得時刻 `HH:mm 更新`）を置く。取得中はアイコンを回転し、ボタンを無効化する。狭い幅では時刻表示を省略し、ボタン自体はタブ横スクロール領域の外に固定する。
 - タッチ端末ではトップページ最上部（`window.scrollY === 0`）からの引っ張って更新に対応する。インジケーターは引っ張り量の半分だけ移動し最大 80px、64px 以上で指を離した場合に `load()` を実行する。横スクロール・上方向スクロール・ピンチは妨げない。トップページ表示中は `overscrollBehaviorY = "contain"` で Android のページ再読み込みと二重発火を防ぐ。プレーヤー表示中は無効。
-- 自動更新は `visibilitychange` で復帰時に最終取得から 60 秒以上経過していれば再取得し、表示中は 3 分ごとに再取得する（非表示中は実行しない）。
+- 自動更新は `visibilitychange` で復帰時に最終取得から 60 秒以上経過していれば再取得し、表示中は 3 分ごとに再取得する（非表示中は実行しない）。`pageshow` で `event.persisted === true`（bfcache 復帰）時にも再取得する。
 - トップページではサーバー側で `allvideos.json` を当日〜7日後と過去60件に絞り、カード表示に必要な項目だけをクライアントへ渡す。
 - 予定動画（今日以降）には **通知スイッチ**（ネイティブのみ。Web では非表示でよい）。
 - グリッド：幅 >1000px で 3 列、>600px で 2 列、それ以下 1 列。
@@ -444,7 +444,7 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 ## 6. 非機能・移行時の注意
 
 - **料金**：RTDB の公開読み取りは禁止（過去に無認証スキャンで課金急増）。データ取得は GCS 公開 JSON を使う。`/vtuber` 全体（約 780KB）を RTDB から読まない。
-- **キャッシュ**：JSON は 1 時間程度の鮮度で十分（更新は定期バッチ）。ライブ関連は `livevideoList.json` を `Cache-Control: public, max-age=60` で配信し、Web 側の `revalidate` も 60 秒にする。`/api/streams` は `Cache-Control: no-store` を返し、ブラウザ・CDN のレスポンス再利用を避ける。
+- **キャッシュ**：JSON は 1 時間程度の鮮度で十分（更新は定期バッチ）。`/api/streams` の配信中データ（`livevideoList.json`）は Web 側で毎回 GCS から `no-store` 取得し、`/api/streams` は `Cache-Control: no-store` を返してブラウザ・CDN のレスポンス再利用を避ける。`weeklyLiveViewRanking.json` は `revalidate: 60` のまま。
 - `youtubeSubscriberCountTransitionList.json` は 2MB 超のため Next.js の fetch キャッシュに載せない（`revalidate: 0`）。ランキングの増減集計結果は `"use cache"`（1 時間）で保持する。
 - **CORS**：GCS 公開 JSON はブラウザ直 fetch 可（`cors.json` 参照）。確認済みでなければ Next.js のサーバー側 fetch にする。
 - **日時**：ISO8601(UTC) → `Asia/Tokyo` で表示・日付振り分け（今日/明日/明後日以降は JST 暦日で判定）。

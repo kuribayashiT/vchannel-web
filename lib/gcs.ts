@@ -47,11 +47,16 @@ export class GcsFetchError extends Error {
 /** GCS 公開 JSON を取得する共通関数 */
 export async function fetchGcsJson<T = unknown>(
   file: GcsFileName,
-  revalidate: number = REVALIDATE.default,
+  revalidate: number | "no-store" = REVALIDATE.default,
 ): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(`${GCS_BASE_URL}/${file}`, { next: { revalidate } });
+    res = await fetch(
+      `${GCS_BASE_URL}/${file}`,
+      revalidate === "no-store"
+        ? { cache: "no-store" }
+        : { next: { revalidate } },
+    );
   } catch (e) {
     throw new GcsFetchError(file, undefined, { cause: e });
   }
@@ -175,7 +180,7 @@ export async function getOfficeDataList(): Promise<OfficeDataList> {
 }
 
 export async function getLiveVideoList(): Promise<Video[]> {
-  const raw = await fetchGcsJson(GCS_FILES.liveVideos, REVALIDATE.live);
+  const raw = await fetchGcsJson(GCS_FILES.liveVideos, "no-store");
   return toArray<RawVideo>(raw).map(normalizeVideo);
 }
 

@@ -722,7 +722,7 @@
 >
 > ※ `/api/streams` 自体は `Cache-Control: no-store` で、Vercel の CDN キャッシュ（`x-vercel-cache: MISS`）やブラウザキャッシュは原因ではない。GCS 側は `max-age=60` のため、最大でも 60 秒の遅れにとどまる（バックエンドの更新間隔は 5 分）。
 
-- [ ] **STREAM-3. 配信中の一覧を、開いた直後から最新にする**
+- [x] **STREAM-3. 配信中の一覧を、開いた直後から最新にする**
   - **対象ファイル**:
     `lib/gcs.ts`
     `components/StreamTabs.tsx`
