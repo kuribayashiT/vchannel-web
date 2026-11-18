@@ -1,0 +1,17 @@
+{
+  "name": "vchannel-web",
+  // Codespaces の既定イメージと同じもの（環境は今までと変わらない）
+  "image": "mcr.microsoft.com/devcontainers/universal:6",
+  "customizations": {
+    "codespaces": {
+      // サブモジュール backend-repo（kuribayashiT/vtuberchannel）へこの Codespace からプッシュできるようにする
+      "repositories": {
+        "kuribayashiT/vtuberchannel": {
+          "permissions": {
+            "contents": "write"
+          }
+        }
+      }
+    }
+  }
+}
