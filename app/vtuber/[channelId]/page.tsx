@@ -7,15 +7,27 @@ import { formatDateSlug, todayJstParts } from "@/lib/events";
 import { formatCompact, formatNumber } from "@/lib/format";
 import {
   getCachedVTuberDetail,
-  getCachedNearbyVTubers,
   getCachedVTuberPageData,
-  getCachedVTuberRanks,
 } from "@/lib/server-data";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
 import { smallAvatar } from "@/lib/url";
 import type { VTuberDetail, VTuberIndexItem } from "@/types";
 
 type PageProps = { params: Promise<{ channelId: string }> };
+
+type VTuberRanks = {
+  overall: number;
+  total: number;
+  inOffice: number;
+  officeTotal: number;
+};
+
+type NearbyVTubers = {
+  /** 本人より登録者数が多い人（本人に近い順） */
+  above: VTuberIndexItem[];
+  /** 本人より登録者数が少ない人（本人に近い順） */
+  below: VTuberIndexItem[];
+};
 
 const jstDate = new Intl.DateTimeFormat("ja-JP", {
   timeZone: "Asia/Tokyo",
@@ -36,6 +48,71 @@ async function getCachedOfficeMembers(
     .filter((item) => item.office === office && item.channelId !== excludeChannelId)
     .sort((a, b) => b.subscriberCount - a.subscriberCount)
     .slice(0, limit);
+}
+
+/** 事務所の公式チャンネル（officeFlg）を除き、登録者数の降順に並べた全 VTuber */
+async function getRankedItems(): Promise<VTuberIndexItem[]> {
+  const { directoryItems } = await getCachedVTuberPageData();
+  return directoryItems
+    .filter((item) => item.officeFlg !== true)
+    .sort((a, b) => b.subscriberCount - a.subscriberCount);
+}
+
+/** 順位（公式チャンネルを除いて数える）。公式チャンネル自身は null */
+async function getCachedRanks(channelId: string): Promise<VTuberRanks | null> {
+  "use cache";
+  cacheLife("hours");
+  const ranked = await getRankedItems();
+  const index = ranked.findIndex((item) => item.channelId === channelId);
+  if (index < 0) return null;
+  const self = ranked[index];
+  const sameOffice = ranked.filter((item) => item.office === self.office);
+  const inOfficeIndex = sameOffice.findIndex((item) => item.channelId === channelId);
+  return {
+    overall: index + 1,
+    total: ranked.length,
+    inOffice: inOfficeIndex + 1,
+    officeTotal: sameOffice.length,
+  };
+}
+
+/** 登録者数が近い VTuber（公式チャンネルを除く）。上下それぞれ本人に近い順で返す */
+async function getCachedNearby(
+  channelId: string,
+  limit: number,
+): Promise<NearbyVTubers> {
+  "use cache";
+  cacheLife("hours");
+  const ranked = await getRankedItems();
+  const index = ranked.findIndex((item) => item.channelId === channelId);
+  if (index < 0) return { above: [], below: [] };
+  const half = Math.floor(limit / 2);
+  const afterAvailable = ranked.length - index - 1;
+  const beforeCount0 = Math.min(half, index);
+  const afterCount = Math.min(limit - beforeCount0, afterAvailable);
+  const beforeCount = Math.min(index, limit - afterCount);
+  return {
+    above: ranked.slice(index - beforeCount, index).reverse(),
+    below: ranked.slice(index + 1, index + 1 + afterCount),
+  };
+}
+
+/** 上下を交互に拾って（本人に近い順）最大 max 人にし、登録者数の降順に戻す */
+function pickBalanced(
+  nearby: NearbyVTubers,
+  max: number,
+  excludeIds: Set<string>,
+): VTuberIndexItem[] {
+  const above = nearby.above.filter((m) => !excludeIds.has(m.channelId));
+  const below = nearby.below.filter((m) => !excludeIds.has(m.channelId));
+  const picked: VTuberIndexItem[] = [];
+  let i = 0;
+  while (picked.length < max && (i < above.length || i < below.length)) {
+    if (i < above.length && picked.length < max) picked.push(above[i]);
+    if (i < below.length && picked.length < max) picked.push(below[i]);
+    i += 1;
+  }
+  return picked.sort((a, b) => b.subscriberCount - a.subscriberCount);
 }
 
 async function getCurrentJstYear(): Promise<number> {
@@ -67,10 +144,7 @@ function latestDateText(latestYmd: string | undefined): string {
   return `${jstDate.format(d)}時点`;
 }
 
-function buildSummary(
-  detail: VTuberDetail,
-  ranks: Awaited<ReturnType<typeof getCachedVTuberRanks>>,
-): string {
+function buildSummary(detail: VTuberDetail, ranks: VTuberRanks | null): string {
   const first = detail.transition[0];
   const latest = detail.transition.at(-1);
   const summary: string[] = [];
@@ -124,8 +198,8 @@ function buildSummary(
   return summary.join("");
 }
 
-function anniversaryText(year: number, currentYear: number): string {
-  return `今年で${formatNumber(currentYear - year)}周年です。`;
+function anniversaryText(years: number): string {
+  return `今年で${formatNumber(years)}周年です。`;
 }
 
 function RelatedVTuberGrid({
@@ -216,19 +290,17 @@ export default async function VTuberDetailPage({ params }: PageProps) {
   const detail = await getCachedVTuberDetail(channelId);
   if (!detail) notFound();
 
-  const [officeMembers, nearbyCandidates, ranks, currentYear] = await Promise.all([
+  const isPersonal = detail.office === "個人";
+  const [officeMembers, nearby, ranks, currentYear] = await Promise.all([
     getCachedOfficeMembers(detail.office, detail.channelId, 12),
-    getCachedNearbyVTubers(detail.channelId, detail.office === "個人" ? 12 : 24),
-    getCachedVTuberRanks(detail.channelId),
+    getCachedNearby(detail.channelId, isPersonal ? 12 : 24),
+    getCachedRanks(detail.channelId),
     getCurrentJstYear(),
   ]);
   const officeMemberIds = new Set(officeMembers.map((member) => member.channelId));
-  const nearbyMembers =
-    detail.office === "個人"
-      ? nearbyCandidates
-      : nearbyCandidates
-          .filter((member) => !officeMemberIds.has(member.channelId))
-          .slice(0, 6);
+  const nearbyMembers = isPersonal
+    ? [...nearby.above].reverse().concat(nearby.below)
+    : pickBalanced(nearby, 6, officeMemberIds);
   const latest = detail.transition.at(-1);
   const birthdaySlug = detail.birthday
     ? formatDateSlug(detail.birthday.month, detail.birthday.day)
@@ -236,6 +308,7 @@ export default async function VTuberDetailPage({ params }: PageProps) {
   const debutSlug = detail.debut
     ? formatDateSlug(detail.debut.month, detail.debut.day)
     : null;
+  const debutYears = detail.debut?.year ? currentYear - detail.debut.year : 0;
 
   const canonicalUrl = `${SITE_URL}/vtuber/${channelId}`;
   const jsonLd = {
@@ -329,7 +402,7 @@ export default async function VTuberDetailPage({ params }: PageProps) {
 
       <DetailView detail={detail} />
 
-      {detail.office === "個人" ? (
+      {isPersonal ? (
         <RelatedVTuberGrid
           title="登録者数が近いVTuber"
           members={nearbyMembers}
@@ -387,9 +460,7 @@ export default async function VTuberDetailPage({ params }: PageProps) {
               <dd className="mt-1">
                 {detail.debut.year ? `${detail.debut.year}年` : ""}
                 {detail.debut.month}月{detail.debut.day}日です。{" "}
-                {detail.debut.year && (
-                  <>{anniversaryText(detail.debut.year, currentYear)} </>
-                )}
+                {debutYears >= 1 ? <>{anniversaryText(debutYears)} </> : null}
                 <Link
                   href={`/events/${debutSlug}`}
                   className="text-blue-600 hover:underline dark:text-blue-400"
@@ -404,7 +475,7 @@ export default async function VTuberDetailPage({ params }: PageProps) {
               {detail.name}はどこの事務所？
             </dt>
             <dd className="mt-1">
-              {detail.office === "個人"
+              {isPersonal
                 ? "個人で活動しています。"
                 : `${detail.office}に所属しています。`}
             </dd>
