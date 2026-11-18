@@ -714,6 +714,177 @@
     - 事務所公式チャンネルのページ（例: `officeFlg` が true の任意の 1 件）に「位です」が出ない。しぐれういのページの総数が、公式チャンネル分だけ減っている（1,557 → 約 1,533）。
     - `FRONTEND_SPEC.md` の VTuber 詳細ページの節に、上の 3 点を追記する。
 
+### P0-ADSENSE: Google AdSense 審査の準備（2026-11-17 追加・P0-INDEX の次、P0-NAV より先に着手）
+
+> **背景（2026-11-17 PM 調査）**: 本番 `https://www.vchannel.net` を AdSense の審査基準と照らし合わせた。今のままでは不合格になる可能性が高い。
+> - ❌ プライバシーポリシーに Google AdSense・Cookie の記載がない。
+> - ❌ プライバシーポリシーへのリンクが設定ページ内にしかない（設定ページは robots.txt で除外）。
+> - ❌ 運営者情報（`/about`）、お問い合わせ（`/contact`）、利用規約（`/terms`）がない。
+> - ❌ 人が書いた独自の文章が少ない。ページの大半はデータの自動表示で、ニュースは外部記事へのリンク集。
+> - △ 掲示板（ユーザー投稿）に不適切な投稿が載るリスクがある。
+>
+> **共通ルール**:
+> - 問い合わせ先メールアドレスは **`vchannel.com.info@gmail.com`**（ユーザー指定）。
+> - 運営者名は **「Vちゃんねる運営事務局」**。個人名・住所は載せない。
+> - 新しいページはすべてサーバーレンダリングにし、`generateMetadata`（title / description / canonical）を付け、sitemap に追加する。
+> - AdSense の広告タグ（`adsbygoogle.js`）は**審査に合格するまで入れない**（ADS-9 で扱う）。
+
+- [ ] **ADS-1. 問い合わせ先を定数にまとめ、全ページ共通のフッターを追加する**
+  - **対象ファイル**:
+    `lib/site.ts`
+    `components/SiteFooter.tsx`（新規）
+    `components/AppShell.tsx`
+    `app/privacy/page.tsx`
+    `components/SettingsList.tsx`
+  - **仕様**:
+    - `lib/site.ts` に `CONTACT_EMAIL = "vchannel.com.info@gmail.com"` と `OPERATOR_NAME = "Vちゃんねる運営事務局"` を追加する。
+      - `app/privacy/page.tsx` と `components/SettingsList.tsx` にあるローカル定数 `CONTACT_EMAIL` は削除し、`lib/site.ts` を参照する。
+    - `SiteFooter` を作り、`AppShell` で全ページのメインコンテンツの下に表示する（`/admin` 配下は除く）。
+      - リンク（`<Link>`）: このサイトについて（`/about`）、お問い合わせ（`/contact`）、利用規約（`/terms`）、プライバシーポリシー（`/privacy`）、ガイド・特集（`/guide`、ADS-6 で作成）。
+      - 著作権表記: `© 2026 Vちゃんねる`
+      - 非公式表記: 「当サイトは非公式のファンサイトであり、各VTuber・所属事務所とは関係ありません。」
+    - スマホでは画面下の固定ナビ（`BottomNav`）にフッターが隠れないよう、下側に余白を確保する。375px で横スクロールが出ないこと。ダークモード対応。
+    - サーバーレンダリングの HTML にフッターのリンクが含まれること。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - `/`、`/ranking`、`/vtuber/{id}` の HTML に、`href="/privacy"`、`href="/about"`、`href="/contact"`、`href="/terms"` が含まれる。
+    - `grep -rn '"vchannel.com.info@gmail.com"' app components lib` の結果が `lib/site.ts` の 1 件だけ。
+
+- [ ] **ADS-2. 運営者情報ページ `/about` を作る**
+  - **対象ファイル**: `app/about/page.tsx`（新規）、`app/sitemap.ts`
+  - **仕様**:
+    - title: `このサイトについて（運営者情報）`
+    - 本文に以下の見出しを入れる。
+      - **Vちゃんねるとは**: VTuber の配信スケジュール・登録者数ランキング・誕生日やデビュー記念日・ニュースをまとめたファンサイトであること、想定読者（推しの活動を追いかけたいファン）、主な機能（各ページへのリンク付き）。
+      - **掲載データについて**: YouTube の公開データを定期的に集計していること、更新頻度（配信情報は数分〜1時間、登録者数は1日1回）。数値は集計時点のもので、公式発表と異なる場合があること。
+      - **運営者**: `OPERATOR_NAME`、連絡先 `CONTACT_EMAIL`（`/contact` へのリンクも）。
+      - **免責事項・権利について**: 非公式ファンサイトであり各事務所とは無関係であること。掲載している画像・動画・名称の権利は各権利者に帰属すること。掲載内容の修正・削除の依頼は `/contact` から受け付けること。
+      - **広告について**: アフィリエイト（PR 表記）と広告配信サービスを利用していること。詳細は `/privacy` へ。
+    - JSON-LD: `AboutPage` と `Organization`（name: SITE_NAME、email: CONTACT_EMAIL、url: SITE_URL）。
+  - **完了条件**:
+    - `npm run build` が成功する。
+    - `/about` が 200 で、上記の見出しがすべて HTML に含まれる。sitemap に `/about` がある。
+
+- [ ] **ADS-3. お問い合わせページ `/contact` を作る**
+  - **対象ファイル**: `app/contact/page.tsx`（新規）、`app/sitemap.ts`
+  - **仕様**:
+    - title: `お問い合わせ`
+    - フォームのバックエンドは作らない。**メール（`mailto:`）で受け付ける**。
+    - 用件別に、件名入りの `mailto:` リンクボタンを並べる（件名は `encodeURIComponent` でエンコードする）。
+      - `掲載情報の修正依頼`
+      - `掲載内容の削除依頼（権利者の方）`
+      - `掲示板の投稿の通報`
+      - `広告・提携に関するお問い合わせ`
+      - `その他のお問い合わせ`
+    - メールアドレス自体もテキストで表示する（コピーできるように）。
+    - 注意書き: 返信までに数日かかる場合があること。VTuber 本人や事務所へのメッセージは取り次げないこと。
+  - **完了条件**:
+    - `npm run build` が成功する。
+    - `/contact` が 200 で、5 つの `mailto:vchannel.com.info@gmail.com?subject=...` リンクが HTML に含まれる。sitemap に `/contact` がある。
+
+- [ ] **ADS-4. 利用規約ページ `/terms` を作る**
+  - **対象ファイル**: `app/terms/page.tsx`（新規）、`app/sitemap.ts`、`components/ChatBoard.tsx`（規約へのリンク追加のみ）
+  - **仕様**:
+    - title: `利用規約`
+    - 見出し:
+      - **適用**
+      - **掲示板の利用について**: 禁止事項は、既存の掲示板ルールと同じ内容（誹謗中傷・個人情報・なりすまし・スパム・違法/不快なコンテンツなど）に、「性的な内容」「差別的な表現」「他サイトへの誘導・宣伝」を加える。運営者が不適切と判断した投稿は予告なく削除・非表示にできること。
+      - **免責事項**: 掲載データの正確性を保証しないこと。外部リンク先の内容に責任を負わないこと。
+      - **著作権**
+      - **規約の変更**
+      - **お問い合わせ**（`/contact` へのリンク）
+      - **制定日**: `2026-11-17`
+    - 掲示板の投稿画面（投稿ボタン付近）に「投稿前に[利用規約](/terms)をお読みください」のリンクを追加する。
+  - **完了条件**:
+    - `npm run build` が成功する。
+    - `/terms` が 200 で、sitemap に含まれる。掲示板の投稿画面に `/terms` へのリンクがある。
+
+- [ ] **ADS-5. プライバシーポリシーに Google AdSense と Cookie の記載を追加する**
+  - **対象ファイル**: `app/privacy/page.tsx`
+  - **仕様**:
+    - title を `プライバシーポリシー` にする（「・広告について」は外す。広告の説明は本文の見出しで扱う）。
+    - 以下の見出しを追加・整理する。既存の「広告の掲載について」「アクセス解析」「ローカルストレージ」「お問い合わせ」は残す。
+      - **広告配信について（Google AdSense）**: 当サイトは第三者配信の広告サービス「Google AdSense」を利用する（予定を含む）こと。以下の Google 指定の内容を、日本語で必ず含める。
+        - Google などの第三者配信事業者が Cookie を使用して、ユーザーが当サイトや他のウェブサイトに過去にアクセスした際の情報に基づいて広告を配信すること。
+        - Google が広告 Cookie を使用することにより、ユーザーが当サイトや他のサイトにアクセスした際の情報に基づいて、Google やそのパートナーが適切な広告を表示できること。
+        - ユーザーは [広告設定](https://adssettings.google.com/) でパーソナライズ広告を無効にできること。また [www.aboutads.info](https://www.aboutads.info/) にアクセスすれば、パーソナライズ広告に使われる第三者配信事業者の Cookie を無効にできること。
+        - Google のポリシーへのリンク: [広告 – ポリシーと規約 – Google](https://policies.google.com/technologies/ads)
+      - **Cookie について**: Cookie の概要と、ブラウザの設定で無効にできること。
+      - **個人情報の取り扱い**: お問い合わせのメールで受け取った情報は、返信と対応のためだけに使うこと。
+      - **掲示板への投稿**: 投稿された名前・本文は公開されること。個人情報を書き込まないこと。
+      - **免責事項**: 外部リンク先については責任を負わないこと。
+    - 運営者名 `OPERATOR_NAME` と連絡先 `CONTACT_EMAIL` を記載する（`lib/site.ts` から参照）。
+    - 改定日を `2026-11-17` に更新する（制定日は残す）。
+  - **完了条件**:
+    - `npm run build` が成功する。
+    - `/privacy` の HTML に `Google AdSense`、`Cookie`、`adssettings.google.com`、`aboutads.info`、`policies.google.com/technologies/ads` が含まれる。
+
+- [ ] **ADS-6. ガイド・特集記事の仕組み（`/guide`）を作る**
+  - **目的**: 人が書いた独自の文章を載せる場所を作る。記事の本文は PM（Claude）とユーザーが Markdown で書くので、Copilot は**仕組みだけ**を作る。サンプル記事 1 本を同梱する。
+  - **対象ファイル**:
+    `content/guide/*.md`（新規ディレクトリ）
+    `lib/guide.ts`（新規）
+    `app/guide/page.tsx`（新規）
+    `app/guide/[slug]/page.tsx`（新規）
+    `app/sitemap.ts`
+  - **仕様**:
+    - 記事は `content/guide/{slug}.md`。フロントマターは `title`、`description`、`publishedAt`（YYYY-MM-DD）、`updatedAt`（任意）、`category`（`事務所紹介` / `データ解説` / `使い方・入門`）、`relatedVtubers`（任意。channelId の配列）。
+    - パースには `gray-matter`、Markdown → HTML には `marked` を追加して使う。記事は自分たちで書くものなので、サニタイズは不要。
+    - `lib/guide.ts`: `getAllGuides()`（`publishedAt` の新しい順）、`getGuide(slug)`。ビルド時に読み込む。
+    - `/guide/[slug]`:
+      - `generateStaticParams` で全記事を静的生成する。存在しない slug は 404。
+      - パンくず（ホーム › ガイド・特集 › 記事名）。
+      - 本文の先頭に、公開日・更新日・運営者名を表示する。
+      - `relatedVtubers` があれば、本文の下に詳細ページへのリンクカードを表示する。
+      - JSON-LD: `Article`（headline、datePublished、dateModified、author: Organization `OPERATOR_NAME`）と `BreadcrumbList`。
+      - Markdown の見出し・段落・リスト・表・リンクが Tailwind で読みやすく表示されること（`prose` 相当のスタイル。`@tailwindcss/typography` の追加も可）。
+    - `/guide`: カテゴリ別の記事一覧（タイトル・説明・公開日）。
+    - トップページの下部に「ガイド・特集」の新着 3 件を表示する。
+    - sitemap に `/guide` と全記事を追加する（`lastModified` は `updatedAt ?? publishedAt`）。
+    - **サンプル記事**: `content/guide/how-to-use.md`（`使い方・入門`）を 1 本作る。内容は「Vちゃんねるの使い方」として、各ページの機能（配信・ニュース・VTuber・ランキング・誕生日・掲示板）を説明する。800 字以上で、各機能のページへのリンクを入れる。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - `/guide` と `/guide/how-to-use` が 200 で、本文が HTML に含まれる。sitemap に含まれる。
+    - `content/guide/` に `.md` を 1 本追加するだけで記事が増えることを、`FRONTEND_SPEC.md` に手順として書いている。
+
+- [ ] **ADS-7. 月間レポートページ（データから作る独自の分析記事）**（ADS-6 の次に着手）
+  - **目的**: データの自動表示だけでなく、「先月と比べて何が起きたか」を文章で説明するページを作る。数値の比較から文を組み立てるので、毎月自動で更新される独自コンテンツになる。
+  - **対象ファイル**: `app/reports/[month]/page.tsx`（新規。`month` は `YYYY-MM`）、`app/reports/page.tsx`（新規）、`lib/reports.ts`（新規）、`content/reports/{YYYY-MM}.md`（任意の編集部コメント）、`app/sitemap.ts`
+  - **仕様**:
+    - 対象は、今月（集計途中であることを明記）と、データが取れる過去月。データがない月は 404。
+    - セクション（データから文章を組み立てる）:
+      - **登録者の伸び TOP10**: 増加数と増加率。1 位について「〇〇が △△人増え、伸び率は □□% でした」のように文章で説明する。
+      - **事務所別の伸び**: 事務所ごとの合計増加数の上位 5 事務所。
+      - **同時視聴者数の大きかった配信 TOP10**（週間データから月内のものを集計できる範囲で）。
+      - **今月の誕生日・デビュー記念日**: 人数と、登録者数の多い順に上位 10 人。
+      - 各 VTuber 名は詳細ページへのリンクにする。
+    - `content/reports/{YYYY-MM}.md` があれば、その本文を「編集部コメント」としてページ冒頭に表示する（なくてもページは成立する）。
+    - title: `{YYYY}年{M}月のVTuber月間レポート｜登録者の伸び・人気配信まとめ`
+    - JSON-LD `Article`。`/reports` は月の一覧。フッターと `/guide` から `/reports` へリンクする。
+    - データ取得元は既存の `lib/growth-data.ts` / `lib/ranking.ts` / `lib/events.ts` を流用する。月単位の集計ができないデータは、無理に作らずセクションを省略してよい。省略したものは完了報告に書く。
+  - **完了条件**:
+    - `npm run build` が成功する。
+    - `/reports/2026-11` が 200 で、文章（「〜人増え」など）と VTuber 名へのリンクが HTML に含まれる。
+
+- [ ] **ADS-8. 掲示板の不適切な投稿を表示しない仕組み**
+  - **対象ファイル**: `lib/chat.ts`、`components/ChatBoard.tsx`、`lib/ngWords.ts`（新規）
+  - **仕様**:
+    - `lib/ngWords.ts` に NG ワードの配列を置く。初期値は、一般的な誹謗中傷・差別・性的表現の語と、電話番号・メールアドレス・URL の正規表現。
+    - **投稿時**: NG ワードを含む投稿は送信せず、「不適切な表現が含まれているため投稿できません」と表示する。
+    - **表示時**: 既存の投稿に NG ワードが含まれる場合は、本文を `この投稿は表示されません` に置き換える（Firestore のデータは変更しない）。
+    - 各投稿に「通報」リンクを付ける。`/contact` の「掲示板の投稿の通報」と同じ `mailto:` で、件名にスレッド名とレス番号を入れる。
+    - 範囲外: サーバー側での削除（Firestore ルールで delete 不可のため、必要なら管理画面側で別途対応する）。
+  - **完了条件**:
+    - `npm run build` が成功する。
+    - NG ワードを含む投稿は送信できず、表示もされない。通報リンクから件名入りのメール作成画面が開く。
+
+- ⏸ **ADS-9. AdSense のコード・`ads.txt`・広告枠の設置** — **人手待ち（チェックボックスなし＝着手禁止）**
+  - **前提（人手作業）**: ADS-1〜8 が本番に出た後、ユーザーが AdSense に申請する。申請画面で発行される**サイト所有権の確認コード**（`ca-pub-XXXXXXXXXXXXXXXX`）を PM に渡す。PM がこのタスクに値を書き込み、行頭を `- [ ]` に変えた時点で着手可能になる。
+  - 予定している内容:
+    - `layout.tsx` への AdSense スクリプトの追加（`next/script`、`afterInteractive`）。
+    - `public/ads.txt`（`google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0`）の設置。
+    - 合格後の広告枠の位置（記事本文の下、ランキングの下など。**掲示板には置かない**）。
+
 ### P0-NAV: タップしたらすぐ画面を切り替える（2026-11-14 追加・P0-DOMAIN の次、P0-FILTER より先に着手）
 
 > **背景**: 全体的に、タップしてから別のページに切り替わるまでが遅い。特に初回（キャッシュが温まる前）が顕著。原因は、サーバーでデータを読むページに `loading.tsx` も `<Suspense>` も無く、さらに `instant = false` で即時遷移の検証を外しているため、遷移先の描画が終わるまで前の画面に留まっていること。詳細は `FRONTEND_SPEC.md` 6.2。

@@ -483,6 +483,15 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
   - `next dev` は先読みしないため、体感の確認は `npm run build && npm start` か Vercel のプレビューで行う。
 - **SEO**: `loading.tsx` を置いてもページ本文は同じ HTML レスポンス内にストリーミングで出る（JSON-LD・内部リンクも含む）。`generateMetadata` は変更しない。
 
+### 6.2 AdSense 審査対応の方針（2026-11-17 策定）
+- 問い合わせ先は `vchannel.com.info@gmail.com`、運営者名は「Vちゃんねる運営事務局」。どちらも `lib/site.ts` の定数だけを参照する（直書き禁止）。個人名・住所は載せない。
+- 全ページ共通のフッターから、`/about`・`/contact`・`/terms`・`/privacy`・`/guide` に必ずリンクする。
+- 独自の文章コンテンツは 2 種類で作る。
+  - `/guide`: 人が書く Markdown 記事（`content/guide/*.md`）。
+  - `/reports/{YYYY-MM}`: データの比較から文章を組み立てる月間レポート（任意で編集部コメント）。
+- 掲示板は NG ワードで投稿・表示を制限し、通報リンクを付ける。掲示板には広告を置かない。
+- AdSense のスクリプトと `ads.txt` は、審査用コードを受け取ってから入れる（ADS-9）。
+
 ## 7. SPEC.md との差異（コード基準）
 1. 下部ナビは 4 項目（ランキングは画面内タブバー）。SPEC.md は 5 タブ。
 2. 過去アーカイブの「30 日以内」制限はコードに無い（今日より前すべて）。
