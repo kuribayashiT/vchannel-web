@@ -13,6 +13,10 @@ async function main() {
   const frontendSpec = fs.existsSync('FRONTEND_SPEC.md') ? fs.readFileSync('FRONTEND_SPEC.md', 'utf8') : '';
   const copilotTask = fs.existsSync('COPILOT_TASK.md') ? fs.readFileSync('COPILOT_TASK.md', 'utf8') : '';
 
+  // 1日に複数回実行されるため、ID は JST の日付＋時刻で一意にする（例: AI-20261118-13）
+  const jst = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString();
+  const taskId = `AI-${jst.slice(0, 10).replace(/-/g, '')}-${jst.slice(11, 13)}`;
+
   const prompt = `
 あなたは「Vちゃんねる」のプロダクトデザイナー兼AIプロンプトエンジニアです。
 以下の資料をもとに、競合サイト（data.vmato.jp）に勝つための新しい改善タスクを1件だけ考案してください。
@@ -30,10 +34,10 @@ ${copilotTask}
 ## 指示
 - すでに記載されているタスク（完了済みを含む）と重複しないものを1件選定してください。
 - **追記する新しいタスク 1 件の Markdown だけ**を出力してください。COPILOT_TASK.md 全体や既存のタスクは出力しないでください。解説文も不要です。
-- 1 行目は必ず \`- [ ] **AI-YYYYMMDD. タスク名**\` の形にしてください（YYYYMMDD は今日の日付）。
+- 1 行目は必ず \`- [ ] **${taskId}. タスク名**\` の形にしてください（ID は \`${taskId}\` をそのまま使うこと）。
 - 2 行目以降は、次の形式で 2 スペース字下げしてください。
 
-- [ ] **AI-YYYYMMDD. タスク名**
+- [ ] **${taskId}. タスク名**
   - **対象ファイル**: \`components/Example.tsx\`
   - **仕様**: 〇〇を実装・修正する。
   - **完了条件**: \`npm run build\` が成功すること。
