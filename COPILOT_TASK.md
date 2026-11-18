@@ -1,6 +1,6 @@
 # COPILOT_TASK: ランキングへの「登録者 急上昇」タブ追加および UI 改善バックログ
 
-> 最終更新: 2026-11-17 / 担当: プロダクトデザイナー → 実装: GitHub Copilot
+> 最終更新: 2026-11-18 / 担当: プロダクトデザイナー → 実装: GitHub Copilot
 
 ---
 
@@ -713,6 +713,31 @@
     - 宝鐘マリン（`UCCzUftO8KOVkV4wQG1vkUvg`）のページの「登録者数が近いVTuber」6 人に、マリンより登録者数が多い人と少ない人の両方が含まれる。
     - 事務所公式チャンネルのページ（例: `officeFlg` が true の任意の 1 件）に「位です」が出ない。しぐれういのページの総数が、公式チャンネル分だけ減っている（1,557 → 約 1,533）。
     - `FRONTEND_SPEC.md` の VTuber 詳細ページの節に、上の 3 点を追記する。
+
+### P0-LIVEFIX: URL から開いた直後の「配信中」が古い（🚨最優先・2026-11-18 追加・P0-ADSENSE より先に着手）
+
+> **調査結果（2026-11-18 PM）**: スマホで URL から開くと、配信中タブに古い一覧が出る。更新ボタンを押すと最新になる。原因は 2 つ。
+> 1. **サーバー側のキャッシュ（主因）**: `getLiveVideoList()` は `fetch(..., { next: { revalidate: 60 } })` で GCS を取得する。この設定は「期限切れでも、まず古いデータを返して裏で更新する」（stale-while-revalidate）。アクセスが少ない時間帯は、**期限切れ後の最初の 1 回が、前回アクセス時点の古い一覧になる**。前回が数時間前なら数時間前の一覧が出る。直後に更新ボタンを押すと、裏で更新済みの新しいデータが返るので直る。STREAM-1 で 300 → 60 秒にしたが、この仕組みは変わっていない。
+> 2. **ブラウザの戻る／タブ復帰（副因）**: iOS Safari などは、ページを丸ごとメモリに残して復元する（bfcache）。この場合 `StreamTabs` は再マウントされず、`visibilitychange` も来ないことがあるため、前に表示した一覧のまま残る。
+>
+> ※ `/api/streams` 自体は `Cache-Control: no-store` で、Vercel の CDN キャッシュ（`x-vercel-cache: MISS`）やブラウザキャッシュは原因ではない。GCS 側は `max-age=60` のため、最大でも 60 秒の遅れにとどまる（バックエンドの更新間隔は 5 分）。
+
+- [ ] **STREAM-3. 配信中の一覧を、開いた直後から最新にする**
+  - **対象ファイル**:
+    `lib/gcs.ts`
+    `components/StreamTabs.tsx`
+  - **仕様**:
+    - `getLiveVideoList()` だけ、Next.js のデータキャッシュを使わずに毎回 GCS から取得する（`fetch` に `cache: "no-store"` を指定）。
+      - `fetchGcsJson` に、`revalidate` の代わりに `"no-store"` を渡せるようにする（例: 第 2 引数を `number | "no-store"` にし、`"no-store"` のときは `{ cache: "no-store" }` で fetch する）。他の呼び出し元の挙動は変えない。
+      - `weeklyLiveViewRanking.json`（`REVALIDATE.live` のもう 1 か所の利用）と `getTrimmedStreamVideos()`（配信予定・過去アーカイブ用）は変更しない。
+      - 不要になる場合は `REVALIDATE.live` を残してよい（`weeklyLiveView` が使っているため）。
+    - `StreamTabs` で `pageshow` イベントを購読し、`event.persisted === true`（bfcache から復元された）なら `load()` を呼ぶ。購読はアンマウント時に解除する。
+      - 既存の `visibilitychange`（60 秒以上経っていたら再取得）と 3 分ごとの自動更新はそのまま残す。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - `grep -n "no-store" lib/gcs.ts` で、`livevideoList` の取得に `no-store` が使われていることが分かる。
+    - （デプロイ後）しばらくアクセスがない状態で `curl -s https://www.vchannel.net/api/streams` の `liveVideos` の件数・videoId が、`curl -s "https://storage.googleapis.com/vtuber-335811.appspot.com/livevideoList.json?x=$RANDOM"` と一致する（GCS の 60 秒キャッシュ分の差は許容）。
+    - `FRONTEND_SPEC.md` のキャッシュ方針（「ライブ関連は `livevideoList.json` を…」の行）を、`/api/streams` の配信中データは毎回 GCS から取得する、に更新する。
 
 ### P0-ADSENSE: Google AdSense 審査の準備（2026-11-17 追加・P0-INDEX の次、P0-NAV より先に着手）
 
