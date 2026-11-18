@@ -775,7 +775,7 @@
     - `/`、`/ranking`、`/vtuber/{id}` の HTML に、`href="/privacy"`、`href="/about"`、`href="/contact"`、`href="/terms"` が含まれる。
     - `grep -rn '"vchannel.com.info@gmail.com"' app components lib` の結果が `lib/site.ts` の 1 件だけ。
 
-- [ ] **ADS-2. 運営者情報ページ `/about` を作る**
+- [x] **ADS-2. 運営者情報ページ `/about` を作る**
   - **対象ファイル**: `app/about/page.tsx`（新規）、`app/sitemap.ts`
   - **仕様**:
     - title: `このサイトについて（運営者情報）`

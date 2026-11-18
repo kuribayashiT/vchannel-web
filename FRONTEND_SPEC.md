@@ -487,6 +487,7 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 - 問い合わせ先は `vchannel.com.info@gmail.com`、運営者名は「Vちゃんねる運営事務局」。どちらも `lib/site.ts` の定数だけを参照する（直書き禁止）。個人名・住所は載せない。
 - 全ページ共通のフッターから、`/about`・`/contact`・`/terms`・`/privacy`・`/guide` に必ずリンクする（`/admin` 配下は表示しない）。
 - フッターには「© 2026 Vちゃんねる」と非公式ファンサイトの注記を表示し、モバイルでは固定 `BottomNav` に隠れない下余白を確保する。
+- `/about`（このサイトについて）はサーバーレンダリングで、`generateMetadata`（title/description/canonical）を設定する。本文は「Vちゃんねるとは」「掲載データについて」「運営者」「免責事項・権利について」「広告について」の5見出しを持ち、`AboutPage` と `Organization` の JSON-LD を出力する。
 - 独自の文章コンテンツは 2 種類で作る。
   - `/guide`: 人が書く Markdown 記事（`content/guide/*.md`）。
   - `/reports/{YYYY-MM}`: データの比較から文章を組み立てる月間レポート（任意で編集部コメント）。
