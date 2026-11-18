@@ -754,7 +754,7 @@
 > - 新しいページはすべてサーバーレンダリングにし、`generateMetadata`（title / description / canonical）を付け、sitemap に追加する。
 > - AdSense の広告タグ（`adsbygoogle.js`）は**審査に合格するまで入れない**（ADS-9 で扱う）。
 
-- [ ] **ADS-1. 問い合わせ先を定数にまとめ、全ページ共通のフッターを追加する**
+- [x] **ADS-1. 問い合わせ先を定数にまとめ、全ページ共通のフッターを追加する**
   - **対象ファイル**:
     `lib/site.ts`
     `components/SiteFooter.tsx`（新規）

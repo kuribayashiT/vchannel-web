@@ -7,6 +7,7 @@ import { BottomNav, TopNav } from "@/components/BottomNav";
 import { LinkPendingIndicator } from "@/components/LinkPendingIndicator";
 import { YouTubePlayer } from "@/components/YouTubePlayer";
 import { OfficeSelector } from "@/components/OfficeSelector";
+import { SiteFooter } from "@/components/SiteFooter";
 import { resetSelection, useSelectedChannels } from "@/hooks/useSelection";
 import type { OfficeSummary } from "@/lib/offices";
 
@@ -144,9 +145,10 @@ export function AppShell({
           </div>
         </div>
       </header>
-      <div className="flex min-h-0 flex-1 flex-col pb-16 md:pb-0">
+      <div className="flex min-h-0 flex-1 flex-col">
         {children}
       </div>
+      <SiteFooter />
       <YouTubePlayer />
       <Suspense fallback={null}>
         <BottomNav />

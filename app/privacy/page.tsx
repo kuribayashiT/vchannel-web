@@ -1,8 +1,7 @@
 import Link from "next/link";
+import { CONTACT_EMAIL } from "@/lib/site";
 
 export const metadata = { title: "プライバシーポリシー・広告について" };
-
-const CONTACT_EMAIL = "vchannel.com.info@gmail.com";
 
 export default function PrivacyPage() {
   return (

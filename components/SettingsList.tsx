@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { useState } from "react";
 import { resetSelection } from "@/hooks/useSelection";
+import { CONTACT_EMAIL } from "@/lib/site";
 
 const btn =
   "w-full rounded-lg border border-zinc-200 bg-white px-4 py-3 text-left text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800";
-const CONTACT_EMAIL = "vchannel.com.info@gmail.com";
 
 export function SettingsList() {
   const [message, setMessage] = useState("");
