@@ -702,7 +702,7 @@
     - 0 人の日があれば、その日の HTML に `noindex` が出て、`/sitemap.xml` にその日の URL が無い（0 人の日が無ければ、その旨を完了報告に書く）。
     - `FRONTEND_SPEC.md` の日付別イベントページの節に、title のルール・前後の日セクション・noindex の条件を追記する。
 
-- [ ] **IDX-4. IDX-1〜3 の細かい修正（PM レビュー 2026-11-17）**（IDX-3 の次。小粒なので次の 1 件として着手してよい）
+- [x] **IDX-4. IDX-1〜3 の細かい修正（PM レビュー 2026-11-17）**（IDX-3 の次。小粒なので次の 1 件として着手してよい）
   - **対象ファイル**: `app/vtuber/[channelId]/page.tsx`、`lib/server-data.ts`
   - **仕様**:
     - **「今年で0周年です」を出さない**: よくある質問のデビュー日で、`currentYear - debut.year` が 1 以上のときだけ「今年で N 周年です。」を出す（今年デビューの人や、自動登録で `debut.year` が今年の人で 0 周年・マイナスにならないようにする）。
@@ -1362,6 +1362,42 @@
     - 375px 幅でチップ列が横スクロールし、ページ全体の横スクロールが出ない。ダークモードで読める。
     - `curl -s <URL>/news -o news.html && wc -c news.html` が変更前から +2KB 以内。
 
+- [ ] **AI-20261118. 配信中タブに並び替えチップ（視聴者数順／開始が新しい順）を付ける**
+  - **対象ファイル**:
+    `components/StreamTabs.tsx`
+    `lib/stream.ts`（並び替えの純粋関数 `sortLiveVideos` を追加。`toStreamCardVideo` に `actualStartTime` が無い場合のみ追加）
+    `FRONTEND_SPEC.md`（5.2）
+  - **背景**: data.vmato.jp は、いま配信中の動画を同時視聴者数の多い順に見られる。Vちゃんねるの「配信中」タブは `livevideoList.json` の順序のままで、並び替え手段がない。そのため次の問題がある。
+    - 「いま一番盛り上がっている配信」を探すには、一覧を最後までスクロールして `concurrent_viewers` を目で比べる必要がある。
+    - 始まったばかりの配信（途中参加しやすい配信）を探せない。
+    - 配信中は 1 日の中でもっとも見られるタブなので、ここで目的の配信に早く着けるかが回遊に直結する。
+  - **仕様**:
+    - `lib/stream.ts` に `sortLiveVideos<T extends { concurrent_viewers?: string | number; actualStartTime?: string }>(items: readonly T[], mode: "default" | "viewers" | "newest"): T[]` を追加する。元の配列は変更しない。
+      - `default`: 渡された順序のまま返す。
+      - `viewers`: `Number(concurrent_viewers)` の降順。数値化できない値・空は 0 として扱い、最後にまとめる。同数は元の順序を保つ（安定ソート）。
+      - `newest`: `actualStartTime` の新しい順。日時が無い・不正なものは最後にまとめ、同時刻は元の順序を保つ。
+    - `StreamTabs` の「配信中」タブだけ、一覧の上に並び替えチップを横並びで置く。
+      - チップは `おすすめ`（= `default`）/ `視聴者数順` / `開始が新しい順` の 3 つ。初期値は `おすすめ`（従来の順序）。
+      - 配信中の動画（選択チャンネル絞り込み後）が 2 件未満のときは、チップ列を出さない。
+      - 選択状態は `useState` で持つ。保存はしない。タブを切り替えて戻ってきても、同じ画面を開いている間は維持する。
+      - 更新ボタン・引っ張って更新・自動更新で `load()` が再実行されても、選択中の並び替えは変えない。
+      - 並び替えは取得済みの配列に対して `useMemo` で行う。再 fetch はしない。選択チャンネルの絞り込み後に並び替える。
+      - 見た目は、`rounded-full border px-3 py-1 text-xs whitespace-nowrap shrink-0`。非選択は `border-zinc-200 text-zinc-600`（ダーク: `dark:border-zinc-700 dark:text-zinc-300`）、選択中は `bg-violet-600 text-white border-violet-600`。先頭に小さく lucide-react の `ArrowDownWideNarrow`（`size={12}`）を付けた `並び替え` ラベル（`text-xs text-zinc-500`）を置く。
+      - チップ列は `overflow-x-auto` で、375px 幅でもページ全体の横スクロールを出さない。`aria-pressed` を使うトグルボタンにする（`role="tablist"` にしない）。
+    - 他のタブ（過去アーカイブ・今日・明日・明日以降）の並び順と表示は変えない。
+    - `toStreamCardVideo` の戻り値に `actualStartTime` が無い場合だけ追加する（すでにあればそのまま使う。他のフィールドは追加しない）。追加後も `/` の HTML 増加は +3KB 以内に収める。
+    - 同時視聴者数の表示（`concurrent_viewers` 付き）、お気に入り、`感想を書く` リンク、選択チャンネル絞り込みの挙動は変えない。
+    - `any` は使わない。新しいパッケージは追加しない。
+    - `FRONTEND_SPEC.md` 5.2 の「配信中」の行（`JSON の順序で一覧表示`）に、「初期は JSON の順序。一覧の上の並び替えチップで `視聴者数順` / `開始が新しい順` に切り替えられる（保存しない）」を追記する。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - 配信中タブで `視聴者数順` を選ぶと、`concurrent_viewers` の多い順にカードが並ぶ。`開始が新しい順` では `actualStartTime` の新しい順に並ぶ。`おすすめ` に戻すと従来の順序に戻る。
+    - 並び替えを切り替えても `/api/streams` への追加リクエストが発生しない（DevTools の Network で確認）。更新ボタンで再取得しても選択中の並び替えが変わらない。
+    - フィルターで 1 事務所だけ選んだ状態でも、絞り込み後の一覧が並び替わる。配信中が 1 件以下のときはチップ列が出ない。
+    - 他のサブタブの並び順が変わらない。
+    - 375px 幅でチップ列が横スクロールし、ページ全体の横スクロールが出ない。ダークモードで読める。
+    - `curl -s <URL>/ -o top.html && wc -c top.html` が変更前から +3KB 以内。
+
 ### P1-VTLIST: VTuber 一覧ページの回遊改善（2026-11-17 追加）
 
 - [x] **VT-GROUP-3. PC の事務所折りたたみを、全事務所表示のときは最初すべて閉じる**
@@ -1415,4 +1451,3 @@
     - `.next/server/app/vtuber.html` が 830KB 以下（VDIR-1 の目安）。
     - 閉じた状態で各行に事務所アイコン・名前・人数・上位 3 人の名前が見える。`個人` を開いても中身がスクロール領域に収まる。
     - `事務所から探す ↓` を押すとセクションへ移動する。375px 幅・ダークモードで崩れない。
-
