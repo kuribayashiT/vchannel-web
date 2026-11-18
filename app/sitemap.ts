@@ -13,6 +13,7 @@ const PAGES: {
   { path: "/", changeFrequency: "hourly", priority: 1 },
   { path: "/about", changeFrequency: "daily", priority: 0.4 },
   { path: "/contact", changeFrequency: "daily", priority: 0.4 },
+  { path: "/terms", changeFrequency: "daily", priority: 0.4 },
   { path: "/ranking", changeFrequency: "daily", priority: 0.8 },
   { path: "/news", changeFrequency: "hourly", priority: 0.7 },
   { path: "/vtuber", changeFrequency: "daily", priority: 0.7 },

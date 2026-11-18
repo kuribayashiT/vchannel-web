@@ -807,7 +807,7 @@
     - `npm run build` が成功する。
     - `/contact` が 200 で、5 つの `mailto:vchannel.com.info@gmail.com?subject=...` リンクが HTML に含まれる。sitemap に `/contact` がある。
 
-- [ ] **ADS-4. 利用規約ページ `/terms` を作る**
+- [x] **ADS-4. 利用規約ページ `/terms` を作る**
   - **対象ファイル**: `app/terms/page.tsx`（新規）、`app/sitemap.ts`、`components/ChatBoard.tsx`（規約へのリンク追加のみ）
   - **仕様**:
     - title: `利用規約`

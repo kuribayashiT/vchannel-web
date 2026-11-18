@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Sparkles } from "lucide-react";
 import { useSelectedChannels } from "@/hooks/useSelection";
@@ -209,6 +210,13 @@ function PostSheet({
           </span>
         </div>
         <div className="flex justify-end gap-2">
+          <p className="mr-auto self-center text-xs text-zinc-500">
+            投稿前に
+            <Link href="/terms" className="ml-1 text-blue-600 underline hover:text-blue-500 dark:text-blue-400">
+              利用規約
+            </Link>
+            をお読みください
+          </p>
           <button
             type="button"
             onClick={onClose}
