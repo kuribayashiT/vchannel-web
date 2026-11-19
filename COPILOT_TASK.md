@@ -824,7 +824,7 @@
     - `npm run build` が成功する。
     - `/terms` が 200 で、sitemap に含まれる。掲示板の投稿画面に `/terms` へのリンクがある。
 
-- [ ] **ADS-5. プライバシーポリシーに Google AdSense と Cookie の記載を追加する**
+- [x] **ADS-5. プライバシーポリシーに Google AdSense と Cookie の記載を追加する**
   - **対象ファイル**: `app/privacy/page.tsx`
   - **仕様**:
     - title を `プライバシーポリシー` にする（「・広告について」は外す。広告の説明は本文の見出しで扱う）。
@@ -1593,6 +1593,43 @@
     - 他のサブタブの並び順が変わらない。
     - 375px 幅でチップ列が横スクロールし、ページ全体の横スクロールが出ない。ダークモードで読める。
     - `curl -s <URL>/ -o top.html && wc -c top.html` が変更前から +3KB 以内。
+
+- [ ] **AI-20261119-15. トップページ最上部に「今日が誕生日のVTuber」帯を出し、詳細・日付ページへの回遊を作る**
+  - **対象ファイル**:
+    `lib/events-data.ts`（`getUpcomingBirthdays` を追加）
+    `components/TodayBirthdayStrip.tsx`（新規・Client Component）
+    `app/page.tsx`（配信タブの直前に設置。`<Suspense>` で包む）
+    `lib/thumbnail.ts`（既存の `ytThumbUrl` を利用）
+    `FRONTEND_SPEC.md`（5.2 とアプリシェル周辺）
+  - **背景**: トップページは配信タブだけで、配信が少ない時間帯は「今日このサイトを開く理由」が弱い。誕生日は `eventList.json` に入っており、ファンの関心が高く、`/events/MM-DD` や VTuber 詳細への内部リンクも増やせる。ところが現状、誕生日はイベントカレンダーを開かないと見えない。
+  - **仕様**:
+    - `lib/events-data.ts` に `getUpcomingBirthdays(days = 4)` を追加する。`"use cache"` + `cacheLife("hours")` を付け、JST の今日から `days` 日分について、誕生日（`eventType === "birthday"`）だけを次の形で返す。
+      - `{ slug: "MM-DD"; month: number; day: number; total: number; people: { channelId: string; name: string; thumb?: string }[] }[]`
+      - `people` は最大 5 人。`total` は人数の合計。`thumb` は `shortenYtThumb()` で短縮した形にする。
+      - 並びは `eventList.json` の順とする。既存の `getEventsMap()` の結果を再利用し、新しい GCS 取得は増やさない。
+      - 取得に失敗したときは空配列を返し、トップページを落とさない。
+    - ISR のキャッシュが日付をまたいで残っても正しく動くよう、`app/page.tsx` は今日 1 日分ではなく 4 日分をクライアントへ渡す。
+    - `TodayBirthdayStrip`（Client Component）はマウント後に JST の今日（`lib/events.ts` の `todayJstParts()`）と一致する `slug` を探して表示する。
+      - マウント前は何も描画しない。ハイドレーションの不一致を避けるため。
+      - 配置は 1 行分の高さ（`min-h-14`）を確保した枠の中とし、CLS を出さない。
+      - 当日が 0 人なら枠ごと出さない。
+    - 見た目は、`rounded-xl border border-amber-200 bg-amber-50 px-3 py-2`（ダーク: `dark:border-amber-900/50 dark:bg-amber-950/20`）の細い帯とする。
+      - 左に lucide-react の `Cake`（`size={16}`）と `今日は{total}人の誕生日`（`text-sm font-semibold`）を置く。
+      - その右に VTuber のアイコン（`SafeImage`、`ytThumbUrl(thumb, 48)`、`size-8 rounded-full`、`loading="lazy"`）を最大 5 つ並べる。各アイコンは `next/link` の `<Link href={`/vtuber/${channelId}`} title={name}>` にする。
+      - `thumb` が無い場合は名前の頭文字の丸を出す。
+      - 末尾に `total > 5` なら `ほかN人` を出す。
+      - 右端に `すべて見る` のリンク（`/events/{slug}`、`text-xs text-blue-600`、`ChevronRight` 付き）を置く。
+      - 375px 幅ではアイコン列を `overflow-x-auto`（スクロールバー非表示）にして、帯が 2 行以上にならないようにする。ページ全体の横スクロールを出さない。
+    - 帯は絞り込み（選択チャンネル）の影響を受けない。
+    - リンクはすべて `<Link>`（`<a href>`）とし、`onClick` だけの遷移にはしない。
+    - `app/page.tsx` の `generateMetadata`、ISR 設定、`loading.tsx`、配信タブの表示は変えない。`any` は使わない。新しいパッケージは追加しない。
+    - `FRONTEND_SPEC.md` 5.2 に「トップ最上部に今日の誕生日帯（JST、マウント後に判定、最大 5 人＋ほか N 人、`/events/MM-DD` へリンク、0 人の日は出さない）」を追記する。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。ビルドログに `Date.now()` の警告が出ない。
+    - 誕生日の VTuber がいる日にトップを開くと、配信タブの上に帯が出る。アイコンをタップすると `/vtuber/{channelId}` へ、`すべて見る` をタップすると `/events/MM-DD` へ遷移する。
+    - 誕生日が 0 人の日は帯が出ず、空白の枠も残らない（CLS が出ない）。
+    - `curl -s <URL>/ -o top.html && wc -c top.html` が変更前から +3KB 以内で、500KB 以下のまま。ブラウザのコンソールにハイドレーションの警告が出ない。
+    - 375px 幅で帯が 1 行に収まり、横スクロールが出ない。ダークモードで読める。配信タブ、フィルター、更新ボタンの挙動は従来どおり。
 
 ### P1-VTLIST: VTuber 一覧ページの回遊改善（2026-11-17 追加）
 
