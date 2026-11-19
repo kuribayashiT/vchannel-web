@@ -563,6 +563,20 @@
     - 掲示板ルールがスレッドタブ列に表示されない。
     - 注意事項はスレッド一覧の上で開閉できる。
 
+### P0-SEC: Next.js のセキュリティ更新（🚨最優先・2026-11-19 追加・他のすべてのタスクより先に着手）
+
+- [ ] **SEC-1. Next.js を脆弱性修正済みの最新パッチ版に上げる**
+  - **背景（2026-11-19 PM 確認）**: ローカルの `npm run build` で `SecurityFatalError: Your version of Next.js is affected by a known security vulnerability.` が出て、ビルドが止まった。現在の `next` は `16.4.4`、npm には `16.4.6` まである。本番の Vercel デプロイは今のところ通っているが、脆弱性を抱えたまま公開している状態になっている。
+  - **対象ファイル**: `package.json`、`package-lock.json`（必要に応じて `eslint-config-next` も同じバージョンにそろえる）
+  - **仕様**:
+    - `next` を 16.4 系の最新パッチ版（2026-11-19 時点で `16.4.6`）に上げる。メジャー・マイナーは上げない。
+    - Next.js 公式の手順（`npx next upgrade` など）か、`npm install next@16.4.6` で更新する。どちらを使ったかを完了報告に書く。
+    - 更新後に、既存の画面の動作に変化がないことを確認する。特に `/`、`/ranking`、`/vtuber/{id}`、`/events/{MM-DD}`、`/guide/{slug}`、`/reports/{YYYY-MM}`、`/admin`（ログイン画面が出ること）。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。
+    - `npm run build` が `SecurityFatalError` なしで、**1 回目の実行で**成功する。
+    - `npm ls next` が 16.4.6 以上を示す。
+
 ### P0-OGFIX: VTuber 詳細ページの共有画像が 500 になる不具合（🚨最優先・2026-11-14 追加・P0-DOMAIN より先に着手）
 
 - [x] **OGFIX-1. `/vtuber/[channelId]/opengraph-image` の 500 エラーを直し、どんな場合も画像を返すようにする**
