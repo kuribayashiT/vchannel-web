@@ -3,6 +3,7 @@ import { cacheLife } from "next/cache";
 import { allDateSlugs } from "@/lib/events";
 import { getCachedSortedEventsMapByDateSlug } from "@/lib/events-data";
 import { getAllGuides } from "@/lib/guide";
+import { getCurrentReportContext, getReportMonths } from "@/lib/reports";
 import { loadVTubers } from "@/lib/server-data";
 import { SITE_URL } from "@/lib/site";
 
@@ -22,6 +23,7 @@ const PAGES: {
   { path: "/chat", changeFrequency: "hourly", priority: 0.4 },
   { path: "/privacy", changeFrequency: "daily", priority: 0.3 },
   { path: "/guide", changeFrequency: "daily", priority: 0.6 },
+  { path: "/reports", changeFrequency: "daily", priority: 0.6 },
 ];
 
 const SITEMAP_PAGE_SIZE = 50_000;
@@ -40,6 +42,16 @@ function guideEntries(): MetadataRoute.Sitemap {
     changeFrequency: "monthly",
     priority: 0.5,
     lastModified: guide.updatedAt ?? guide.publishedAt,
+  }));
+}
+
+async function reportEntries(): Promise<MetadataRoute.Sitemap> {
+  const { month } = await getCurrentReportContext();
+  const months = await getReportMonths(month);
+  return months.map((month) => ({
+    url: `${SITE_URL}/reports/${month}`,
+    changeFrequency: "monthly",
+    priority: 0.5,
   }));
 }
 
@@ -94,6 +106,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const all = [
       ...staticPages,
       ...guides,
+      ...(await reportEntries()),
       ...(await eventDateEntries()),
       ...(await vtuberEntries()),
     ];

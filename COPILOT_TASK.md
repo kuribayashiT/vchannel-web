@@ -872,7 +872,7 @@
     - `/guide` と `/guide/how-to-use` が 200 で、本文が HTML に含まれる。sitemap に含まれる。
     - `content/guide/` に `.md` を 1 本追加するだけで記事が増えることを、`FRONTEND_SPEC.md` に手順として書いている。
 
-- [ ] **ADS-7. 月間レポートページ（データから作る独自の分析記事）**（ADS-6 の次に着手）
+- [x] **ADS-7. 月間レポートページ（データから作る独自の分析記事）**（ADS-6 の次に着手）
   - **目的**: データの自動表示だけでなく、「先月と比べて何が起きたか」を文章で説明するページを作る。数値の比較から文を組み立てるので、毎月自動で更新される独自コンテンツになる。
   - **対象ファイル**: `app/reports/[month]/page.tsx`（新規。`month` は `YYYY-MM`）、`app/reports/page.tsx`（新規）、`lib/reports.ts`（新規）、`content/reports/{YYYY-MM}.md`（任意の編集部コメント）、`app/sitemap.ts`
   - **仕様**:

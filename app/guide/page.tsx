@@ -34,6 +34,14 @@ export default function GuideIndexPage() {
       </h1>
       <p className="mb-8 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
         Vちゃんねるの使い方や、VTuberにまつわる情報を記事で紹介します。
+        毎月の動きを振り返る
+        <Link
+          href="/reports"
+          className="mx-1 text-blue-700 underline dark:text-blue-300"
+        >
+          月間レポート
+        </Link>
+        も掲載しています。
       </p>
 
       <div className="space-y-8">

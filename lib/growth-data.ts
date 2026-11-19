@@ -3,7 +3,7 @@ import {
   getSubscriberTransitionList,
   getYoutubeSubscriberRanking,
 } from "@/lib/gcs";
-import { buildGrowthItems } from "@/lib/ranking";
+import { buildCalendarMonthGrowth, buildGrowthItems } from "@/lib/ranking";
 import type { SubscriberGrowthData } from "@/types";
 
 /**
@@ -18,4 +18,17 @@ export async function getGrowthData(): Promise<SubscriberGrowthData> {
     getYoutubeSubscriberRanking(),
   ]);
   return buildGrowthItems(transitions, master);
+}
+
+export async function getCalendarMonthGrowth(
+  month: string,
+  throughDate: string,
+) {
+  "use cache";
+  cacheLife("hours");
+  const [transitions, master] = await Promise.all([
+    getSubscriberTransitionList(),
+    getYoutubeSubscriberRanking(),
+  ]);
+  return buildCalendarMonthGrowth(transitions, master, month, throughDate);
 }

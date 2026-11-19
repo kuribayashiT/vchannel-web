@@ -6,6 +6,7 @@ const FOOTER_LINKS = [
   { href: "/terms", label: "利用規約" },
   { href: "/privacy", label: "プライバシーポリシー" },
   { href: "/guide", label: "ガイド・特集" },
+  { href: "/reports", label: "月間レポート" },
 ] as const;
 
 export function SiteFooter() {

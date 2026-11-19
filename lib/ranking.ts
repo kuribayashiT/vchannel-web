@@ -133,6 +133,7 @@ export function weeklyHeading(now: Date): string {
 const DAY_MS = 86_400_000;
 const STALE_DAYS = 2;
 const MONTH_MIN_SPAN_DAYS = 21;
+const MAX_MONTH_BASELINE_GAP_DAYS = 7;
 
 function ymdToMs(ymd: string): number {
   return Date.UTC(
@@ -146,6 +147,15 @@ function msToYmd(ms: number): string {
   const d = new Date(ms);
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}`;
+}
+
+function isValidYmd(ymd: string): boolean {
+  if (!/^\d{8}$/.test(ymd)) return false;
+  return msToYmd(ymdToMs(ymd)) === ymd;
+}
+
+function byGrowth(a: SubscriberGrowthItem, b: SubscriberGrowthItem): number {
+  return b.growth - a.growth || b.rate - a.rate || b.current - a.current;
 }
 
 /**
@@ -218,8 +228,6 @@ export function buildGrowthItems(
     }
   }
 
-  const byGrowth = (a: SubscriberGrowthItem, b: SubscriberGrowthItem) =>
-    b.growth - a.growth || b.rate - a.rate || b.current - a.current;
   week.sort(byGrowth);
   month.sort(byGrowth);
 
@@ -234,6 +242,88 @@ export function buildGrowthItems(
     items: month,
   };
   return { week: w, month: m };
+}
+
+/** 指定した暦月の登録者増加を、月初前と月内の最新スナップショットで集計する */
+export function buildCalendarMonthGrowth(
+  transitions: SubscriberTransitionMap,
+  master: YoutubeSubscriberRankingItem[],
+  month: string,
+  throughDate: string,
+): SubscriberGrowthPeriodData {
+  const match = /^(\d{4})-(\d{2})$/.exec(month);
+  if (!match || !isValidYmd(throughDate)) {
+    throw new Error(`Invalid calendar month growth range: ${month}`);
+  }
+
+  const year = Number(match[1]);
+  const monthNumber = Number(match[2]);
+  if (
+    monthNumber < 1 ||
+    monthNumber > 12 ||
+    throughDate < `${match[1]}${match[2]}01`
+  ) {
+    throw new Error(`Invalid calendar month growth range: ${month}`);
+  }
+
+  const monthStart = `${match[1]}${match[2]}01`;
+  const monthEnd = `${match[1]}${match[2]}${String(
+    new Date(Date.UTC(year, monthNumber, 0)).getUTCDate(),
+  ).padStart(2, "0")}`;
+  const endDate =
+    throughDate.slice(0, 6) === `${match[1]}${match[2]}` &&
+    throughDate < monthEnd
+      ? throughDate
+      : monthEnd;
+  const info = new Map(master.map((item) => [item.channelId, item]));
+  const items: SubscriberGrowthItem[] = [];
+  let latest = "";
+
+  for (const [channelId, points] of Object.entries(transitions)) {
+    const meta = info.get(channelId);
+    if (!meta) continue;
+
+    let baseIndex = -1;
+    let endIndex = -1;
+    for (let i = 0; i < points.length; i += 1) {
+      const date = points[i].date;
+      if (date < monthStart) baseIndex = i;
+      else if (date <= endDate) {
+        endIndex = i;
+        if (date > latest) latest = date;
+      }
+    }
+    if (baseIndex < 0 || endIndex < 0) continue;
+
+    const base = points[baseIndex];
+    const end = points[endIndex];
+    if (
+      ymdToMs(monthStart) - ymdToMs(base.date) >
+      MAX_MONTH_BASELINE_GAP_DAYS * DAY_MS
+    ) {
+      continue;
+    }
+    const growth = end.count - base.count;
+    if (growth <= 0) continue;
+
+    items.push({
+      channelId,
+      name: meta.name,
+      office: meta.office,
+      thumbnail: meta.channelThumbnail,
+      current: end.count,
+      growth,
+      rate: base.count > 0 ? (growth / base.count) * 100 : 0,
+      spark: points.slice(baseIndex, endIndex + 1).map((point) => point.count),
+    });
+  }
+
+  items.sort(byGrowth);
+  return {
+    from: monthStart,
+    to: latest,
+    items,
+  };
 }
 
 /** サーバーで並び替え済みのため順序は保つ。選択チャンネルがあれば絞り込む */
