@@ -565,7 +565,7 @@
 
 ### P0-SEC: Next.js のセキュリティ更新（🚨最優先・2026-11-19 追加・他のすべてのタスクより先に着手）
 
-- [ ] **SEC-1. Next.js を脆弱性修正済みの最新パッチ版に上げる**
+- [x] **SEC-1. Next.js を脆弱性修正済みの最新パッチ版に上げる**
   - **背景（2026-11-19 PM 確認）**: ローカルの `npm run build` で `SecurityFatalError: Your version of Next.js is affected by a known security vulnerability.` が出て、ビルドが止まった。現在の `next` は `16.4.4`、npm には `16.4.6` まである。本番の Vercel デプロイは今のところ通っているが、脆弱性を抱えたまま公開している状態になっている。
   - **対象ファイル**: `package.json`、`package-lock.json`（必要に応じて `eslint-config-next` も同じバージョンにそろえる）
   - **仕様**:
@@ -923,6 +923,42 @@
     - `layout.tsx` への AdSense スクリプトの追加（`next/script`、`afterInteractive`）。
     - `public/ads.txt`（`google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0`）の設置。
     - 合格後の広告枠の位置（記事本文の下、ランキングの下など。**掲示板には置かない**）。
+
+### P0-CTR: 検索結果からのクリック率を上げる（2026-11-20 追加・P0-SEC の次に着手）
+
+> **背景（2026-11-20 Search Console・過去 7 日）**: 表示回数は 962 回まで増えた（11/13 の 0 回から、11/16〜17 は 1 日 300 回台）。一方でクリックは 15 回、CTR は 1.6% と低い。表示の大半は VTuber 詳細ページで、クエリは VTuber 名。
+> - 名前の検索で 9〜12 位（1 ページ目の下〜2 ページ目）に出ているのに、クリックされていない。例: 「瑠璃野ねも」表示 84 回・11 位・クリック 1、「壱百満天原サロメ」表示 26 回・11.8 位・クリック 0。
+> - チャンネル名そのままの検索（「miko ch. さくらみこ」12 位）より、名前だけの検索（「さくらみこ」45 位）のほうが順位が低い。title が「Miko Ch. さくらみこの登録者数・配信情報」のようにチャンネル名そのままなのが一因と考えられる。
+> - 「〇〇 デビュー日」「〇〇 誕生日」「〇〇 登録者数」「〇〇 年齢」といった、知りたい情報付きの検索がある。今の title / description には誕生日・デビュー日が入っていない。
+> - 日付別イベントページは 1〜5 位と上位に出やすい（例: 「10月10日 誕生日 vtuber」1 位）。
+
+- [ ] **CTR-1. VTuber 詳細ページの title・description・見出しを「名前＋知りたい情報」にする**
+  - **対象ファイル**:
+    `lib/vtuberName.ts`（新規）
+    `app/vtuber/[channelId]/page.tsx`
+    （参照のみ: `lib/admin/xPosts.ts` の `displayName`。**このファイルは編集しない**。AGENTS.md の管理画面の例外のため）
+  - **仕様**:
+    - `lib/vtuberName.ts` に `displayVtuberName(raw: string): string` を作る。
+      - ロジックは `lib/admin/xPosts.ts` の `displayName` と同じ規則にする（コピーでよい）。
+      - 例: `Miko Ch. さくらみこ` → `さくらみこ`、`壱百満天原サロメ / Hyakumantenbara Salome` → `壱百満天原サロメ`、`不破 湊 / Fuwa Minato【にじさんじ】` → `不破 湊`、`Kuzuha Channel` → `Kuzuha`。
+      - 単体テスト（既存のテスト方式に合わせる）で、上記を含む 10 例以上を確認する。
+      - 管理画面側を共通関数に切り替えるのは PM（Claude）が別途行う。
+    - **title**: `{表示名}の登録者数・誕生日・デビュー日｜{事務所}`
+      - 誕生日がなければ「誕生日・」を外す。デビュー日がなければ「・デビュー日」を外す。
+      - 事務所が空、または `個人` の場合は `｜個人勢VTuber` にする。
+      - テンプレートで `| Vちゃんねる` が付く。全体が長すぎる場合は、事務所の部分を省いてよい。
+    - **description**（120 字前後、数値を先に）: `{表示名}（{チャンネル名}）は{事務所}所属のVTuber。YouTube登録者数{約X万人}（{日付}時点）、誕生日{M月D日}、デビュー日{YYYY年M月D日}。登録者数の推移や最新動画、関連VTuberをまとめています。`
+      - 値のない項目は文ごと省く。
+    - **h1**: `{表示名}` にする。チャンネル名が表示名と違う場合は、その下に小さく `YouTube: {チャンネル名}` を表示する（チャンネル名での検索にも引き続き合うように）。
+    - **JSON-LD**: `Person.name` を表示名、`Person.alternateName` をチャンネル名（表示名と同じなら付けない）にする。誕生日がある場合は `birthDate` は付けない（年がないため）。代わりに本文の「よくある質問」に誕生日の Q&A があることを確認する（IDX-1 で追加済みのはず）。
+    - OGP の title も同じ title にそろえる。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - 以下 3 件で、`<title>` に表示名（チャンネル名の装飾なし）と「誕生日」「デビュー日」の語が含まれる。
+      - `/vtuber/UC-hM6YJuNYVAmUWxeIr9FeA`（さくらみこ）
+      - `/vtuber/UCgIfLpQvelloDi8I0Ycbwpg`（壱百満天原サロメ）
+      - `/vtuber/UCnbNzG6tecF6BAdhuv_Tipg`（瑠璃野ねも）
+    - `FRONTEND_SPEC.md` の 6.1（SEO / AIO 方針）に、詳細ページの title・description の型を追記している。
 
 ### P0-NAV: タップしたらすぐ画面を切り替える（2026-11-14 追加・P0-DOMAIN の次、P0-FILTER より先に着手）
 
