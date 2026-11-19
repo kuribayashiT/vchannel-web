@@ -36,6 +36,46 @@ const jstDate = new Intl.DateTimeFormat("ja-JP", {
   day: "numeric",
 });
 
+const JAPANESE_RE = /[\u3040-\u30ff\u3400-\u9fff]/;
+
+/**
+ * チャンネル名から装飾を外した表示名を返す。
+ * 例: `Miko Ch. さくらみこ` → `さくらみこ`、`Kuzuha Channel` → `Kuzuha`。
+ * TODO: lib/vtuberName.ts に切り出して単体テストを付ける（CTR-1）。
+ */
+function displayVtuberName(raw: string): string {
+  const original = raw.trim();
+  if (!original) return raw;
+
+  // 【】〖〗『』[] の中身を外す
+  let s = original
+    .replace(/[【〖『[][^】〗』\]]*[】〗』\]]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  // 「/」「Ch.」「Channel」で区切る
+  const parts = s
+    .split(/\s*\/\s*|\s*\bCh\.\s*|\s*\bChannel\b\s*/i)
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+  if (parts.length > 0) {
+    s = parts.find((p) => JAPANESE_RE.test(p)) ?? parts[0];
+  }
+
+  // 「 - 事務所名」を外す
+  s = s.replace(/\s+[-–—]\s+.*$/, "").trim();
+  // 末尾の hololive / にじさんじ
+  s = s.replace(/\s*(hololive|ホロライブ|にじさんじ)\s*$/i, "").trim();
+  // 末尾のチャンネル
+  s = s.replace(/\s*(ちゃんねる|チャンネル)\s*$/, "").trim();
+  // 日本語名の後ろのローマ字
+  if (JAPANESE_RE.test(s)) {
+    s = s.replace(/\s+[A-Za-z][A-Za-z .'\-]*$/, "").trim();
+  }
+
+  return s || original;
+}
+
 async function getCachedOfficeMembers(
   office: string,
   excludeChannelId: string,
@@ -246,8 +286,45 @@ function RelatedVTuberGrid({
   );
 }
 
-function metadataDescription(detail: VTuberDetail): string {
-  return `${detail.office}所属のVTuber「${detail.name}」のYouTube登録者数（${formatCompact(detail.subscriberCount)}人）、登録者数推移、最新動画をまとめています。`;
+const TITLE_MAX_LENGTH = 42;
+
+/** `{表示名}の登録者数・誕生日・デビュー日｜{事務所}`（テンプレートで ` | Vちゃんねる` が付く） */
+function buildTitle(detail: VTuberDetail, shown: string): string {
+  const base = `${shown}の登録者数${detail.birthday ? "・誕生日" : ""}${detail.debut ? "・デビュー日" : ""}`;
+  const office = detail.office.trim();
+  const officeLabel = !office || office === "個人" ? "個人勢VTuber" : office;
+  const full = `${base}｜${officeLabel}`;
+  return full.length > TITLE_MAX_LENGTH ? base : full;
+}
+
+/** `{表示名}（{チャンネル名}）は{事務所}所属のVTuber。YouTube登録者数…` */
+function buildDescription(detail: VTuberDetail, shown: string): string {
+  const parts: string[] = [];
+  const office = detail.office.trim();
+  const nameLabel = detail.name !== shown ? `${shown}（${detail.name}）` : shown;
+  parts.push(
+    !office || office === "個人"
+      ? `${nameLabel}は個人勢のVTuber。`
+      : `${nameLabel}は${office}所属のVTuber。`,
+  );
+
+  const items: string[] = [];
+  const latestYmd = detail.transition.at(-1)?.date;
+  const latestDate = latestYmd ? parseYmd(latestYmd) : null;
+  items.push(
+    `YouTube登録者数約${formatCompact(detail.subscriberCount)}人${latestDate ? `（${jstDate.format(latestDate)}時点）` : ""}`,
+  );
+  if (detail.birthday) {
+    items.push(`誕生日${detail.birthday.month}月${detail.birthday.day}日`);
+  }
+  if (detail.debut) {
+    items.push(
+      `デビュー日${detail.debut.year ? `${detail.debut.year}年` : ""}${detail.debut.month}月${detail.debut.day}日`,
+    );
+  }
+  parts.push(`${items.join("、")}。`);
+  parts.push("登録者数の推移や最新動画、関連VTuberをまとめています。");
+  return parts.join("");
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
@@ -262,8 +339,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     };
   }
 
-  const title = `${detail.name}の登録者数・配信情報`;
-  const description = metadataDescription(detail);
+  const shown = displayVtuberName(detail.name);
+  const title = buildTitle(detail, shown);
+  const description = buildDescription(detail, shown);
   const canonical = `/vtuber/${channelId}`;
 
   return {
@@ -289,6 +367,10 @@ export default async function VTuberDetailPage({ params }: PageProps) {
   const { channelId } = await params;
   const detail = await getCachedVTuberDetail(channelId);
   if (!detail) notFound();
+
+  const shown = displayVtuberName(detail.name);
+  const channelNameDiffers = detail.name !== shown;
+  const pageTitle = buildTitle(detail, shown);
 
   const isPersonal = detail.office === "個人";
   const [officeMembers, nearby, ranks, currentYear] = await Promise.all([
@@ -318,7 +400,7 @@ export default async function VTuberDetailPage({ params }: PageProps) {
         "@type": "ProfilePage",
         "@id": `${canonicalUrl}#profile`,
         url: canonicalUrl,
-        name: `${detail.name}の登録者数・配信情報`,
+        name: pageTitle,
         isPartOf: {
           "@type": "WebSite",
           "@id": `${SITE_URL}/#website`,
@@ -328,7 +410,8 @@ export default async function VTuberDetailPage({ params }: PageProps) {
         mainEntity: {
           "@type": "Person",
           "@id": `${canonicalUrl}#person`,
-          name: detail.name,
+          name: shown,
+          ...(channelNameDiffers ? { alternateName: detail.name } : {}),
           image: detail.thumbnail,
           affiliation: {
             "@type": "Organization",
@@ -360,7 +443,7 @@ export default async function VTuberDetailPage({ params }: PageProps) {
           {
             "@type": "ListItem",
             position: 3,
-            name: detail.name,
+            name: shown,
             item: canonicalUrl,
           },
         ],
@@ -385,12 +468,21 @@ export default async function VTuberDetailPage({ params }: PageProps) {
           VTuber
         </Link>
         <span aria-hidden>›</span>
-        <span className="truncate text-zinc-800 dark:text-zinc-100">{detail.name}</span>
+        <span className="truncate text-zinc-800 dark:text-zinc-100">{shown}</span>
       </nav>
 
-      <h1 className="mb-2 text-2xl font-extrabold tracking-tight">{detail.name}</h1>
+      <h1
+        className={`${channelNameDiffers ? "mb-1" : "mb-2"} text-2xl font-extrabold tracking-tight`}
+      >
+        {shown}
+      </h1>
+      {channelNameDiffers && (
+        <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
+          YouTube: {detail.name}
+        </p>
+      )}
       <p className="mb-5 text-sm leading-7 text-zinc-700 dark:text-zinc-200">
-        {buildSummary(detail, ranks)}
+        {buildSummary({ ...detail, name: shown }, ranks)}
       </p>
 
       <script
@@ -428,7 +520,7 @@ export default async function VTuberDetailPage({ params }: PageProps) {
           {ranks && (
             <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
               <dt className="font-bold text-zinc-900 dark:text-zinc-100">
-                {detail.name}のYouTube登録者数は？
+                {shown}のYouTube登録者数は？
               </dt>
               <dd className="mt-1">
                 {latestDateText(latest?.date)}で{formatNumber(detail.subscriberCount)}
@@ -439,7 +531,7 @@ export default async function VTuberDetailPage({ params }: PageProps) {
           {detail.birthday && birthdaySlug && (
             <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
               <dt className="font-bold text-zinc-900 dark:text-zinc-100">
-                {detail.name}の誕生日はいつ？
+                {shown}の誕生日はいつ？
               </dt>
               <dd className="mt-1">
                 {detail.birthday.month}月{detail.birthday.day}日です。{" "}
@@ -455,7 +547,7 @@ export default async function VTuberDetailPage({ params }: PageProps) {
           {detail.debut && debutSlug && (
             <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
               <dt className="font-bold text-zinc-900 dark:text-zinc-100">
-                {detail.name}のデビュー日はいつ？
+                {shown}のデビュー日はいつ？
               </dt>
               <dd className="mt-1">
                 {detail.debut.year ? `${detail.debut.year}年` : ""}
@@ -472,7 +564,7 @@ export default async function VTuberDetailPage({ params }: PageProps) {
           )}
           <div className="rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
             <dt className="font-bold text-zinc-900 dark:text-zinc-100">
-              {detail.name}はどこの事務所？
+              {shown}はどこの事務所？
             </dt>
             <dd className="mt-1">
               {isPersonal
