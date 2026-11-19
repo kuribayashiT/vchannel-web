@@ -23,6 +23,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # 実行を始めた時刻（PR のタイトル・本文・コミットに載せる）
+      - name: Set run timestamp (JST)
+        id: run-time
+        run: |
+          echo "jst=$(TZ=Asia/Tokyo date '+%Y-%m-%d %H:%M')" >> "$GITHUB_OUTPUT"
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -171,12 +177,14 @@ jobs:
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          title: '🤖 【全自動AI開発】本日の改善案件の実装と仕様書更新'
-          commit-message: 'feat(auto): 毎日のAI自動開発パイプラインによる案件実装・ビルド検証完了'
+          title: '🤖 【全自動AI開発】${{ steps.run-time.outputs.jst }} (JST) の改善案件の実装と仕様書更新'
+          commit-message: 'feat(auto): AI自動開発パイプラインによる案件実装・ビルド検証完了 (${{ steps.run-time.outputs.jst }} JST)'
           branch: 'daily-auto-dev'
           body: |
             ## 🤖 自動開発パイプライン レポート
-            毎日の定期実行により、AIが `AGENTS.md` および `FRONTEND_SPEC.md` の仕様に沿って1案件を実装し、ビルド検証を通過させました。
+            **実行日時**: ${{ steps.run-time.outputs.jst }}（JST）
+
+            定期実行（1日3回）により、AIが `AGENTS.md` および `FRONTEND_SPEC.md` の仕様に沿って1案件を実装し、ビルド検証を通過させました。
             
             ${{ steps.pr-body.outputs.summary_content }}
             
