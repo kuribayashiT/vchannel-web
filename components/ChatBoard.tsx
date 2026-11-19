@@ -14,10 +14,78 @@ import {
   type ChatThread,
 } from "@/lib/chat";
 import type { OfficeSummary } from "@/lib/offices";
+import { CONTACT_EMAIL } from "@/lib/site";
 
 const POLL_MS = 15_000;
 const SEEN_COUNTS_KEY = "chat:last-seen-post-count";
 const QUICK_REACTIONS = ["💖", "👏", "😂", "🔥"] as const;
+
+const NG_MESSAGE = "不適切な表現が含まれているため投稿できません";
+const HIDDEN_TEXT = "この投稿は表示されません";
+
+/**
+ * NG ワード（誹謗中傷・差別・性的表現）。
+ * 判定は NFKC 正規化・小文字化・空白除去のうえ、部分一致で行う。
+ * 本来は lib/ngWords.ts に置く想定の初期リスト。
+ */
+const NG_WORDS: readonly string[] = [
+  // 誹謗中傷
+  "死ね",
+  "氏ね",
+  "タヒね",
+  "殺すぞ",
+  "殺してやる",
+  "ころすぞ",
+  "消えろ",
+  "ブス",
+  // 差別
+  "キチガイ",
+  "きちがい",
+  "ガイジ",
+  "池沼",
+  "チョン",
+  "支那",
+  "シナ人",
+  // 性的表現
+  "ちんこ",
+  "チンコ",
+  "ちんぽ",
+  "チンポ",
+  "まんこ",
+  "マンコ",
+  "セックス",
+  "レイプ",
+  "強姦",
+  "オナニー",
+  "中出し",
+  "アナル",
+];
+
+/** 電話番号・メールアドレス・URL */
+const NG_PATTERNS: readonly RegExp[] = [
+  /0\d{1,4}[-\s]\d{1,4}[-\s]\d{3,4}/,
+  /0[789]0\d{8}/,
+  /[\w.+-]+@[\w-]+\.[\w.-]+/,
+  /https?:\/\//i,
+  /www\./i,
+];
+
+function containsNgWord(text: string): boolean {
+  if (!text) return false;
+  const normalized = text.normalize("NFKC").toLowerCase();
+  if (NG_PATTERNS.some((re) => re.test(normalized))) return true;
+  const squashed = normalized.replace(/[\s\u200b-\u200d\ufeff]+/g, "");
+  return NG_WORDS.some((w) => squashed.includes(w.normalize("NFKC").toLowerCase()));
+}
+
+function isHiddenPost(post: { content: string; author?: string | null }): boolean {
+  return containsNgWord(post.content) || containsNgWord(post.author ?? "");
+}
+
+function reportHref(threadName: string, postNo: number): string {
+  const subject = `掲示板の投稿の通報（${threadName} No.${postNo}）`;
+  return `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}`;
+}
 
 const fmt = new Intl.DateTimeFormat("ja-JP", {
   timeZone: "Asia/Tokyo",
@@ -150,6 +218,10 @@ function PostSheet({
       setError("投稿内容を入力してください");
       return;
     }
+    if (containsNgWord(content) || containsNgWord(author)) {
+      setError(NG_MESSAGE);
+      return;
+    }
     setBusy(true);
     setError("");
     try {
@@ -240,6 +312,7 @@ function PostSheet({
 
 function PostItem({
   post,
+  threadName,
   isNew,
   refs,
   onReply,
@@ -247,6 +320,7 @@ function PostItem({
   variant = "parent",
 }: {
   post: ChatPost;
+  threadName: string;
   isNew: boolean;
   refs: ChatPost[];
   onReply: (postNo: number) => void;
@@ -255,6 +329,7 @@ function PostItem({
 }) {
   const [pickedReaction, setPickedReaction] = useState<string | null>(null);
   const compact = variant === "reply";
+  const hidden = isHiddenPost(post);
 
   return (
     <li
@@ -275,7 +350,7 @@ function PostItem({
           </span>
         )}
         <span className="font-bold text-zinc-800 dark:text-zinc-200">
-          {post.author || DEFAULT_AUTHOR}
+          {hidden ? DEFAULT_AUTHOR : post.author || DEFAULT_AUTHOR}
         </span>
         {isNew && (
           <span className="rounded-full bg-rose-500 px-2 py-0.5 font-bold text-white">
@@ -286,13 +361,21 @@ function PostItem({
           <span className="rounded bg-zinc-200 px-1 dark:bg-zinc-700">📰 Bot</span>
         )}
         {post.createdAt && <span>{fmt.format(new Date(post.createdAt))}</span>}
-        <button
-          type="button"
-          onClick={() => onReply(post.postNo)}
-          className="ml-auto rounded-full bg-blue-50 px-2 py-0.5 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300"
-        >
-          返信
-        </button>
+        <span className="ml-auto flex items-center gap-2">
+          <a
+            href={reportHref(threadName, post.postNo)}
+            className="text-zinc-500 underline hover:text-red-600"
+          >
+            通報
+          </a>
+          <button
+            type="button"
+            onClick={() => onReply(post.postNo)}
+            className="rounded-full bg-blue-50 px-2 py-0.5 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300"
+          >
+            返信
+          </button>
+        </span>
       </div>
 
       {refs.length > 0 && (
@@ -304,13 +387,20 @@ function PostItem({
               onClick={() => onJumpToPost(r.postNo)}
               className="block w-full truncate text-left text-zinc-600 hover:text-blue-600 dark:text-zinc-300 dark:hover:text-blue-300"
             >
-              ↪ No.{r.postNo} {r.author || DEFAULT_AUTHOR}: {shortText(r.content)}
+              ↪ No.{r.postNo}{" "}
+              {isHiddenPost(r)
+                ? HIDDEN_TEXT
+                : `${r.author || DEFAULT_AUTHOR}: ${shortText(r.content)}`}
             </button>
           ))}
         </div>
       )}
 
-      <Body text={post.content} onJumpToPost={onJumpToPost} />
+      {hidden ? (
+        <p className="text-sm italic text-zinc-500">{HIDDEN_TEXT}</p>
+      ) : (
+        <Body text={post.content} onJumpToPost={onJumpToPost} />
+      )}
 
       <div className={`mt-2 flex flex-wrap gap-1.5`}>
         {QUICK_REACTIONS.map((emoji) => (
@@ -410,6 +500,7 @@ function ThreadView({
             <li key={parent.id} className="space-y-2">
               <PostItem
                 post={parent}
+                threadName={thread.name}
                 isNew={baselinePostNo !== null && parent.postNo > baselinePostNo}
                 refs={parentRefs}
                 onReply={(postNo) => setSheet(`>>${postNo} `)}
@@ -426,6 +517,7 @@ function ThreadView({
                         <PostItem
                           key={reply.id}
                           post={reply}
+                          threadName={thread.name}
                           variant="reply"
                           isNew={
                             baselinePostNo !== null &&
