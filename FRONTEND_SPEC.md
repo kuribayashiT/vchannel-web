@@ -46,6 +46,8 @@ Cloud Functions が定期更新する。アプリは 1 時間 TTL でキャッ�
 | `livevideoList.json` | `[Video, ...]`（配信中の動画） | 配信タブ全般 |
 | `allvideos.json` | `[Video, ...]` | お気に入り、VTuber 詳細の動画一覧 |
 | `news.json` | `[News, ...]` | ニュース |
+| `news/archive/YYYY-MM.json` | `[News, ...]`（月ごとの蓄積。削除しない。NEWS-5） | VTuber 詳細の関連ニュース |
+| `newsSourceScores.json` | `{ "<ホスト名>": { adCount, sampled, checkedAt } }`（媒体ごとの広告量。NEWS-7） | ニュースの並び順（表示はしない） |
 | `eventList.json` | `[ { "<M/D>": [Event, ...] }, ... ]` | イベントカレンダー |
 | `rankingYoutubeRegiData.json` | 登録者数ランキング元データ（`youtubeSubscriberCount`）。旧形式 `{jsonData: ...}` 両対応 | ランキング |
 | `rankingTwitterData.json` | `twitterFollowerCount`。同上 | ランキング（現状 UI 未使用の可能性。要確認） |
@@ -118,7 +120,7 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 `videoID`（旧表記 `videoId` が混在）, `title`, `channelId`, `channelTitle`, `channelThumbnail`, `thumbnail`, `office`, `officeKey`, `concurrent_viewers`（文字列）, `scheduledStartTime`, `actualStartTime`, `actualEndTime`（未終了は `""`）, `comparisonDay`（ISO8601 UTC。**画面の日付振り分けに使う基準時刻**）, `publishedAt`
 
 ### News
-`channel`（媒体名。空/`YouTube` など。未設定時は「ブログ記事」表示）, `title`, `publishedAt`（`YYYY-MM-DD HH:mm:ss`）, `description`, `url`, `urlToImage`, `sourceName`, `sourceUrl`, `creator`, `videoUrl`（任意。解説動画の YouTube URL）
+`channel`（媒体名。空/`YouTube` など。未設定時は「ブログ記事」表示）, `title`, `publishedAt`（`YYYY-MM-DD HH:mm:ss`）, `description`, `url`, `urlToImage`, `sourceName`, `sourceUrl`, `creator`, `videoUrl`（任意。解説動画の YouTube URL）, `origin`（任意。取得元 `serpapi` / `hololive` / `gnews`。NEWS-4 以降）
 
 ### Event
 `eventType`（`createAt` = 周年 / `birthday` = 誕生日）, `channelId`, `channelThumbnail`, `name`, `office`, `createdAt`（`YYYY/MM/DD`。周年計算に使用）
@@ -190,11 +192,59 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 - グリッド：幅 >1000px で 3 列、>600px で 2 列、それ以下 1 列。
 - ネイティブ広告をリスト内に挿入（Web は AdSense 等で別途検討）。
 
-### 5.3 ニュース
-- 縦スクロールのカード一覧＋プルリフレッシュ。ローディング `ニュースを読み込み中…`、失敗 `ニュースデータの取得に失敗しました（空データ）` ＋ `再読み込み`。
-- カード：媒体名（無ければ `ブログ記事`）、タイトル、公開日、サムネ（`urlToImage`）、`videoUrl` があれば動画サムネ/再生導線。
-- タップ → 記事 URL を WebView（Web は外部リンク/別タブ。`news.json` の `url` は外部サイト）。
-- 5 件ごとにネイティブ広告。検索・カテゴリ絞り込みなし。並び順は `news.json` の順（フロントで再ソートしていない）。
+### 5.3 ニュース（2026-11-19 改訂: P1-NEWS）
+
+> 方針: Google News 由来の記事は同じ話題が何件も並び、切り抜き動画や X のプロフィールも混ざる。人気や記事の質を示すデータも無い。そこで「同じ話題を 1 枚にまとめる → 報道した媒体の数・媒体の種類・サイト内のクリック数で並べる」ことで、注目の話題と一次情報（公式発表）を目立たせる。実データ（2026-11-19 の 93 件）で、ノイズ除去とまとめにより約 70 枚になり、誤ってまとめた例は無かった。
+
+#### 5.3.1 データの加工（`lib/news.ts`、サーバー側。NEWS-1）
+`news.json` をそのまま並べず、次の順に加工してから描画する。加工はサーバーで行い、クライアントには表示に必要な項目だけ渡す（`description`・`sourceUrl`・`creator` は渡さない）。
+
+1. **ノイズ除去**: 記事 URL のホストが `youtu.be` / `youtube.com` / `t.co` / `x.com` / `twitter.com` / `howl.link`（サブドメイン含む）、または `channel` が `YouTube` / `Howl.Link` のものを除く。`publishedAt` が今から 14 日より古いもの、タイトルが空のもの、URL が `safeHttpUrl` を通らないものも除く。
+2. **媒体の区分**（`lib/news-sources.ts` の手作業の表。ホスト名 → 媒体名の順で照合。表記ゆれは NFKC＋空白除去＋小文字で吸収）:
+
+   | 区分 | 値 | 例 | 表示 |
+   |---|---|---|---|
+   | 公式・一次情報 | `official` | ホロライブ公式（`hololivepro.com`・`cover-corp.com`）、にじさんじ（`nijisanji.jp`・`anycolor.co.jp`）、PR TIMES（`prtimes.jp`）、媒体名が `株式会社` / `合同会社` / `公式` を含むもの、自治体 | `公式` バッジ |
+   | 専門メディア | `media` | PANORA、KAI-YOU、インサイド、ファミ通、4Gamer.net、電撃オンライン、電撃ホビーウェブ、Game*Spark、PASH! PLUS、リアルサウンド、オリコンニュース、モデルプレス、MoguLive、コラボカフェ | なし |
+   | 転載・まとめ | `aggregator` | Yahoo!ニュース、Infoseek、ｄメニューニュース、ニコニコニュース、livedoor、エキサイト、goo、auone、グノシー、SmartNews | なし |
+   | その他 | `other` | 上記以外 | なし |
+3. **同じ話題をまとめる**（クラスタ）: タイトルを正規化し（末尾の `| 媒体名` と `(媒体名)` を除く → 日付・時刻 `2026年` `11月20日` `(金)` `18時` `19:00` を除く → よく出る語 `にじさんじ` `ホロライブ` `hololive` `NIJISANJI` `VTuber` `グッズ` `登場` `発売` `販売開始` `販売` `開催` `決定` `から` `公式` `記念` `配信` `開始` を除く → 記号・空白を除く → 小文字化）、2 文字ずつの組（bigram）の集合を作る。重なり度 = 共通の組の数 ÷ 小さい方の組の数。新しい順に見て、既存のクラスタの**代表記事とだけ**比べ、0.5 以上なら同じクラスタに入れる（記事同士を連鎖的につなぐと、別のグッズ記事が 1 つにまとまってしまうため）。
+4. **代表記事**: クラスタ内で `official` → `media` → `other` → `aggregator` の順に優先し、同じ区分なら `publishedAt` が古いもの（元記事）を代表にする。カードの公開日時はクラスタ内で最も新しい時刻を使う。
+5. **カテゴリ**: 代表記事のタイトルに対し、上から順に最初に一致したもの 1 つ。
+   `graduation` 卒業・休止（卒業｜引退｜契約解除｜活動終了｜活動休止｜休止）→ `debut` デビュー（デビュー｜初配信｜新人｜オーディション）→ `notice` お知らせ（お知らせ｜謝罪｜注意喚起｜漏えい｜漏洩｜不正アクセス｜声明｜法的措置）→ `event` ライブ・イベント（ライブ｜フェス｜イベント｜コンサート｜展示｜ポップアップ｜カフェ｜ビューイング｜開催）→ `goods` グッズ（グッズ｜フィギュア｜ぬいぐるみ｜プライズ｜ガシャポン｜予約｜発売｜受注｜スタンプ）→ `game` ゲーム（ゲーム｜Steam｜アプリ）→ `collab` コラボ・出演（コラボ｜タイアップ｜出演｜起用｜アンバサダー）→ `other` その他。
+6. **VTuber との紐づけ**: `loadVTubers()` の名簿のチャンネル名から呼び名を取り出し（`【】《》[]（）()` の中身を除く → `Ch.` `Ch。` `Channel` `Official` `チャンネル` `ちゃんねる` `公式` `所属` を除く → 空白・`/` `|` `-` `_` `:` `、` `!` などで区切る → かな・漢字を含み 3 文字以上で、事務所名・`にじさんじ` `ホロライブ` `切り抜き` でないものを残す。`・` では区切らない）、クラスタ内のどれかのタイトルに含まれる VTuber を最大 3 人まで紐づける。公式アカウント（`officeFlg`）は対象外。2 人以上に同じ呼び名がある場合はその呼び名を使わない。英語名だけのチャンネル（例 `Suisei Channel`）は拾えないので、`lib/news-sources.ts` の `EXTRA_ALIASES`（`channelId` → 呼び名の配列）で補う。2026-11-19 の実データで 93 件中 24 件が紐づき、誤りは無かった。
+7. **注目度スコア**（並び替えには使わない。「今日の注目」と NEWS-7 の調整だけに使う）:
+   `score = (媒体数 − 1) × 3 + 区分点（official 2 / media 1 / それ以外 0）+ min(24 時間のクリック数, 50) ÷ 5 − 経過時間(h) ÷ 12`。媒体数はクラスタ内の異なる媒体名の数。クリック数は NEWS-6 まで 0。
+
+#### 5.3.2 画面（`/news`。NEWS-2）
+- **見出しの下の説明文**（1〜2 行、`text-sm text-zinc-600`）: 「VTuber 関連のニュースを、同じ話題ごとにまとめて新しい順に並べています。事務所や企業の発表には「公式」と表示します。」＋ `最終更新 HH:mm`。
+- **今日の注目**: 48 時間以内のクラスタのうち、媒体数 2 以上（NEWS-6 以降はクリック 3 以上でも可）を `score` の高い順に最大 3 件。大きめのカード（サムネ横幅いっぱい、`aspect-video`）で、`N媒体が報道` バッジ（lucide `Newspaper`）を付ける。該当が 0 件なら節ごと出さない。
+- **Vちゃんねるで読まれている**（NEWS-6 で追加）: 24 時間のクリック数 3 以上のクラスタを多い順に最大 5 件、順位付きのコンパクトな行で表示。
+- **カテゴリチップ**: `すべて`、（お気に入り VTuber に紐づく記事があるときだけ）`♥ お気に入り`、件数 1 以上のカテゴリを `名前 件数` で。ラジオ的に 1 つ選択、初期 `すべて`、`aria-pressed` のトグルボタン、保存しない。見た目は AI-20261117 で決めたチップと同じ（`rounded-full border px-3 py-1 text-xs`、選択中 `bg-violet-600 text-white`）。横スクロールでページ全体の横スクロールを出さない。
+- **一覧**: 日付ごとの小見出し（`今日` / `昨日` / `11月17日(火)`、JST）で区切り、各日の中は新しい順。絞り込みは並び順を変えずに `filter` する。0 件なら `該当するニュースがありません` と `すべて表示に戻す`。
+- **クラスタカード**: 従来のカード（サムネ・媒体名・タイトル・日時）に次を足す。
+  - 媒体名の横に区分バッジ（`official` のみ `公式`、emerald 系）とカテゴリ名（`text-zinc-500`）。
+  - 紐づいた VTuber のアイコン（24px の丸、最大 3 人）と名前。アイコンは `/vtuber/[channelId]` へのリンク。お気に入り登録済みの VTuber がいれば小さな `♥`。
+  - 媒体数 2 以上なら `ほか N 媒体` の `<details>`。開くと他の記事を `媒体名 — タイトル` の行で並べ、それぞれ外部リンク（`target="_blank" rel="noopener noreferrer"`）。
+  - リンクを入れ子にしない。カード全体を `<a>` で包むのをやめ、サムネとタイトルを記事へのリンク、VTuber アイコンは別リンクにする。
+  - 相対時刻（`3時間前`）は使わず `M/D HH:mm` 表示（ハイドレーションのずれを避ける）。
+- お気に入りの判定・`♥ お気に入り` チップはクライアントで行う（`useFavorites`）。お気に入り有無で並び順は変えない。
+- ローディング・エラー表示（`ニュースデータの取得に失敗しました（空データ）` ＋ `再読み込み`）は従来どおり。
+- `/news` の初期 HTML サイズの目安: 改修前の 1.5 倍以内。
+
+#### 5.3.3 VTuber 詳細の関連ニュース（NEWS-3）
+- `/vtuber/[channelId]` の「よくある質問」の前に `<h2>関連ニュース</h2>` を置き、その VTuber に紐づいたクラスタを新しい順に最大 5 件、コンパクトな行（媒体名・タイトル・日付）で出す。0 件なら節ごと出さない。NEWS-5 以降は蓄積分（直近 60 日）も対象。
+
+#### 5.3.4 クリック数の記録（NEWS-6）
+- 記事リンクのクリック時に `navigator.sendBeacon("/api/news/click", JSON.stringify({ id }))`。`id` は記事 URL の FNV-1a 32bit を 36 進数にしたもの（`newsId(url)`）。同じ記事は 1 日 1 回だけ送る（`localStorage` の `newsClicked:YYYYMMDD`、読み書きは try/catch）。
+- サーバーは Realtime Database の `newsClicks/{YYYYMMDD(JST)}/{id}` を `ServerValue.increment(1)` で加算する。`id` は形式チェック（`^[0-9a-z]{1,8}$`）と、現在のニュース一覧に存在するかを確認し、それ以外は 204 を返して捨てる。
+- 24 時間のクリック数は今日と昨日のノードを読み、10 分キャッシュする。自サイトの読者の偏り（にじさんじ・ホロライブのファンが多い）がそのまま出ることに注意。
+
+#### 5.3.5 バックエンド（`scheduledNewsUpdate`。NEWS-4・NEWS-5・NEWS-7）
+- 取得元: SerpApi（従来）＋ ホロライブ公式 RSS `https://hololivepro.com/news/feed/`（`channel: "ホロライブ公式"`、`origin: "hololive"`）＋ Google News RSS（無料）の追加検索 2 本（`origin: "gnews"`）。にじさんじ公式は RSS が無く、ページもクライアント描画なので直接は取らない（Google News に `にじさんじ` 媒体として載る）。
+- バックエンドでも 5.3.1 の 1 と同じノイズ除去と 14 日の期限をかけ、新しい順に最大 150 件を `news.json` に書く。`cacheControl: 'public, max-age=600'`。
+- 同時に `news/archive/YYYY-MM.json`（`publishedAt` の月）へ URL 重複を除いて追記し、消さない。
+- 週 1 回、媒体ごとの広告量を測って `newsSourceScores.json` に書く。広告の多い媒体は「今日の注目」の `score` を下げるだけで、画面には出さない（媒体名を名指しで低評価しない）。
 
 ### 5.4 VTuber
 - `/vtuber` は Server Component で `loadVTubers()` の index を取得し、`getCachedVTuberPageData()`（`"use cache"` + `cacheLife("hours")`）で 1 時間キャッシュする。取得できた index（軽量版）を `VTuberTabs` の `initialIndex` として渡し、初期 HTML に一覧を含める。

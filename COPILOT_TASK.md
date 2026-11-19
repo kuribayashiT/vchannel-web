@@ -1,6 +1,6 @@
 # COPILOT_TASK: ランキングへの「登録者 急上昇」タブ追加および UI 改善バックログ
 
-> 最終更新: 2026-11-18 / 担当: プロダクトデザイナー → 実装: GitHub Copilot
+> 最終更新: 2026-11-19 / 担当: プロダクトデザイナー → 実装: GitHub Copilot
 
 ---
 
@@ -1462,6 +1462,122 @@
 
 ---
 
+### P1-NEWS: ニュースタブの改善 — 同じ話題をまとめ、注目・公式の記事を目立たせる（2026-11-19 追加・P1-LIVEFRESH の次、AI 提案タスクより先に着手。NEWS-1 → NEWS-7 の順）
+
+> **調査結果（2026-11-19、`news.json` 93 件）**:
+> 1. 同じ話題が何件も並ぶ（「前野ハカリ デビュー」5 件、「みたらし団 3 周年グッズ」4 件）。`scheduledNewsUpdate` の重複除去はタイトル完全一致だけ（「AI で判定」のコメントはあるが中身はタイトル比較）。
+> 2. ニュースでないものが混ざる（YouTube の切り抜き・雑談配信 5 件、X のプロフィール `t.co`、Howl.Link）。
+> 3. 古い記事が残る（2026 年 2 月・4 月）。
+> 4. 取得元が SerpApi の 1 検索（`Vtuber OR ホロライブ OR にじさんじ`）だけで、他事務所・個人勢が入りにくい。
+> 5. 人気・記事の質を示すデータが無い。
+>
+> 仕様は `FRONTEND_SPEC.md` 5.3（5.3.1〜5.3.5）に書いた。数値（まとめの基準 0.5、呼び名の規則など）は実データで試して決めたものなので、変えないこと。
+> ⚠ バックエンドのタスク（NEWS-4・NEWS-5・NEWS-6 の一部・NEWS-7）は `backend-repo`（別リポジトリ `vtuberchannel`）の変更。Functions のデプロイは運営者が行う。Copilot はコードの変更と `backend-repo` へのコミット・push、親リポジトリのサブモジュール参照の更新までとし、完了報告に必要な `firebase deploy --only functions:<関数名>` を書く。`firebase deploy --only firestore` は実行しない。
+
+- [ ] **NEWS-1. ニュースを加工する純粋関数を作る（ノイズ除去・媒体区分・同じ話題のまとめ・カテゴリ・VTuber 紐づけ）**
+  - **対象ファイル**: 新規 `lib/news.ts`、新規 `lib/news-sources.ts`、`types/index.ts`（`News` に `origin?: string` を追加）、`lib/server-data.ts`、`FRONTEND_SPEC.md`（5.3.1 に実装上の差分があれば追記）
+  - **仕様**（`FRONTEND_SPEC.md` 5.3.1 のとおり）:
+    - `lib/news-sources.ts`: 区分表（`official` / `media` / `aggregator` をホスト名と媒体名の両方で）、ノイズのホスト・媒体名、`EXTRA_ALIASES`（`channelId` → 呼び名配列）。`EXTRA_ALIASES` には、ホロライブで英語名だけのチャンネル（例: `Suisei Channel` → `星街すいせい`）を 5 人以上入れる。`channelId` は `officedataList.json` で確認する。
+    - `lib/news.ts` に次をエクスポートする（すべて純粋関数。現在時刻は引数 `now: number` で受け取る）。
+      - `newsId(url: string): string` — FNV-1a 32bit を 36 進数。
+      - `getNewsTier(n: News): NewsTier`
+      - `isNoiseNews(n: News, now: number, maxAgeDays?: number): boolean`（既定 14 日）
+      - `normalizeTitleForCluster(title: string): string` と `titleBigrams(title: string): Set<string>`
+      - `categorizeNews(title: string): NewsCategory` と `NEWS_CATEGORY_LABELS`
+      - `buildVTuberAliasIndex(index: VTuberIndexItem[]): Map<string, VTuberRef>`（呼び名 → `{ channelId, name, thumbnail }`。重複する呼び名は除外）
+      - `clusterNews(items: News[], opts: { now: number; aliases: Map<string, VTuberRef>; clicks?: Record<string, number>; maxAgeDays?: number }): NewsCluster[]` — ノイズ除去 → 新しい順 → 代表とだけ比較してまとめる → 代表選び → カテゴリ・VTuber・score。戻り値は新しい順。
+    - 型 `NewsTier`、`NewsCategory`、`VTuberRef`、`NewsItemView`（`id` `title` `url` `source` `tier` `imageSrc` `publishedAt` `videoUrl?`）、`NewsCluster`（`id`（代表の id）`lead` `others` `sourceCount` `category` `vtubers` `latestAt` `score` `clicks`）を `lib/news.ts` に置く。`imageSrc` は従来どおり `/api/news-image?u=...` に変換済みの値（無ければ `null`）。
+    - `lib/server-data.ts` に `getCachedNewsClusters()` を追加する（`"use cache"` + 10 分程度の `cacheLife`。`getNews()` と `loadVTubers()` の index を使う）。`news.json` の取得に失敗したら `null` を返す（ページ側のエラー表示用）。
+    - `any` は使わない。新しいパッケージは追加しない。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - 一時スクリプト（コミットしない）で現在の `news.json` に `clusterNews` をかけ、次を PR 本文に貼る: 入力件数・ノイズ除去後の件数・クラスタ数、媒体数 2 以上のクラスタの一覧（代表のタイトルと媒体名）、VTuber が紐づいたクラスタ数。2026-11-19 のデータなら「前野ハカリ」5 件が 1 つ、「みたらし団」4 件が 1 つにまとまり、別のグッズ記事（`Unit Selection Calendar` と `にじたうんぐっず`）は別クラスタのままになる。
+    - YouTube・`t.co`・Howl.Link の記事と 14 日より古い記事が結果に含まれない。
+
+- [ ] **NEWS-2. `/news` を作り直す（今日の注目・カテゴリチップ・日付見出し・まとめカード）**（NEWS-1 の次に着手）
+  - **対象ファイル**: `app/news/page.tsx`、新規 `components/NewsList.tsx`（Client Component。チップと一覧）、新規 `components/NewsClusterCard.tsx`、`FRONTEND_SPEC.md`（5.3.2）
+  - **仕様**（`FRONTEND_SPEC.md` 5.3.2 のとおり）:
+    - `app/news/page.tsx` は `getCachedNewsClusters()` を使う。見出しの下に説明文と `最終更新 HH:mm`（JST）。
+    - `今日の注目`（サーバーで描画）→ カテゴリチップと一覧（`NewsList`）の順。
+    - クライアントに渡すのは `NewsCluster[]` だけ。`description` などは渡さない。
+    - カテゴリチップ・`♥ お気に入り` チップ・日付見出し・0 件表示は 5.3.2 のとおり。お気に入りは `hooks/useFavorites` を使い、マウント前（サーバー描画時）は `♥ お気に入り` チップと `♥` を出さない（ハイドレーションのずれを避ける）。
+    - カード内のリンクは入れ子にしない。外部リンクは `target="_blank" rel="noopener noreferrer"`。`videoUrl` があれば従来どおり `▶ 解説動画を見る` を出す。
+    - アイコンは lucide-react（`Newspaper`、`Heart`、`ChevronDown`）。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - `/news` で、複数媒体が報じた話題が 1 枚のカードになり、`ほか N 媒体` を開くと他の記事へのリンクが並ぶ。`今日の注目` に `N媒体が報道` のカードが出る。
+    - 公式の記事（PR TIMES・企業・ホロライブ公式など）に `公式` バッジが出る。
+    - カテゴリチップを押すとそのカテゴリだけになり、件数表示と一致する。再取得のリクエストは発生しない。
+    - VTuber アイコンを押すと `/vtuber/[channelId]` に移動し、記事は開かない。
+    - お気に入り登録済みの VTuber の記事があると `♥ お気に入り` チップが出る。ブラウザのコンソールにハイドレーションの警告が出ない。
+    - 375px 幅で横スクロールが出ない。ダークモードで読める。`curl -s <URL>/news -o news.html && wc -c news.html` が改修前の 1.5 倍以内。
+
+- [ ] **NEWS-3. VTuber 詳細ページに「関連ニュース」を出す**（NEWS-2 の次に着手）
+  - **対象ファイル**: `app/vtuber/[channelId]/page.tsx`、`lib/server-data.ts`、`FRONTEND_SPEC.md`（5.3.3）
+  - **仕様**（`FRONTEND_SPEC.md` 5.3.3 のとおり）:
+    - `getCachedNewsClusters()` の結果から、`vtubers` にその `channelId` を含むクラスタを新しい順に最大 5 件。
+    - 「よくある質問」の前に `<section className="mt-8">` ＋ `<h2 className="mb-3 text-base font-bold">関連ニュース</h2>`。各行は媒体名（`公式` バッジ含む）・タイトル（外部リンク）・`M/D`。末尾に `/news` への `ニュース一覧へ` リンク。
+    - 0 件なら節ごと出さない。ニュースの取得に失敗してもページ全体はエラーにしない（節を出さないだけ）。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - その日の `news.json` に名前が出ている VTuber の詳細ページに関連ニュースが出る。出ていない VTuber のページには節が無い。
+    - VTuber 詳細ページの HTML サイズの増加が 1 ページあたり +5KB 以内。
+
+- [ ] **NEWS-4. バックエンド: 取得元を増やし、ノイズと古い記事を除き、SerpApi の鍵を環境変数に移す**（NEWS-3 の次に着手）
+  - **対象ファイル**: `backend-repo/functions/index.js`（`scheduledNewsUpdate`、1250 行目付近）、`FRONTEND_SPEC.md`（5.3.5・2.1）
+  - **仕様**（`FRONTEND_SPEC.md` 5.3.5 のとおり）:
+    - **鍵**: SerpApi の URL に直書きされている `api_key` を削除し、`runWith({ secrets: ['SERPAPI_KEY'] })` ＋ `process.env.SERPAPI_KEY` にする。鍵が未設定なら SerpApi だけ飛ばして他の取得元は続ける。
+    - **ホロライブ公式 RSS**: `https://hololivepro.com/news/feed/` を `rss-parser` で読む。`channel: 'ホロライブ公式'`、`url`・`sourceUrl` は記事 URL、`publishedAt` は `pubDate` を JST の `YYYY-MM-DD HH:mm:ss` に、`urlToImage: ''`（RSS に画像が無く、og:image もサイト共通画像のため）、`origin: 'hololive'`。
+    - **Google News RSS（追加検索 2 本、無料）**: `https://news.google.com/rss/search?q=<クエリ>&hl=ja&gl=JP&ceid=JP:ja`。クエリは `ぶいすぽ OR ネオポルテ OR ななしいんく OR 774inc OR .LIVE` と `VTuber デビュー OR 個人勢VTuber`。タイトル末尾の ` - 媒体名` を除き、`channel` は `<source>` の文字列、`url` は `link`、`origin: 'gnews'`。
+    - SerpApi の記事には `origin: 'serpapi'` を付ける。
+    - 取得元ごとに try/catch し、1 つが失敗しても他は書き込む。
+    - 結合後、`FRONTEND_SPEC.md` 5.3.1 の 1 と同じノイズ除去（ホスト・媒体名）と 14 日の期限をかけ、URL 重複を除き、新しい順に最大 150 件にする。既存のタイトル完全一致の重複除去と `videoUrlMap.json` の付与は残す。使われていない「AI で判定」のコメントと空ループは整理してよい。
+    - `news.json` の `file.save` の `metadata` に `cacheControl: 'public, max-age=600'` を付ける。
+  - **完了条件**:
+    - `node --check backend-repo/functions/index.js` が通る。親リポジトリで `npx tsc --noEmit` と `npm run build` が成功する。
+    - `grep -n "serpapi.com" backend-repo/functions/index.js` に `api_key=` の直書きが無い。
+    - 完了報告に、運営者の作業として次を書く: ① SerpApi の管理画面で鍵を作り直す（旧鍵は Git 履歴に残るため）② `firebase functions:secrets:set SERPAPI_KEY` ③ `firebase deploy --only functions:scheduledNewsUpdate` ④ デプロイ後、`news.json` に `origin` が `hololive` / `gnews` の記事が入り、YouTube・`t.co` の記事が無いことを確認。
+
+- [ ] **NEWS-5. バックエンド: 記事を月ごとに蓄積し、関連ニュースで過去 60 日分を使う**（NEWS-4 の次に着手）
+  - **対象ファイル**: `backend-repo/functions/index.js`（`scheduledNewsUpdate`）、`lib/gcs.ts`、`lib/server-data.ts`、`FRONTEND_SPEC.md`（2.1・5.3.3）
+  - **仕様**:
+    - `news.json` を書いた後、記事を `publishedAt` の月ごとに `news/archive/YYYY-MM.json` へ追記する（既存を読み、URL で重複を除き、新しい順で保存。削除はしない）。`cacheControl: 'public, max-age=3600'`。
+    - フロントに `getNewsArchive(month: string)` を追加する（ファイルが無い・404 なら空配列）。
+    - NEWS-3 の関連ニュースは、`news.json` ＋ 今月と前月のアーカイブを結合して URL 重複を除き、`clusterNews(..., { maxAgeDays: 60 })` をかけたものから選ぶ。`/news` は従来どおり 14 日。
+  - **完了条件**:
+    - `node --check backend-repo/functions/index.js` が通る。`npx tsc --noEmit` と `npm run build` が成功する。
+    - アーカイブがまだ無い状態でも `/vtuber/[channelId]` がエラーにならない。
+    - 完了報告に `firebase deploy --only functions:scheduledNewsUpdate` が必要と書く。
+
+- [ ] **NEWS-6. サイト内のクリック数を記録し、「Vちゃんねるで読まれている」を出す**（NEWS-5 の次に着手）
+  - **対象ファイル**: 新規 `app/api/news/click/route.ts`、新規 `lib/news-clicks.ts`（server-only）、`components/NewsList.tsx`・`components/NewsClusterCard.tsx`、`app/news/page.tsx`、`app/vtuber/[channelId]/page.tsx`、`lib/server-data.ts`、`backend-repo/functions/index.js`（古いクリック記録の削除）、`FRONTEND_SPEC.md`（5.3.2・5.3.4）
+  - **仕様**（`FRONTEND_SPEC.md` 5.3.4 のとおり）:
+    - `lib/news-clicks.ts`: `firebase-admin` の Realtime Database を、環境変数 `FIREBASE_SERVICE_ACCOUNT`・`FIREBASE_DATABASE_URL` で初期化する（名前付きアプリ `news` にする。**`lib/admin/` のファイルは編集も import もしない**）。`incrementNewsClick(id)` と `getNewsClicks24h(): Promise<Record<string, number>>`（今日と昨日の合計。10 分キャッシュ）。環境変数が無い・失敗したときは記録せず、読み取りは `{}` を返す。
+    - `POST /api/news/click`: 本文 `{ id }`。形式チェックと「現在のクラスタ一覧の記事の id に含まれるか」を確認し、OK なら加算。結果に関係なく 204 を返す。
+    - クライアント: 記事リンク（代表・`ほか N 媒体` の各記事・関連ニュース）のクリックで `sendBeacon`。同じ id は 1 日 1 回（`localStorage` の `newsClicked:YYYYMMDD` に id の配列。前日以前のキーは消す。読み書きは try/catch）。
+    - `getCachedNewsClusters()` で `clicks` を `clusterNews` に渡し、score に反映する（クラスタのクリック数 = クラスタ内の記事のクリック数の合計）。
+    - `/news` の `今日の注目` の下に `Vちゃんねるで読まれている`（5.3.2）。24 時間のクリック数 3 以上のクラスタが無ければ出さない。
+    - バックエンド: `scheduledNewsUpdate` の 6:30 の実行時に、RTDB `newsClicks` の 7 日より古い日付ノードを削除する。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。`node --check backend-repo/functions/index.js` が通る。
+    - ローカル（環境変数あり）で記事をクリックすると、RTDB の `newsClicks/<今日>/<id>` が 1 増える。同じ記事を続けてクリックしても増えない。存在しない id を POST しても増えない。
+    - 環境変数が無い環境でも `/news` が表示でき、クリックでエラーが出ない。
+    - 完了報告に `firebase deploy --only functions:scheduledNewsUpdate` が必要と書く。Vercel の本番環境変数 `FIREBASE_SERVICE_ACCOUNT`・`FIREBASE_DATABASE_URL` が設定済みか運営者に確認を依頼する（管理画面用に設定済みのはず）。
+
+- [ ] **NEWS-7. バックエンド: 媒体ごとの広告量を週 1 回測り、「今日の注目」の順位に反映する**（NEWS-6 の次に着手）
+  - **対象ファイル**: `backend-repo/functions/index.js`（新規 `scheduledNewsSourceAudit`）、`lib/gcs.ts`、`lib/news.ts`、`lib/server-data.ts`、`FRONTEND_SPEC.md`（2.1・5.3.1・5.3.5）
+  - **仕様**:
+    - 毎週月曜 4:00（JST）に実行。今月と前月のアーカイブから、記事が 3 件以上ある媒体（ホスト名）ごとに新しい記事を 2 件選び、HTML を取得する（汎用的なボット名の User-Agent、タイムアウト 10 秒、1 リクエストごとに 1 秒待つ。`news.google.com` のリンクは対象外）。
+    - HTML 内の広告の目印の出現数を数える: `googlesyndication`、`adsbygoogle`、`doubleclick`、`googletagservices`、`gnads`、`i-mobile`、`fluct`、`microad`、`ad-stir`、`taboola`、`outbrain`、`popin`、`logly`、`yads`、`amazon-adsystem`。2 件の平均を `adCount` とする。
+    - `newsSourceScores.json` に `{ "<ホスト名>": { adCount, sampled, checkedAt } }` を保存する（`cacheControl: 'public, max-age=3600'`）。
+    - フロント: `getNewsSourceScores()`（無ければ `{}`）を `clusterNews` の opts に渡し、代表記事のホストの `adCount` が 20 以上なら score −2、5 以下なら +1。**画面には表示しない**（特定媒体の低評価を公開しない）。
+  - **完了条件**:
+    - `node --check backend-repo/functions/index.js` が通る。`npx tsc --noEmit` と `npm run build` が成功する。
+    - `newsSourceScores.json` が無い状態でも `/news` が従来どおり表示される。
+    - 完了報告に `firebase deploy --only functions:scheduledNewsSourceAudit` が必要と書く。
+
+---
+
 ### 🤖 AI 提案タスク（自動追加・PM 未レビュー。上の PM のタスクがすべて終わってから着手）
 
 - [ ] **AI-20261114. ランキング・急上昇・配信カードのチャンネル名から VTuber 詳細ページへ内部リンクを張る**
@@ -1574,7 +1690,7 @@
     - 375px 幅でカードのレイアウトが崩れない。ダークモードで読める。バッジの有無でカードの高さが変わらない。
     - タップによる動画再生、お気に入りボタン、`感想を書く` リンク（CHAT-7）、選択事務所フィルターの挙動が従来どおり。
 
-- [ ] **AI-20261117. ニュース一覧に「媒体チップ」と「動画あり」の絞り込みを付ける**
+- [x] ~~**AI-20261117. ニュース一覧に「媒体チップ」と「動画あり」の絞り込みを付ける**~~ 廃止（2026-11-19、P1-NEWS の NEWS-2 のカテゴリチップに置き換え。以下の本文は参考）
   - **対象ファイル**:
     `components/NewsList.tsx`（ニュース一覧を描画している Client Component。ファイル名が異なる場合は `app/news/page.tsx` から辿って該当ファイルを修正する）
     `lib/news.ts`（媒体名の正規化と集計の純粋関数を追加する。無ければ新規作成）
