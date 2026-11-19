@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Radio, Sparkles, Trophy, Users } from "lucide-react";
 import { GrowthTop3 } from "@/components/GrowthTop3";
+import { GuideCard } from "@/components/GuideCard";
 import { RakutenMotionWidget } from "@/components/RakutenMotionWidget";
 import { SectionHeader } from "@/components/SectionHeader";
 import { StreamTabs } from "@/components/StreamTabs";
 import { GcsFetchError } from "@/lib/gcs";
 import { getGrowthData } from "@/lib/growth-data";
+import { getAllGuides } from "@/lib/guide";
 import type { SubscriberGrowthItem } from "@/types";
 
 export const metadata: Metadata = {
@@ -87,6 +89,7 @@ function Hero() {
 export default async function Home() {
   const growthPromise = loadWeeklyGrowth();
   const growth = await growthPromise;
+  const latestGuides = getAllGuides().slice(0, 3);
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-5 md:px-6 md:py-8">
@@ -102,6 +105,26 @@ export default async function Home() {
         <StreamTabs />
       </section>
       <RakutenMotionWidget />
+      {latestGuides.length > 0 && (
+        <section className="mt-8" aria-labelledby="home-guides-title">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 id="home-guides-title" className="text-xl font-bold">
+              ガイド・特集
+            </h2>
+            <Link
+              href="/guide"
+              className="shrink-0 text-sm font-medium text-blue-700 hover:underline dark:text-blue-300"
+            >
+              すべて見る
+            </Link>
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            {latestGuides.map((guide) => (
+              <GuideCard key={guide.slug} guide={guide} />
+            ))}
+          </div>
+        </section>
+      )}
     </main>
   );
 }

@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { cacheLife } from "next/cache";
 import { allDateSlugs } from "@/lib/events";
 import { getCachedSortedEventsMapByDateSlug } from "@/lib/events-data";
+import { getAllGuides } from "@/lib/guide";
 import { loadVTubers } from "@/lib/server-data";
 import { SITE_URL } from "@/lib/site";
 
@@ -20,6 +21,7 @@ const PAGES: {
   { path: "/events", changeFrequency: "daily", priority: 0.6 },
   { path: "/chat", changeFrequency: "hourly", priority: 0.4 },
   { path: "/privacy", changeFrequency: "daily", priority: 0.3 },
+  { path: "/guide", changeFrequency: "daily", priority: 0.6 },
 ];
 
 const SITEMAP_PAGE_SIZE = 50_000;
@@ -29,6 +31,15 @@ function staticEntries(): MetadataRoute.Sitemap {
     url: `${SITE_URL}${path}`,
     changeFrequency,
     priority,
+  }));
+}
+
+function guideEntries(): MetadataRoute.Sitemap {
+  return getAllGuides().map((guide) => ({
+    url: `${SITE_URL}/guide/${guide.slug}`,
+    changeFrequency: "monthly",
+    priority: 0.5,
+    lastModified: guide.updatedAt ?? guide.publishedAt,
   }));
 }
 
@@ -78,9 +89,11 @@ async function eventDateEntries(): Promise<MetadataRoute.Sitemap> {
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticPages = staticEntries();
+  const guides = guideEntries();
   try {
     const all = [
       ...staticPages,
+      ...guides,
       ...(await eventDateEntries()),
       ...(await vtuberEntries()),
     ];
@@ -92,6 +105,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "daily" as const,
       priority: 0.5,
     }));
-    return [...staticPages, ...fallbackEventDates];
+    return [...staticPages, ...guides, ...fallbackEventDates];
   }
 }

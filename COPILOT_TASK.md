@@ -844,7 +844,7 @@
     - `npm run build` が成功する。
     - `/privacy` の HTML に `Google AdSense`、`Cookie`、`adssettings.google.com`、`aboutads.info`、`policies.google.com/technologies/ads` が含まれる。
 
-- [ ] **ADS-6. ガイド・特集記事の仕組み（`/guide`）を作る**
+- [x] **ADS-6. ガイド・特集記事の仕組み（`/guide`）を作る**
   - **目的**: 人が書いた独自の文章を載せる場所を作る。記事の本文は PM（Claude）とユーザーが Markdown で書くので、Copilot は**仕組みだけ**を作る。サンプル記事 1 本を同梱する。
   - **対象ファイル**:
     `content/guide/*.md`（新規ディレクトリ）

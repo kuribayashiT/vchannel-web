@@ -493,6 +493,10 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 - 独自の文章コンテンツは 2 種類で作る。
   - `/guide`: 人が書く Markdown 記事（`content/guide/*.md`）。
   - `/reports/{YYYY-MM}`: データの比較から文章を組み立てる月間レポート（任意で編集部コメント）。
+- ガイド記事の追加手順:
+  1. `content/guide/{slug}.md` を作成する。slug は小文字英数字とハイフンを使い、ファイル名をそのまま `/guide/{slug}` の URL にする。
+  2. YAML frontmatter に `title`、`description`、`publishedAt`（`YYYY-MM-DD`）、`category`（`事務所紹介` / `データ解説` / `使い方・入門`）を記載する。更新した場合は `updatedAt`、VTuber 詳細カードを出す場合は `relatedVtubers` に channelId の配列を任意で追加する。
+  3. frontmatter の後に本文を Markdown で記述する。記事一覧・トップページ新着 3 件・静的詳細ページ・sitemap は `lib/guide.ts` がファイル一覧から自動生成するため、ルートやコードの追加は不要。日付・カテゴリ等の不正な frontmatter はビルド時にエラーになる。
 - 掲示板は NG ワードで投稿・表示を制限し、通報リンクを付ける。掲示板には広告を置かない。
 - AdSense のスクリプトと `ads.txt` は、審査用コードを受け取ってから入れる（ADS-9）。
 
