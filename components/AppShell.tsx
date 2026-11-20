@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { X, CalendarDays, Settings, SlidersHorizontal, Star } from "lucide-react";
 import { BottomNav, TopNav } from "@/components/BottomNav";
@@ -10,6 +10,41 @@ import { OfficeSelector } from "@/components/OfficeSelector";
 import { SiteFooter } from "@/components/SiteFooter";
 import { resetSelection, useSelectedChannels } from "@/hooks/useSelection";
 import type { OfficeSummary } from "@/lib/offices";
+
+const SELECTED_IDS_KEY = "selectedChannelIds";
+const MIGRATED_KEY = "selectionMigratedV1";
+const LEGACY_FULL_SELECTION_RATIO = 0.95;
+
+/**
+ * 旧 UI の「全選択」で全 ID が保存されたままの人を「すべて表示」（空）に戻す。
+ * 1 回だけ実行する（実行済みフラグ selectionMigratedV1）。
+ * 保存中の ID のうち現在も存在するものが全 ID の 95% 以上なら resetSelection() する。
+ */
+function migrateLegacyFullSelection(allIds: readonly string[]): void {
+  try {
+    if (localStorage.getItem(MIGRATED_KEY) === "1") return;
+    // 全 ID が分からないときは判定できないので、フラグも書かずに次回へ回す
+    if (allIds.length === 0) return;
+
+    const raw = localStorage.getItem(SELECTED_IDS_KEY);
+    if (raw) {
+      const parsed: unknown = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        const all = new Set(allIds);
+        const kept = new Set<string>();
+        for (const id of parsed) {
+          if (typeof id === "string" && all.has(id)) kept.add(id);
+        }
+        if (kept.size >= all.size * LEGACY_FULL_SELECTION_RATIO) {
+          resetSelection();
+        }
+      }
+    }
+    localStorage.setItem(MIGRATED_KEY, "1");
+  } catch {
+    // localStorage が使えない・値が壊れている場合は何もしない
+  }
+}
 
 function SideMenu({
   offices,
@@ -87,6 +122,12 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+
+  // マウント時に 1 回だけ、旧「全選択」の全 ID 保存を「すべて表示」に戻す（FILTER-9）
+  useEffect(() => {
+    const allIds = offices.flatMap((o) => o.members.map((m) => m.channelId));
+    migrateLegacyFullSelection(allIds);
+  }, [offices]);
 
   return (
     <>
