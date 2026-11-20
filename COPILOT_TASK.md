@@ -1041,7 +1041,7 @@
     - `npx tsc --noEmit` / `npm run build` がエラーなし。
     - localStorage を空にしてフィルターを開き、事務所を展開すると全チップに紫の ✓ が付いている。
 
-- [ ] **FILTER-9. 旧 UI の「全選択」で全 ID が保存されたままの人を「すべて表示」に戻す**（FILTER-8 の次に着手）
+- [x] **FILTER-9. 旧 UI の「全選択」で全 ID が保存されたままの人を「すべて表示」に戻す**（FILTER-8 の次に着手）
   - **症状**: FILTER-3 より前の `全選択` ボタンを押した人は、localStorage の `selectedChannelIds` に当時の全 ID（約 1,400 件）が残っている。この人は、ヘッダーに `絞り込み中 1400人` のチップが出続け、そのあと自動登録で増えた VTuber が配信・ランキング・VTuber タブに出ない。
   - **原因**: 「全員 = 空」への正規化は保存するとき（`setChannelIds(next, allIds)`）にしか行われない。読み込み時は正規化しないため、古い値が残る。しかも VTuber が増えると「全 ID と完全一致」しなくなるので、今のままの判定では二度と空に戻らない。
   - **対象ファイル**: `hooks/useSelection.ts`, `components/AppShell.tsx`
@@ -1941,6 +1941,63 @@
     - `curl -s <URL>/vtuber/<id> -o d.html && wc -c d.html` が変更前から +1KB 以内。`d.html` に `配信中` や `次の配信予定` の見出しが含まれない（クライアント描画のため）。ブラウザのコンソールにハイドレーションの警告が出ない。
     - 詳細ページを開いたまま画面を非表示にした間は、`/api/streams?channelId=` への再取得が発生しない。復帰時に最終取得から 60 秒以上たっていれば再取得される（DevTools の Network で確認）。
     - 375px 幅・ダークモードで崩れない。
+
+- [ ] **AI-20261120-21. 予定の配信カードに「カレンダーに追加」を付ける（Google カレンダー／.ics）**
+  - **対象ファイル**:
+    `lib/calendar-link.ts`（新規・純粋関数）
+    `components/AddToCalendar.tsx`（新規・Client Component）
+    `components/VideoCard.tsx`
+    `lib/stream.ts`（`toStreamCardVideo` に `scheduledStartTime` / `actualEndTime` が無い場合のみ追加）
+    `FRONTEND_SPEC.md`（5.2）
+  - **背景**: 通知スイッチはネイティブアプリ専用で、Web では「この配信を忘れずに見る」手段がない（5.2）。そのため、予定の配信を見つけても、後で見に来る動機が弱く、再訪が起きにくい。ほとんどの人が使っているカレンダーに予定を入れられれば、Web でも通知に近い体験を作れる。サーバー実装・ログイン・権限は不要で、既存のデータだけで実装できる。
+  - **仕様**:
+    - `lib/calendar-link.ts` に純粋関数を 2 つ追加する。現在時刻は使わない。
+      - `buildGoogleCalendarUrl(v: { videoId: string; title: string; channelTitle?: string; startIso: string }): string | null`
+        - `https://calendar.google.com/calendar/render?action=TEMPLATE` に `text`、`dates`（`YYYYMMDDTHHmmssZ/YYYYMMDDTHHmmssZ`、UTC）、`details` を付ける。各値は `encodeURIComponent` でエンコードする。
+        - 終了時刻は、動画に終了予定が無いため開始の 1 時間後とする。
+        - `text` は `【{channelTitle}】{title}`（`channelTitle` が空ならタイトルのみ）。`details` は `https://www.youtube.com/watch?v={videoId}` と、`Vちゃんねるから追加` の 2 行。
+        - `startIso` が不正な日時、または `videoId` が空なら `null` を返す。
+      - `buildIcsContent(同じ引数): string | null`
+        - `BEGIN:VCALENDAR` / `VERSION:2.0` / `PRODID:-//Vchannel//JA` / `BEGIN:VEVENT`（`UID:{videoId}@vchannel`、`DTSTAMP`・`DTSTART`・`DTEND` は UTC、`SUMMARY`、`DESCRIPTION`、`URL`）/ `END:VEVENT` / `END:VCALENDAR` を、行区切り CRLF で返す。
+        - テキスト値は `\`・`;`・`,`・改行をエスケープする。
+        - `DTSTAMP` は引数 `startIso` を使わず、`opts.now: Date` を第 2 引数で受け取る。関数内で `Date.now()` は使わない。
+        - 不正な入力は `null` を返す。
+      - 単体テストは既存のテスト方式に合わせる。テスト基盤が無い場合は、一時スクリプト（コミットしない）で次を確認し、結果を PR 本文に貼る: 通常の入力、タイトルに `,` `;` 改行を含む入力、不正な日時。
+    - `components/AddToCalendar.tsx`（Client Component）を作る。
+      - Props: `video: { videoId: string; title: string; channelTitle?: string; scheduledStartTime?: string; actualEndTime?: string }`、`live: boolean`。
+      - **マウント後にだけ描画する**。マウント前は `null`（トップは ISR でキャッシュされた HTML のため、現在時刻の判定でハイドレーションの不一致を起こさないようにする）。
+      - 表示条件は次の 3 つをすべて満たすときだけ。条件を満たさなければ `null`。
+        - `live === false`
+        - `actualEndTime` が空
+        - `scheduledStartTime` が有効な日時で、現在より後
+      - 見た目は、カード下部の 1 行の小さなボタンとする。
+        - ネイティブの `<details>` を使う。`<summary>` に、lucide-react の `CalendarPlus`（`size={14}`）と `カレンダーに追加` を入れる。
+        - `<summary>` の文字は `text-xs font-medium text-zinc-600`（ダーク: `dark:text-zinc-300`）。`list-none` で標準の三角を消し、`hover:bg-zinc-50`（ダーク: `dark:hover:bg-zinc-900`）、`min-h-9`、`cursor-pointer`、`touch-manipulation` を付ける。
+        - 開くと 2 項目を縦に並べる。
+          - `Google カレンダー`: `<a href={buildGoogleCalendarUrl(...)} target="_blank" rel="noopener noreferrer">`。
+          - `.ics をダウンロード（iPhone・Outlook など）`: `<button>`。押すと `buildIcsContent` の結果から `Blob`（`text/calendar;charset=utf-8`）を作り、`URL.createObjectURL` と一時的な `<a download="vtuber-stream-{videoId}.ics">` でダウンロードする。終了後に `URL.revokeObjectURL` を呼ぶ。
+        - 項目を押したら `<details>` を閉じる。ほかの場所をタップしても閉じるようにする（`toggle` と外側クリックで `open` を外す）。
+      - `any` は使わない。新しいパッケージは追加しない。
+    - `components/VideoCard.tsx` の組み込みは次のとおり。
+      - 動画への `<a>` の外側に `<AddToCalendar>` を置く。`live` のカードの `感想を書く` リンク（CHAT-7）と同じ位置・同じ区切り線のスタイル（`border-t border-zinc-100 dark:border-zinc-800`）にそろえる。
+      - 動画のタップ（再生）、お気に入りボタン、`感想を書く` リンクの挙動は変えない。
+      - 過去アーカイブ、お気に入りページ、VTuber 詳細の動画一覧には出さない（表示条件の「現在より後の予定」で自然に外れる）。
+      - 条件を満たさないカードには、空の行を残さない。マウント後に行が増えてレイアウトがずれるのを防ぐため、`AddToCalendar` を出す可能性があるカード（`live` でないもの）のカード下部に `min-h-9` の領域をあらかじめ確保する。ただし、過去アーカイブなど表示条件を満たさないことが分かっているタブでは確保しない。
+    - `toStreamCardVideo` の戻り値に `scheduledStartTime` / `actualEndTime` が無い場合だけ追加する。すでにあればそのまま使う（AI-20261116 で追加済みの場合も同様）。他のフィールドは追加しない。`/` の HTML 増加は +3KB 以内に収める。
+    - 選択チャンネルの絞り込み、更新ボタン、引っ張って更新、自動更新の挙動は変えない。
+    - ダークモード対応。375px 幅でカードのレイアウトが崩れず、メニューがカード外にはみ出して横スクロールを出さない。
+    - `FRONTEND_SPEC.md` 5.2 に次を追記する。
+      - 予定の配信カード（未来の `scheduledStartTime` があり、終了前で、配信中でないもの）に「カレンダーに追加」を出す。Google カレンダーのリンクと `.ics` のダウンロードの 2 種類。
+      - 終了時刻は開始の 1 時間後で固定。表示はマウント後にクライアントで判定する。過去アーカイブ・お気に入り・VTuber 詳細には出さない。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。ビルドログに `Date.now()` の警告が出ない。
+    - 「今日の配信」「明日の配信」「明日以降の配信」の未来の予定カードに `カレンダーに追加` が出る。開始時刻を過ぎたカード、配信中、過去アーカイブには出ない。
+    - `Google カレンダー` を押すと新しいタブで Google カレンダーの予定作成画面が開き、タイトル・日時（JST で正しい時刻）・YouTube の URL が入っている。
+    - `.ics をダウンロード` を押すと `.ics` ファイルが保存され、iPhone のカレンダーまたは Outlook などで開くと、同じ日時・タイトルで 1 件の予定として登録できる。
+    - タイトルに `,` `;` を含む動画でも、`.ics` が壊れずに取り込める。
+    - カードのタップによる動画再生、お気に入り、`感想を書く` の挙動が従来どおり。
+    - `curl -s <URL>/ -o top.html && wc -c top.html` が変更前から +3KB 以内。ブラウザのコンソールにハイドレーションの警告が出ない。
+    - 375px 幅・ダークモードで崩れず、ページ全体の横スクロールが出ない。
 
 ### P1-VTLIST: VTuber 一覧ページの回遊改善（2026-11-17 追加）
 

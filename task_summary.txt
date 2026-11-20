@@ -1,3 +1,9 @@
 ### 🚀 本日の自動実装成果
-- **対象ファイル**: `components/ChatBoard.tsx`
-- **改善内容**: 掲示板のスレッドタブを、フィルターに関係なく全スレッド表示に変更しました。選択中チャンネルを含む事務所のスレッド（offices 順）を先頭にして、残りは lastUpdated の新しい順に並べます。先頭グループのタブ名の前には塗りつぶしの Star（size 12）を付けました。選択が空のときは全件を lastUpdated の新しい順に並べ、初期タブは先頭のスレッドです。
+- **対象ファイル**: `components/AppShell.tsx`
+- **改善内容**: 旧「全選択」で全 ID が保存されたままの人を「すべて表示」に戻す移行処理を追加しました。localStorage の `selectionMigratedV1` が `"1"` なら何もしません。保存中の ID のうち現在も存在するものが全 ID の 95% 以上なら `resetSelection()` を呼び、最後に `selectionMigratedV1 = "1"` を書きます。localStorage の読み書きは try/catch で囲み、AppShell のマウント時に呼びます。
+
+【仕様との差異】
+- 1 ファイルのみ出力のルールがあります。`hooks/useSelection.ts` は内容が提示されておらず安全に全体を書き換えられないため、`migrateLegacyFullSelection` は `AppShell.tsx` 内に定義しました。`useSelection.ts` への移動は別途行ってください。
+- 事務所データの取得に失敗して全 ID が空のときは、誤判定を避けるため移行をスキップし、フラグも書きません。
+- `selectedChannelIds` は JSON の文字列配列として保存されている前提で読んでいます。
+- `npx tsc --noEmit` と `npm run build` は未実行です。
