@@ -1462,6 +1462,29 @@
 
 ---
 
+### P0-TAP: ガイド・特集のカードが押しにくく、押しても反応が分からない（2026-11-20 追加・小粒なので P1-NEWS より先に着手）
+
+> **調査結果（2026-11-20）**: `components/GuideCard.tsx` はタイトルの文字だけが `<Link>` で、カードの余白・カテゴリ・説明文を押しても何も起きない。スマホでは指がタイトルから外れやすい。さらに押した瞬間の見た目の変化も、遷移待ちの表示も無く、`app/guide/[slug]`・`app/guide`・`app/reports/[month]` には `loading.tsx` も無いため、通信が遅いと「押せたのか分からない」まま待つことになる。`GuideCard` はトップページの「ガイド・特集」と `/guide` の両方で使われている。
+
+- [ ] **TAP-1. ガイドのカード全体をタップ対象にし、押した瞬間の反応と遷移中の表示を付ける**
+  - **対象ファイル**: `components/GuideCard.tsx`、新規 `components/CardLinkStatus.tsx`（Client Component）、`app/reports/page.tsx`、`components/PageSkeleton.tsx`（`maxWidth` に `3xl` を追加）、新規 `app/guide/loading.tsx`・`app/guide/[slug]/loading.tsx`・`app/reports/[month]/loading.tsx`、`FRONTEND_SPEC.md`（6.2 の TAP-1）
+  - **仕様**（`FRONTEND_SPEC.md` 6.2「ガイド・レポートのカードのタップ」のとおり）:
+    - `GuideCard`: `<article>` に `relative`、タイトルの `<Link>` に `after:absolute after:inset-0 after:content-['']` を付け、カードのどこを押しても記事に移動するようにする。`<h3>` とリンク文言（タイトル）は変えない。カード全体を `<Link>` で包む方法は使わない（見出しの中にリンクがある構造を保つ）。
+    - カード右下に `読む` ＋ `ChevronRight`。押した瞬間 `active:scale-[0.99] active:bg-zinc-50 dark:active:bg-zinc-800`、`transition`、`touch-manipulation`、`hover:border-blue-400`。
+    - `CardLinkStatus`: `useLinkStatus()` を使い、`pending` の間は `Loader2`（`animate-spin`）＋ `読み込み中` を表示し、そうでなければ `読む` ＋ `ChevronRight` を表示する。`useLinkStatus` はリンクの子孫でしか動かないので、`<Link>` の中（タイトルの後ろ）に置き、位置は `absolute bottom-4 right-4` で右下に出す。カード本体を薄くする表示（`opacity-70`）は、同じ `pending` を使って `CardLinkStatus` から親に伝えるのではなく、`group` と `has-[[data-pending=true]]:opacity-70` のように CSS で行う（Client Component の範囲を広げない）。表示の切り替えは 100ms 遅らせる。
+    - `/reports` の月カード（既に `<Link>` がカード全体）にも、同じ `active:` の反応と `CardLinkStatus` を付ける（右端の `月間レポート →` / `集計中 →` を、遷移中だけ `読み込み中` に替える）。
+    - `loading.tsx` を 3 つ追加する: `/guide` は `<PageSkeleton variant="list" maxWidth="4xl" />`、`/guide/[slug]` は `<PageSkeleton variant="detail" maxWidth="3xl" />`、`/reports/[month]` は `<PageSkeleton variant="detail" maxWidth="4xl" />`。
+    - `<Link>` の `prefetch` は既定のまま（無効にしない）。`any` は使わない。新しいパッケージは追加しない。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - トップページの「ガイド・特集」と `/guide` で、カードの説明文・余白・カテゴリ行を押しても記事に移動する。カードの外（カード間の隙間）を押しても移動しない。
+    - スマホ（375px）で押した瞬間にカードが少し沈み、背景色が変わる。
+    - DevTools の Network で「Slow 3G」にしてカードを押すと、すぐに `読み込み中` のくるくるが出て、続けて記事の骨組み（スケルトン）が表示される。`/reports` の月カードも同様。
+    - スクリーンリーダー向けのリンク名はタイトルのまま（`読む` がリンク名に混ざらないよう、`CardLinkStatus` の表示文言は `aria-hidden`）。
+    - ダークモードで読める。キーボードの Tab でカードにフォーカスしたとき、フォーカス枠がカード全体に見える（`after:` 側に `focus-visible` の枠を付ける）。
+
+---
+
 ### P1-NEWS: ニュースタブの改善 — 同じ話題をまとめ、注目・公式の記事を目立たせる（2026-11-19 追加・P1-LIVEFRESH の次、AI 提案タスクより先に着手。NEWS-1 → NEWS-7 の順）
 
 > **調査結果（2026-11-19、`news.json` 93 件）**:

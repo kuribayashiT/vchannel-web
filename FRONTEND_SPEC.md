@@ -549,6 +549,13 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
   1. `content/guide/{slug}.md` を作成する。slug は小文字英数字とハイフンを使い、ファイル名をそのまま `/guide/{slug}` の URL にする。
   2. YAML frontmatter に `title`、`description`、`publishedAt`（`YYYY-MM-DD`）、`category`（`事務所紹介` / `データ解説` / `使い方・入門`）を記載する。更新した場合は `updatedAt`、VTuber 詳細カードを出す場合は `relatedVtubers` に channelId の配列を任意で追加する。
   3. frontmatter の後に本文を Markdown で記述する。記事一覧・トップページ新着 3 件・静的詳細ページ・sitemap は `lib/guide.ts` がファイル一覧から自動生成するため、ルートやコードの追加は不要。日付・カテゴリ等の不正な frontmatter はビルド時にエラーになる。
+- **ガイド・レポートのカードのタップ（2026-11-20 追加・TAP-1）**:
+  - `GuideCard` はカード全体をタップ対象にする。`<article>` に `relative`、タイトルの `<Link>` に `after:absolute after:inset-0 after:content-['']`（カード全体に広がるリンク）を付ける。見出し構造（`<h3>` 内のリンク）とリンクの文言はタイトルのまま変えない。カード内に別のリンクは置かない。
+  - カードの右下に `読む` ＋ lucide `ChevronRight`（`text-sm text-blue-700`）を置き、押せることを見た目で示す。
+  - 押した瞬間の反応: `active:scale-[0.99] active:bg-zinc-50`（ダーク: `active:bg-zinc-800`）、`transition`、`touch-manipulation`。ホバーは `hover:border-blue-400`。
+  - 遷移待ちの表示: リンクの中に置いた Client Component（`useLinkStatus`）で、`pending` の間は `読む →` を lucide `Loader2` の `animate-spin` ＋ `読み込み中` に替え、カードを `opacity-70` にする（`LinkPendingIndicator` と同じく 100ms 遅らせ、速い遷移ではちらつかせない）。
+  - `/reports` の月カードも同じ「押した瞬間の反応」と「遷移待ちの表示」にそろえる（カード全体がリンクなのは現状どおり）。
+  - 遷移先の読み込み中表示: `app/guide/loading.tsx`（`list`、`4xl`）、`app/guide/[slug]/loading.tsx`（`detail`。記事は `max-w-3xl` なので `PageSkeleton` の `maxWidth` に `3xl` を追加して使う）、`app/reports/[month]/loading.tsx`（`detail`、`4xl`）。押したらすぐ画面が切り替わり、骨組みが出てから本文が入る。
 - 掲示板は NG ワードで投稿・表示を制限し、通報リンクを付ける。掲示板には広告を置かない。
 - AdSense のスクリプトと `ads.txt` は、審査用コードを受け取ってから入れる（ADS-9）。
 
