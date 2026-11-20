@@ -553,7 +553,8 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
   - `GuideCard` はカード全体をタップ対象にする。`<article>` に `relative`、タイトルの `<Link>` に `after:absolute after:inset-0 after:content-['']`（カード全体に広がるリンク）を付ける。見出し構造（`<h3>` 内のリンク）とリンクの文言はタイトルのまま変えない。カード内に別のリンクは置かない。
   - カードの右下に `読む` ＋ lucide `ChevronRight`（`text-sm text-blue-700`）を置き、押せることを見た目で示す。
   - 押した瞬間の反応: `active:scale-[0.99] active:bg-zinc-50`（ダーク: `active:bg-zinc-800`）、`transition`、`touch-manipulation`。ホバーは `hover:border-blue-400`。
-  - 遷移待ちの表示: リンクの中に置いた Client Component（`useLinkStatus`）で、`pending` の間は `読む →` を lucide `Loader2` の `animate-spin` ＋ `読み込み中` に替え、カードを `opacity-70` にする（`LinkPendingIndicator` と同じく 100ms 遅らせ、速い遷移ではちらつかせない）。
+  - 遷移待ちの表示: リンクの中に置いた `CardLinkStatus`（Client Component、`useLinkStatus`）で、`pending` の間は `読む →` を lucide `Loader2` の `animate-spin` ＋ `読み込み中` に替え、カードを `opacity-70` にする（`LinkPendingIndicator` と同じく 100ms 遅らせ、速い遷移ではちらつかせない）。表示文言は `aria-hidden` にしてリンク名へ混ぜない。
+  - キーボードフォーカス時は、カード全体に見える `focus-visible` の枠を `after:` 側で表示する。
   - `/reports` の月カードも同じ「押した瞬間の反応」と「遷移待ちの表示」にそろえる（カード全体がリンクなのは現状どおり）。
   - 遷移先の読み込み中表示: `app/guide/loading.tsx`（`list`、`4xl`）、`app/guide/[slug]/loading.tsx`（`detail`。記事は `max-w-3xl` なので `PageSkeleton` の `maxWidth` に `3xl` を追加して使う）、`app/reports/[month]/loading.tsx`（`detail`、`4xl`）。押したらすぐ画面が切り替わり、骨組みが出てから本文が入る。
 - 掲示板は NG ワードで投稿・表示を制限し、通報リンクを付ける。掲示板には広告を置かない。

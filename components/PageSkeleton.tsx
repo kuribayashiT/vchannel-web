@@ -2,12 +2,13 @@ import { Skeleton } from "@/components/Skeleton";
 
 type PageSkeletonProps = {
   variant: "list" | "grid" | "detail";
-  maxWidth?: "4xl" | "6xl";
+  maxWidth?: "3xl" | "4xl" | "6xl";
 };
 
 const MAIN_CLASS =
   "mx-auto w-full flex-1 px-4 py-5 md:px-6 md:py-8";
 const MAX_WIDTH_CLASS = {
+  "3xl": "max-w-3xl",
   "4xl": "max-w-4xl",
   "6xl": "max-w-6xl",
 } as const;

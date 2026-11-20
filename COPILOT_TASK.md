@@ -1466,7 +1466,7 @@
 
 > **調査結果（2026-11-20）**: `components/GuideCard.tsx` はタイトルの文字だけが `<Link>` で、カードの余白・カテゴリ・説明文を押しても何も起きない。スマホでは指がタイトルから外れやすい。さらに押した瞬間の見た目の変化も、遷移待ちの表示も無く、`app/guide/[slug]`・`app/guide`・`app/reports/[month]` には `loading.tsx` も無いため、通信が遅いと「押せたのか分からない」まま待つことになる。`GuideCard` はトップページの「ガイド・特集」と `/guide` の両方で使われている。
 
-- [ ] **TAP-1. ガイドのカード全体をタップ対象にし、押した瞬間の反応と遷移中の表示を付ける**
+- [x] **TAP-1. ガイドのカード全体をタップ対象にし、押した瞬間の反応と遷移中の表示を付ける**
   - **対象ファイル**: `components/GuideCard.tsx`、新規 `components/CardLinkStatus.tsx`（Client Component）、`app/reports/page.tsx`、`components/PageSkeleton.tsx`（`maxWidth` に `3xl` を追加）、新規 `app/guide/loading.tsx`・`app/guide/[slug]/loading.tsx`・`app/reports/[month]/loading.tsx`、`FRONTEND_SPEC.md`（6.2 の TAP-1）
   - **仕様**（`FRONTEND_SPEC.md` 6.2「ガイド・レポートのカードのタップ」のとおり）:
     - `GuideCard`: `<article>` に `relative`、タイトルの `<Link>` に `after:absolute after:inset-0 after:content-['']` を付け、カードのどこを押しても記事に移動するようにする。`<h3>` とリンク文言（タイトル）は変えない。カード全体を `<Link>` で包む方法は使わない（見出しの中にリンクがある構造を保つ）。

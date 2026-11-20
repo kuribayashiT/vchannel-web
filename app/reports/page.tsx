@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { CardLinkStatus } from "@/components/CardLinkStatus";
 import {
   getCurrentReportContext,
   getReportMonths,
@@ -52,12 +53,13 @@ export default async function ReportsIndexPage() {
             <li key={month}>
               <Link
                 href={`/reports/${month}`}
-                className="flex items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white p-4 hover:border-blue-400 dark:border-zinc-800 dark:bg-zinc-900"
+                className="group relative flex items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white p-4 transition duration-150 hover:border-blue-400 has-[[data-pending=true]]:opacity-70 active:scale-[0.99] active:bg-zinc-50 touch-manipulation dark:border-zinc-800 dark:bg-zinc-900 dark:active:bg-zinc-800"
               >
                 <span className="font-bold">{monthLabel(month)}</span>
-                <span className="shrink-0 text-sm text-zinc-500 dark:text-zinc-400">
-                  {current ? "集計中" : "月間レポート"} →
-                </span>
+                <CardLinkStatus
+                  idleLabel={current ? "集計中" : "月間レポート"}
+                  className="shrink-0 text-zinc-500 dark:text-zinc-400"
+                />
               </Link>
             </li>
           );
