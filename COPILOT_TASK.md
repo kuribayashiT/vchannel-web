@@ -995,7 +995,7 @@
 >
 > **方針**: 保存値は「空 = すべて（絞り込みなし）」のまま変えない。**全 ID を localStorage に保存しない**こと。自動登録（仕様 2.3.1）で毎日 VTuber や事務所が増えるため、全 ID を保存すると新しく増えた分がフィルターから漏れる。UI 側で「空 = 全部チェック済み」に見せる。
 
-- [ ] **FILTER-1. 掲示板はフィルターに関係なく全スレッドを表示する**
+- [x] **FILTER-1. 掲示板はフィルターに関係なく全スレッドを表示する**
   - **対象ファイル**: `components/ChatBoard.tsx`
   - **仕様**:
     - `tabs` は常に全スレッドを出す。並び順は以下のとおり。
@@ -1894,6 +1894,53 @@
     - 検索欄にフォーカスして下に引っ張っても、引っ張って更新が誤発火しない。
     - 375px 幅・ダークモードで崩れない。iOS Safari で入力時にページが拡大されない。
     - `curl -s <URL>/ -o top.html && wc -c top.html` が変更前から +2KB 以内。
+
+- [ ] **AI-20261120-15. VTuber 詳細ページに「配信中／次の配信予定」カードを出す**
+  - **対象ファイル**:
+    `components/VTuberUpcomingStreams.tsx`（新規・Client Component）
+    `app/api/streams/route.ts`（`channelId` クエリの追加のみ）
+    `lib/stream.ts`（チャンネルで絞る純粋関数 `pickChannelStreams` を追加）
+    `app/vtuber/[channelId]/page.tsx`（`DetailView` の直後に設置）
+    `FRONTEND_SPEC.md`（5.2 と 5.4）
+  - **背景**: data.vmato.jp は、VTuber 個別の画面から「いま配信中か」「次はいつ配信するか」をすぐ確認できる。Vちゃんねるの詳細ページ（`/vtuber/[channelId]`）は `"use cache"` で 1 時間キャッシュされており、「最新動画」はあっても、配信中の表示や今後の予定は出ない。検索から詳細ページに来た人は、推しが今配信しているかを知るためにトップの配信タブへ戻り、一覧から探し直す必要がある。配信中や予定が分かれば、詳細ページから動画の再生につながり、滞在と再訪が増える。
+  - **仕様**:
+    - `lib/stream.ts` に純粋関数 `pickChannelStreams<T extends { channelId?: string }>(live: readonly T[], upcoming: readonly T[], channelId: string): { live: T[]; upcoming: T[] }` を追加する。
+      - `channelId` が一致するものだけを返し、元の並び順を保つ。元の配列は変更しない。
+      - `channelId` が空文字なら、両方とも空配列を返す。
+    - `/api/streams` に任意のクエリ `channelId` を追加する。
+      - 形式は `^[A-Za-z0-9_-]{1,64}$` のみ許可し、不正値は 400 を返す。
+      - 指定があるときは、`liveVideos` を `channelId` で絞る。`allVideos` は `comparisonDay` が今日以降（JST）のもので、同じ `channelId` のものだけに絞って返す。過去アーカイブは返さない。
+      - 指定がないときの挙動とレスポンスの形は、既存のまま変えない。
+      - `Cache-Control: no-store` を維持する。
+    - `components/VTuberUpcomingStreams.tsx` は、`channelId` を props で受け取る。
+      - マウント後に 1 回だけ `fetch(`/api/streams?channelId=${channelId}`, { cache: "no-store" })` する。
+      - 表示は `pickChannelStreams` の結果を使う。取得失敗、または配信中・予定とも 0 件のときは `null` を返し、何も表示しない（エラー文言は出さない）。
+      - 表示するのは、配信中があれば最大 2 件、予定は開始が近い順に最大 3 件とする。
+      - 画面の表示中は 3 分ごとに再取得する。非表示中は取得しない。`visibilitychange` で復帰したときは、最終取得から 60 秒以上たっていれば再取得する（トップの配信タブと同じ方針）。
+      - 各動画は、既存の `VideoCard` を使って表示する。カードの再生・お気に入りの動作は既存のままにする。`VideoCard` の props は既存の使い方に合わせ、新しい props は足さない。
+    - 見出しとレイアウトは次のとおり。
+      - セクション全体は `<section aria-label="配信情報" className="mt-6">` にする。
+      - 配信中があるときは、見出し `配信中`（`text-base font-bold`）の左に赤いドット（`size-2 rounded-full bg-red-500 animate-pulse motion-reduce:animate-none`）を置く。
+      - 予定があるときは、見出し `次の配信予定`（`text-base font-bold`）。見出しの横に lucide-react の `CalendarClock`（`size={16}`）を置く。
+      - 配信中と予定の両方があるときは、配信中を上に、予定を下にする。
+      - カードの並びは、画面幅 600px 以上で 2 列、それ未満で 1 列にする。
+      - ダークモードに対応する。375px 幅でページ全体の横スクロールを出さない。
+    - `app/vtuber/[channelId]/page.tsx` では、`<DetailView>` の直後（掲示板カードの前）に `<VTuberUpcomingStreams channelId={channelId} />` を置く。
+      - サーバー描画の HTML にこのセクションは含めない。表示はマウント後のクライアント取得のみとする。キャッシュ済みの詳細ページと、配信の鮮度を分けるため。
+      - ページの `"use cache"`、`generateMetadata`、JSON-LD、`loading.tsx` は変えない。`Date.now()` をプリレンダー中に使わない。
+    - `/vtuber` のタブ UI の詳細（`DetailView` を使う箇所）には出さない。詳細ページ（`/vtuber/[channelId]`）だけで先行して導入する。
+    - `any` は使わない。新しいパッケージは追加しない。
+    - `FRONTEND_SPEC.md` に次を追記する。
+      - 5.2: `/api/streams?channelId=` のクエリ仕様（形式チェック、絞り込み対象、過去アーカイブは返さない）。
+      - 5.4: `/vtuber/[channelId]` の `DetailView` の下に、配信中・次の配信予定のカードを出す。クライアントで取得し、0 件なら非表示。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。ビルドログに `Date.now()` の警告が出ない。
+    - 配信中の VTuber の詳細ページを開くと、`配信中` の見出しと赤いドット、その配信のカードが表示される。カードをタップすると、トップの配信タブと同じ動作で動画が再生される。
+    - 配信予定がある VTuber の詳細ページに `次の配信予定` が出る。配信中も予定もない VTuber のページには、何も出ず、空の枠も残らない。
+    - `curl -s "<URL>/api/streams?channelId=abc<script>"` が 400 を返す。`curl -s "<URL>/api/streams"` は従来と同じ形のレスポンスを返す。
+    - `curl -s <URL>/vtuber/<id> -o d.html && wc -c d.html` が変更前から +1KB 以内。`d.html` に `配信中` や `次の配信予定` の見出しが含まれない（クライアント描画のため）。ブラウザのコンソールにハイドレーションの警告が出ない。
+    - 詳細ページを開いたまま画面を非表示にした間は、`/api/streams?channelId=` への再取得が発生しない。復帰時に最終取得から 60 秒以上たっていれば再取得される（DevTools の Network で確認）。
+    - 375px 幅・ダークモードで崩れない。
 
 ### P1-VTLIST: VTuber 一覧ページの回遊改善（2026-11-17 追加）
 
