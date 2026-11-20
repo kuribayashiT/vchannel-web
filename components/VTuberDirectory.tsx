@@ -31,6 +31,10 @@ function officePreviewText(members: VTuberIndexItem[]): string {
   return `${names} ほか${formatNumber(sorted.length - 3)}人`;
 }
 
+/**
+ * メンバーへのリンクを HTML 文字列で作る（<Link> を使うと RSC ペイロードが倍増するため）。
+ * 各 <a> に class は付けず、親要素のセレクタで装飾して HTML を軽く保つ。
+ */
 function memberChipsHtml(members: VTuberIndexItem[]): string {
   const sorted = sortBySubscriber(members);
   return sorted
@@ -38,10 +42,33 @@ function memberChipsHtml(members: VTuberIndexItem[]): string {
       const href = `/vtuber/${encodeURIComponent(member.channelId)}`;
       const name = escapeHtml(member.name);
       const subscribers = escapeHtml(formatNumber(member.subscriberCount));
-      return `<a href="${href}">${name}（${subscribers}）</a>`;
+      return `<a href="${href}">${name} <i>${subscribers}</i></a>`;
     })
     .join("");
 }
+
+const CHIP_STYLE = [
+  "[&_a]:inline-flex",
+  "[&_a]:items-center",
+  "[&_a]:rounded-full",
+  "[&_a]:border",
+  "[&_a]:border-zinc-200",
+  "[&_a]:px-3",
+  "[&_a]:py-1",
+  "[&_a]:text-violet-700",
+  "[&_a:hover]:border-violet-300",
+  "[&_a:hover]:bg-violet-50",
+  "[&_a_i]:ml-1",
+  "[&_a_i]:text-[10px]",
+  "[&_a_i]:not-italic",
+  "[&_a_i]:tabular-nums",
+  "[&_a_i]:text-zinc-500",
+  "dark:[&_a]:border-zinc-700",
+  "dark:[&_a]:text-violet-300",
+  "dark:[&_a:hover]:border-violet-700",
+  "dark:[&_a:hover]:bg-violet-900/20",
+  "dark:[&_a_i]:text-zinc-400",
+].join(" ");
 
 /** 全事務所・全メンバーをサーバーレンダリングする一覧（フィルターの影響を受けない） */
 export async function VTuberDirectory() {
@@ -124,7 +151,7 @@ export async function VTuberDirectory() {
               className={`px-4 pb-3 ${office.members.length > 60 ? "max-h-72 overflow-y-auto" : ""}`}
             >
               <div
-                className="flex flex-wrap gap-1.5 text-xs [&_a]:inline-flex [&_a]:items-center [&_a]:rounded-full [&_a]:border [&_a]:border-zinc-200 [&_a]:px-3 [&_a]:py-1 [&_a]:text-violet-700 [&_a:hover]:border-violet-300 [&_a:hover]:bg-violet-50 dark:[&_a]:border-zinc-700 dark:[&_a]:text-violet-300 dark:[&_a:hover]:border-violet-700 dark:[&_a:hover]:bg-violet-900/20"
+                className={`flex flex-wrap gap-1.5 text-xs ${CHIP_STYLE}`}
                 dangerouslySetInnerHTML={{ __html: memberChipsHtml(office.members) }}
               />
             </div>

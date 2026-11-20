@@ -1,9 +1,3 @@
 ### 🚀 本日の自動実装成果
-- **対象ファイル**: `components/AppShell.tsx`
-- **改善内容**: 旧「全選択」で全 ID が保存されたままの人を「すべて表示」に戻す移行処理を追加しました。localStorage の `selectionMigratedV1` が `"1"` なら何もしません。保存中の ID のうち現在も存在するものが全 ID の 95% 以上なら `resetSelection()` を呼び、最後に `selectionMigratedV1 = "1"` を書きます。localStorage の読み書きは try/catch で囲み、AppShell のマウント時に呼びます。
-
-【仕様との差異】
-- 1 ファイルのみ出力のルールがあります。`hooks/useSelection.ts` は内容が提示されておらず安全に全体を書き換えられないため、`migrateLegacyFullSelection` は `AppShell.tsx` 内に定義しました。`useSelection.ts` への移動は別途行ってください。
-- 事務所データの取得に失敗して全 ID が空のときは、誤判定を避けるため移行をスキップし、フラグも書きません。
-- `selectedChannelIds` は JSON の文字列配列として保存されている前提で読んでいます。
-- `npx tsc --noEmit` と `npm run build` は未実行です。
+- **対象ファイル**: `components/VTuberDirectory.tsx`
+- **改善内容**: メンバーのリンクは JSX の <Link> を使わず、escapeHtml した <a href> の HTML 文字列を dangerouslySetInnerHTML で出す方式にしました。見た目（<details>／<summary>／<h2>／rounded-full のチップ）は変えていません。<a> ごとの class は付けず、コンテナ側のセレクタで一括して装飾します。登録者数は括弧書きをやめ、小さい文字の <i> に変えました（バイト数はほぼ増えません）。ビルドと /vtuber の HTML サイズ（830KB 以下が目安）は、この環境では実行していないので未確認です。

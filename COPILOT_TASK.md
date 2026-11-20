@@ -1056,7 +1056,7 @@
     - 1 事務所だけ選んだ状態では、リロードしても選択が残る。
     - `FRONTEND_SPEC.md` 4 章（PM 更新済み）の記述と実装が一致している。
 
-- [ ] **VDIR-1. 「事務所別VTuber一覧」を事務所ごとの折りたたみに変える（見た目の改善・SEO は維持）**
+- [x] **VDIR-1. 「事務所別VTuber一覧」を事務所ごとの折りたたみに変える（見た目の改善・SEO は維持）**
   - **対象ファイル**: `components/VTuberDirectory.tsx`
   - **⚠ 2026-11-12 PM 追記（やり直し）**: PR #17（`fc582bd`）で見た目は仕様どおりになったが、メンバーのリンクを JSX の `<Link>` で描画したため、`/vtuber` の HTML が **758KB → 1,578KB（+108%）**、RSC ペイロードが 443KB → 925KB に増え、完了条件（+10% 以内）を満たしていない。**見た目（`<details>` / `<summary>` / `<h2>` / チップ）は現行の PR #17 のまま**、メンバー一覧の出力を PR #17 以前と同じ「`escapeHtml` した HTML 文字列を `dangerouslySetInnerHTML` で出す」方式に戻すこと（`<Link>` は使わず `<a href>` の文字列にする）。確認は `npm run build` 後の `.next/server/app/vtuber.html` のサイズで行い、830KB 以下を目安とする。
   - **背景**: 現状はタブ UI の下に全員分の青いテキストリンクが並び、見た目が悪い。SEO/AIO のため、リンクは初期 HTML に残す必要がある。
@@ -1997,6 +1997,55 @@
     - タイトルに `,` `;` を含む動画でも、`.ics` が壊れずに取り込める。
     - カードのタップによる動画再生、お気に入り、`感想を書く` の挙動が従来どおり。
     - `curl -s <URL>/ -o top.html && wc -c top.html` が変更前から +3KB 以内。ブラウザのコンソールにハイドレーションの警告が出ない。
+    - 375px 幅・ダークモードで崩れず、ページ全体の横スクロールが出ない。
+
+- [ ] **AI-20261121-02. VTuber 詳細・日付別イベントページに「共有」ボタン（X で共有／リンクをコピー／端末の共有）を付ける**
+  - **対象ファイル**:
+    `components/ShareButtons.tsx`（新規・Client Component）
+    `lib/share.ts`（新規・純粋関数）
+    `app/vtuber/[channelId]/page.tsx`
+    `app/events/[date]/page.tsx`
+    `FRONTEND_SPEC.md`（5.4・5.7）
+  - **背景**: 現状、詳細ページや日付ページを見た人が、推しの登録者数や「今日の誕生日」を X や LINE で友達に共有する導線が無い。URL を手で貼るしかなく、共有されないため、新しい流入が生まれない。検索流入がまだ少ない今、ファンの共有が最も低コストな流入源になる。サーバー実装や X API は不要で、既存データだけで作れる（X 投稿案 `/admin/x` は運営者用で、一般ユーザー向けの共有は無い）。
+  - **仕様**:
+    - `lib/share.ts` に純粋関数を追加する。現在時刻は使わない。
+      - `buildXShareUrl(opts: { text: string; url: string }): string`
+        - `https://x.com/intent/post?text=...&url=...` を返す。値は `encodeURIComponent` でエンコードする。`text` に URL は含めない。
+      - `appendShareUtm(url: string, medium: "x" | "copy" | "native"): string`
+        - `utm_source=share&utm_medium={medium}` を付ける。既にクエリがあれば `&` でつなぐ。不正な URL は入力をそのまま返す。
+      - 単体テストは既存のテスト方式に合わせる。無ければ一時スクリプト（コミットしない）で、通常の URL、クエリ付き URL、日本語を含む `text` を確認し、結果を PR 本文に貼る。
+    - `components/ShareButtons.tsx`（Client Component）を作る。
+      - Props: `url: string`（サーバーで `SITE_URL` から作った絶対 URL。canonical と同じ）、`title: string`（端末の共有で使うタイトル）、`xText: string`（X に入れる本文）。
+      - ボタンは横並びで 3 つ。`flex flex-wrap gap-2`。
+        - `X で共有`: `<a href={buildXShareUrl({ text: xText, url: appendShareUtm(url, "x") })} target="_blank" rel="noopener noreferrer">`。lucide-react の `Share2`（`size={14}`）付き。
+        - `リンクをコピー`: `<button type="button">`。lucide-react の `Link2`（`size={14}`）付き。押すと `navigator.clipboard.writeText(appendShareUtm(url, "copy"))` を呼ぶ。成功したら 2 秒間 `コピーしました`（`Check` アイコン）に替える。`clipboard` が使えない・失敗した場合は `コピーできませんでした` を 2 秒表示する。
+        - `共有…`: `navigator.share` が使える端末（マウント後に判定）だけ表示する。押すと `navigator.share({ title, url: appendShareUtm(url, "native") })` を呼ぶ。ユーザーが共有をキャンセルしたとき（`AbortError`）は何も表示しない。
+      - マウント前は `X で共有` と `リンクをコピー` だけを描画し、`共有…` はマウント後に追加する。サーバー HTML とずれないよう、`共有…` が増えても行の高さが変わらない作りにする（`min-h-9`）。
+      - 見た目は、`rounded-full border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 active:scale-[0.98] touch-manipulation`（ダーク: `dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-900`）。
+      - 結果のメッセージは `aria-live="polite"` の領域で通知する。ボタンのタップ領域は縦 36px 以上。375px 幅で折り返してもページ全体の横スクロールが出ない。
+      - `any` は使わない。新しいパッケージは追加しない。
+    - 設置:
+      - `/vtuber/[channelId]`: h1 直下の要約文の下に、`<ShareButtons>` を 1 つ置く。
+        - `xText` は `{表示名}のYouTube登録者数は約{formatCompact(登録者数)}人（{日付}時点）。登録者数の推移・誕生日・デビュー日をまとめています #VTuber`。表示名は CTR-1 の `displayVtuberName` を使い、日付は要約文と同じ取得データの最新日付から作る。
+        - 登録者数が 0 のときは「YouTube登録者数は…」の文を省く。
+        - `title` は `{表示名}の登録者数・配信情報`。
+      - `/events/[date]`: 見出しと要約文の下に 1 つ置く。
+        - `xText` は `{M}月{D}日が誕生日・デビュー記念日のVTuber（誕生日{n}人・周年{m}人） #VTuber`。0 人の日は人数の括弧を省く。
+        - `title` は `{M}月{D}日が誕生日・デビュー記念日のVTuber`。
+      - どちらも `url` は `lib/site.ts` の `SITE_URL` と該当パスから作る。URL を直書きしない。
+    - ページの `"use cache"`、`generateMetadata`、JSON-LD、`loading.tsx` は変えない。プリレンダー中に `Date.now()` を使わない。
+    - `rel="nofollow"` は付けない（外部リンクだが共有用。`noopener noreferrer` のみ）。
+    - 共有リンクの UTM は `utm_source=share` を使う。運営者の X 投稿案が使う `utm_source=x` とは区別し、Vercel Analytics で内訳を見られるようにする。
+    - `FRONTEND_SPEC.md` に次を追記する。
+      - 5.4: 詳細ページの要約文の下に共有ボタン（X・コピー・端末の共有）を置く。文面の型、UTM（`utm_source=share&utm_medium=x|copy|native`）、`共有…` はマウント後にだけ出す。
+      - 5.7: `/events/[date]` にも同じ共有ボタンを置く。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。ビルドログに `Date.now()` の警告が出ない。
+    - `/vtuber/UC-hM6YJuNYVAmUWxeIr9FeA` の HTML に `x.com/intent/post` を含むリンクが 1 つあり、`url` パラメータが `https://www.vchannel.net/vtuber/UC-hM6YJuNYVAmUWxeIr9FeA?utm_source=share&utm_medium=x` をエンコードした形になっている（本番、またはローカルでは `SITE_URL` に合わせた値）。
+    - `/events/11-20` などの日付ページにも同様に共有ボタンが出る。
+    - `X で共有` を押すと新しいタブで X の投稿画面が開き、本文と URL が入っている。`リンクをコピー` を押すと `コピーしました` が出て、クリップボードに UTM 付きの URL が入る。
+    - スマホ実機（iOS Safari または Android Chrome）では `共有…` が表示され、押すと端末の共有シートが開く。キャンセルしてもエラー表示が出ない。PC の非対応ブラウザでは `共有…` が出ない。
+    - `curl -s <URL>/vtuber/<id> -o d.html && wc -c d.html` が変更前から +2KB 以内。ブラウザのコンソールにハイドレーションの警告が出ない。
     - 375px 幅・ダークモードで崩れず、ページ全体の横スクロールが出ない。
 
 ### P1-VTLIST: VTuber 一覧ページの回遊改善（2026-11-17 追加）
