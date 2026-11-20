@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Star } from "lucide-react";
 import { useSelectedChannels } from "@/hooks/useSelection";
 import {
   DEFAULT_AUTHOR,
@@ -601,20 +601,30 @@ export function ChatBoard({ offices }: { offices: OfficeSummary[] }) {
     });
   }, []);
 
-  // 選択事務所の順に並べる。未選択なら更新が新しい順で全スレッド
-  const tabs = useMemo(() => {
-    if (!threads) return [];
-    const byName = new Map(threads.map((t) => [t.name.toLowerCase(), t]));
-    const picked = offices
-      .filter((o) => o.members.some((m) => channelIds.includes(m.channelId)))
-      .flatMap((o) => {
+  // 常に全スレッドを出す。選択中チャンネルを含む事務所のスレッド（offices 順）を先頭にし、
+  // 残りは更新が新しい順。選択が空なら全件を更新が新しい順に並べる。
+  const { tabs, starredIds } = useMemo(() => {
+    if (!threads) {
+      return { tabs: [] as ChatThread[], starredIds: new Set<string>() };
+    }
+    const byLastUpdated = (a: ChatThread, b: ChatThread) =>
+      (b.lastUpdated ?? "").localeCompare(a.lastUpdated ?? "");
+
+    const picked: ChatThread[] = [];
+    const pickedIds = new Set<string>();
+    if (channelIds.length > 0) {
+      const selected = new Set(channelIds);
+      const byName = new Map(threads.map((t) => [t.name.toLowerCase(), t]));
+      for (const o of offices) {
+        if (!o.members.some((m) => selected.has(m.channelId))) continue;
         const t = byName.get(o.name.toLowerCase());
-        return t ? [t] : [];
-      });
-    if (picked.length) return picked;
-    return [...threads].sort((a, b) =>
-      (b.lastUpdated ?? "").localeCompare(a.lastUpdated ?? ""),
-    );
+        if (!t || pickedIds.has(t.id)) continue;
+        pickedIds.add(t.id);
+        picked.push(t);
+      }
+    }
+    const rest = threads.filter((t) => !pickedIds.has(t.id)).sort(byLastUpdated);
+    return { tabs: [...picked, ...rest], starredIds: pickedIds };
   }, [threads, offices, channelIds]);
 
   const current = tabs.find((t) => t.id === tab) ?? null;
@@ -641,6 +651,7 @@ export function ChatBoard({ offices }: { offices: OfficeSummary[] }) {
         <div className="flex gap-2 overflow-x-auto pb-1">
           {tabs.map((t) => {
             const unread = Math.max(t.postCount - (seenCounts[t.id] ?? 0), 0);
+            const starred = starredIds.has(t.id);
             return (
               <button
                 key={t.id}
@@ -656,7 +667,19 @@ export function ChatBoard({ offices }: { offices: OfficeSummary[] }) {
                     : "border-zinc-200 bg-white text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
                 }`}
               >
-                <p className="truncate text-sm font-semibold">{t.name}</p>
+                <p className="flex items-center gap-1 text-sm font-semibold">
+                  {starred && (
+                    <Star
+                      size={12}
+                      fill="currentColor"
+                      aria-label="選択中の事務所"
+                      className={`shrink-0 ${
+                        tab === t.id ? "text-amber-200" : "text-amber-500"
+                      }`}
+                    />
+                  )}
+                  <span className="truncate">{t.name}</span>
+                </p>
                 <p
                   className={`text-xs ${
                     tab === t.id ? "text-white/90" : "text-zinc-500"
