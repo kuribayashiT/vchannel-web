@@ -1610,6 +1610,25 @@
     - アーカイブがまだ無い状態でも `/vtuber/[channelId]` がエラーにならない。
     - 完了報告に `firebase deploy --only functions:scheduledNewsUpdate` が必要と書く。
 
+- [ ] **NEWS-TAP. ニュースカードの上段全体を押せるようにする（タイトルの文字だけでなく、媒体名・日時・余白も）**（NEWS-6 より先に着手）
+  - **対象ファイル**: `components/NewsClusterCard.tsx`、`FRONTEND_SPEC.md`（5.3.2 の「タップ範囲」）
+  - **背景**: NEWS-2 の仕様に「カード全体を `<a>` で包むのをやめる」と書いたため、記事が開くのはサムネとタイトルの文字だけになり、媒体名・日時・余白を押しても反応しない（PM の仕様ミス）。スマホでは押しても反応しないカードに見える。ガイドのカード（TAP-1）と同じ「カード全体に広がるリンク」で直す。
+  - **仕様**（`FRONTEND_SPEC.md` 5.3.2「タップ範囲」のとおり）:
+    - `<article>` に `relative`、`transition`、`touch-manipulation`、`hover:border-blue-400`、`active:bg-zinc-50 dark:active:bg-zinc-800`。
+    - タイトルの `<a>` に `after:absolute after:inset-0 after:content-['']` を付ける。フォーカス枠はカード全体に出す（`focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-blue-500 after:rounded-xl`）。
+    - サムネの `<a>` は残してよいが `tabIndex={-1}` と `aria-hidden="true"` にする（同じリンクの重複を読み上げ・Tab 移動から外す）。
+    - VTuber チップの `<Link>`、`ほか N 媒体` の `<details>`、`▶ 解説動画を見る` の `<a>` には `relative z-10` を付け、広げたリンクより手前に出す。
+    - タップ対象を広げる: `<summary>` は `py-2`（高さ 32px 以上）、開いた中の各記事の `<a>` は `block py-1.5`、VTuber チップは `py-1.5`。
+    - `今日の注目`（`featured`）のカードも同じ扱いにする。
+    - 見た目（色・レイアウト）、リンク先、`target="_blank" rel="noopener noreferrer"` は変えない。`any` は使わない。新しいパッケージは追加しない。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - `/news` と `今日の注目` のカードで、媒体名・日時・カード上段の余白を押すと代表記事が新しいタブで開く。
+    - VTuber チップを押すと `/vtuber/[channelId]` に移動し、記事は開かない。`ほか N 媒体` を押すと開閉するだけで記事は開かない。開いた中の記事を押すとその記事が開く。
+    - スマホ（375px）で押した瞬間にカードの背景色が変わる。
+    - キーボードの Tab で、1 枚のカードにつき代表記事へのフォーカスが 1 回だけ止まり、枠がカード全体に出る。
+    - ダークモードで読める。
+
 - [ ] **NEWS-6. サイト内のクリック数を記録し、「Vちゃんねるで読まれている」を出す**（NEWS-5 の次に着手）
   - **対象ファイル**: 新規 `app/api/news/click/route.ts`、新規 `lib/news-clicks.ts`（server-only）、`components/NewsList.tsx`・`components/NewsClusterCard.tsx`、`app/news/page.tsx`、`app/vtuber/[channelId]/page.tsx`、`lib/server-data.ts`、`backend-repo/functions/index.js`（古いクリック記録の削除）、`FRONTEND_SPEC.md`（5.3.2・5.3.4）
   - **仕様**（`FRONTEND_SPEC.md` 5.3.4 のとおり）:
