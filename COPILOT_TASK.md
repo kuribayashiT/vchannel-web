@@ -1282,7 +1282,7 @@
 >
 > ⚠ スレッドの `postCount` は実際のレス数より小さい（2.2 参照）。0 件に見えても投稿がある場合があるため、**`postCount` を根拠にスレッドを非表示にしない**こと。
 
-- [ ] **CHAT-4. 掲示板の見た目を整理する（新しい順・注意事項は閉じる・見かけだけのリアクションを外す）**
+- [x] **CHAT-4. 掲示板の見た目を整理する（新しい順・注意事項は閉じる・見かけだけのリアクションを外す）**
   - **対象ファイル**: `components/ChatBoard.tsx`, `lib/chat.ts`
   - **仕様**:
     - **並び順を新しい順にする**
@@ -2047,6 +2047,46 @@
     - スマホ実機（iOS Safari または Android Chrome）では `共有…` が表示され、押すと端末の共有シートが開く。キャンセルしてもエラー表示が出ない。PC の非対応ブラウザでは `共有…` が出ない。
     - `curl -s <URL>/vtuber/<id> -o d.html && wc -c d.html` が変更前から +2KB 以内。ブラウザのコンソールにハイドレーションの警告が出ない。
     - 375px 幅・ダークモードで崩れず、ページ全体の横スクロールが出ない。
+
+- [ ] **AI-20261121-09. VTuber 詳細ページの先頭に「登録者数 全体◯位／事務所内◯位」の順位チップを出す**
+  - **対象ファイル**:
+    `components/RankChips.tsx`（新規・Server Component 可。hooks を使わない純粋な表示コンポーネント）
+    `app/vtuber/[channelId]/page.tsx`
+    `FRONTEND_SPEC.md`（5.4）
+  - **背景**: data.vmato.jp は、VTuber の個別画面で「登録者数が全体で何位か」がひと目で分かる。Vちゃんねるの詳細ページでは、順位が要約文と「よくある質問」の文章にしか出ない（IDX-1）。次の問題がある。
+    - 訪問者が文章を読まないと順位が分からず、推しの位置づけを数字で実感しにくい。
+    - 順位から `/ranking` へ移動する導線がなく、ランキングへの回遊が起きない。
+    - 検索結果から着地した人が最初に知りたい「この人はどれくらい人気なのか」が、ファーストビューで伝わらない。
+  - **仕様**:
+    - `components/RankChips.tsx` を新規作成する。Props は次のとおり。
+      - `overall: number`、`total: number`、`office?: string`、`inOffice?: number`、`officeTotal?: number`。
+      - `getCachedVTuberRanks(channelId)` の戻り値（`{ overall; total; inOffice; officeTotal }`）をそのまま渡せる形にする。
+    - チップは次の 1〜2 個を横並びで出す（`flex flex-wrap gap-2`）。
+      - 全体順位: lucide-react の `Trophy`（`size={14}`）＋ `登録者数 全体{overall}位`、右に小さく `/{total}人`（`text-[11px] text-zinc-500 tabular-nums`）。
+      - 事務所内順位: `office` が空でなく `個人` でもなく、`inOffice` と `officeTotal` があるときだけ。lucide-react の `Building2`（`size={14}`）＋ `{office}内 {inOffice}位`、右に小さく `/{officeTotal}人`。
+      - `office === "個人"` のときは事務所内チップを出さない。
+    - 見た目は次のとおり。
+      - 共通: `inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold`。
+      - 通常: `border-zinc-200 bg-white text-zinc-700`（ダーク: `dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200`）。
+      - 順位が 1〜3 位のチップ: `border-amber-300 bg-amber-50 text-amber-800`（ダーク: `dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300`）。
+      - 事務所名は長いときに `truncate max-w-[14rem]` で省略し、チップが 375px 幅で 1 行を超えて崩れないようにする。
+    - 各チップは `next/link` の `<Link href="/ranking">` にする（`<a href>` として HTML に出す）。ホバーで `hover:border-violet-400`。事務所内チップも同じ `/ranking` へ。ランキングのタブ指定クエリは使わない（未確認のため）。
+    - `app/vtuber/[channelId]/page.tsx` では、h1 直下の要約文の下、`DetailView` の上にチップを置く。
+      - 既存の `getCachedVTuberRanks()` の結果を使う。**新しいデータ取得や `loadVTubers()` の直接呼び出しは追加しない**（FIX-1 のルール）。
+      - `ranks` が `null`（事務所公式チャンネルなど、IDX-4 で順位を出さないページ）のときは、チップ全体を出さない。
+      - 同じ順位の数値は要約文と一致させる。
+    - サーバーレンダリングの HTML にチップを含める。クライアント fetch やマウント後の描画にはしない。`Date.now()` をプリレンダー中に使わない。
+    - 要約文・JSON-LD・`generateMetadata`・「よくある質問」・`loading.tsx`・`DetailView` は変更しない。`/vtuber` 一覧のタブ UI 内の詳細（`VTuberTabs`）には出さない（一覧の HTML を増やさないため）。
+    - `any` は使わない。新しいパッケージは追加しない。
+    - `FRONTEND_SPEC.md` 5.4 の詳細ページの節に、「要約文の下に順位チップ（全体順位・事務所内順位）を出す。1〜3 位は amber で強調し、`/ranking` へリンクする。事務所公式チャンネルと `個人` の事務所内順位は出さない」旨を追記する。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。ビルドログに `Date.now()` の警告が出ない。
+    - `curl -s <URL>/vtuber/UCCzUftO8KOVkV4wQG1vkUvg`（宝鐘マリン）の HTML に `全体` と `位`、事務所内順位のチップ（`ホロライブ内` など）、`href="/ranking"` が含まれる。
+    - `curl -s <URL>/vtuber/UCt30jJgChL8qeT9VPadidSw`（しぐれうい・個人）の HTML に全体順位のチップはあるが、事務所内順位のチップは無い。
+    - 事務所公式チャンネル（`officeFlg` が true の任意の 1 件）のページにはチップが出ない。
+    - チップの順位の数値が、同じページの要約文の順位と一致している。
+    - `curl -s <URL>/vtuber/<id> -o d.html && wc -c d.html` が変更前から +1KB 以内。ブラウザのコンソールにハイドレーションの警告が出ない。
+    - 375px 幅で、事務所名が長い事務所でもチップが崩れず、ページ全体の横スクロールが出ない。ダークモードで読める。
 
 ### P1-VTLIST: VTuber 一覧ページの回遊改善（2026-11-17 追加）
 

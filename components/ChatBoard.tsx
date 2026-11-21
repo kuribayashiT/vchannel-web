@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Sparkles, Star } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Reply, Sparkles, Star } from "lucide-react";
 import { useSelectedChannels } from "@/hooks/useSelection";
 import {
   DEFAULT_AUTHOR,
@@ -18,7 +18,6 @@ import { CONTACT_EMAIL } from "@/lib/site";
 
 const POLL_MS = 15_000;
 const SEEN_COUNTS_KEY = "chat:last-seen-post-count";
-const QUICK_REACTIONS = ["💖", "👏", "😂", "🔥"] as const;
 
 const NG_MESSAGE = "不適切な表現が含まれているため投稿できません";
 const HIDDEN_TEXT = "この投稿は表示されません";
@@ -105,6 +104,10 @@ function shortText(text: string, max = 70): string {
   return `${oneLine.slice(0, max)}…`;
 }
 
+function groupMaxPostNo(g: ChatPostGroup): number {
+  return g.replies.reduce((m, r) => Math.max(m, r.postNo), g.parent.postNo);
+}
+
 function readSeenCounts(): Record<string, number> {
   if (typeof window === "undefined") return {};
   try {
@@ -165,10 +168,10 @@ function Body({
 }
 
 function RulesPanel() {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
 
   return (
-    <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-white to-violet-50 p-4 text-sm shadow-sm dark:border-violet-900/50 dark:from-zinc-900 dark:to-violet-950/30">
+    <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-white to-violet-50 p-3 text-sm shadow-sm dark:border-violet-900/50 dark:from-zinc-900 dark:to-violet-950/30">
       <div className="flex items-center justify-between gap-3">
         <h2 className="font-bold">📢 掲示板の注意事項</h2>
         <button
@@ -281,6 +284,9 @@ function PostSheet({
             {content.length}/{MAX_CONTENT}
           </span>
         </div>
+        <p className="text-xs text-zinc-500">
+          誹謗中傷・個人情報の書き込みは禁止です
+        </p>
         <div className="flex justify-end gap-2">
           <p className="mr-auto self-center text-xs text-zinc-500">
             投稿前に
@@ -327,7 +333,6 @@ function PostItem({
   onJumpToPost: (postNo: number) => void;
   variant?: "parent" | "reply";
 }) {
-  const [pickedReaction, setPickedReaction] = useState<string | null>(null);
   const compact = variant === "reply";
   const hidden = isHiddenPost(post);
 
@@ -340,15 +345,8 @@ function PostItem({
           : "border-zinc-200 dark:border-zinc-800"
       }`}
     >
-      <div className={`mb-2 flex flex-wrap items-center gap-2 text-xs text-zinc-500`}>
-        <span className="rounded-full bg-violet-100 px-2 py-0.5 font-bold text-violet-700 dark:bg-violet-900/50 dark:text-violet-200">
-          No.{post.postNo}
-        </span>
-        {compact && (
-          <span className="rounded-full bg-blue-100 px-2 py-0.5 font-bold text-blue-700 dark:bg-blue-900/50 dark:text-blue-200">
-            返信
-          </span>
-        )}
+      <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+        <span>No.{post.postNo}</span>
         <span className="font-bold text-zinc-800 dark:text-zinc-200">
           {hidden ? DEFAULT_AUTHOR : post.author || DEFAULT_AUTHOR}
         </span>
@@ -361,7 +359,7 @@ function PostItem({
           <span className="rounded bg-zinc-200 px-1 dark:bg-zinc-700">📰 Bot</span>
         )}
         {post.createdAt && <span>{fmt.format(new Date(post.createdAt))}</span>}
-        <span className="ml-auto flex items-center gap-2">
+        <span className="ml-auto flex items-center gap-3">
           <a
             href={reportHref(threadName, post.postNo)}
             className="text-zinc-500 underline hover:text-red-600"
@@ -371,8 +369,9 @@ function PostItem({
           <button
             type="button"
             onClick={() => onReply(post.postNo)}
-            className="rounded-full bg-blue-50 px-2 py-0.5 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300"
+            className="inline-flex items-center gap-1 text-blue-600 hover:underline"
           >
+            <Reply size={14} aria-hidden />
             返信
           </button>
         </span>
@@ -401,23 +400,6 @@ function PostItem({
       ) : (
         <Body text={post.content} onJumpToPost={onJumpToPost} />
       )}
-
-      <div className={`mt-2 flex flex-wrap gap-1.5`}>
-        {QUICK_REACTIONS.map((emoji) => (
-          <button
-            key={emoji}
-            type="button"
-            onClick={() => setPickedReaction((prev) => (prev === emoji ? null : emoji))}
-            className={`rounded-full border px-2 py-0.5 text-xs transition-colors ${
-              pickedReaction === emoji
-                ? "border-violet-400 bg-violet-100 text-violet-800 dark:border-violet-500 dark:bg-violet-900/40 dark:text-violet-200"
-                : "border-zinc-300 bg-white text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
-            }`}
-          >
-            {emoji}
-          </button>
-        ))}
-      </div>
     </li>
   );
 }
@@ -436,13 +418,19 @@ function ThreadView({
   const [expandedParents, setExpandedParents] = useState<Set<number>>(
     () => new Set(),
   );
+  const listRef = useRef<HTMLUListElement | null>(null);
 
   const byPostNo = useMemo(
     () => new Map((posts ?? []).map((p) => [p.postNo, p])),
     [posts],
   );
+  // 親コメントのまとまりを、まとまり内の最大 postNo の降順（新しい順）に並べる。
+  // まとまりの中の返信は従来どおり古い順。
   const groups = useMemo<ChatPostGroup[]>(
-    () => groupPostsByParent(posts ?? []),
+    () =>
+      [...groupPostsByParent(posts ?? [])].sort(
+        (a, b) => groupMaxPostNo(b) - groupMaxPostNo(a),
+      ),
     [posts],
   );
 
@@ -469,6 +457,11 @@ function ThreadView({
       .catch(() => setFailed(true));
   }, [onSeen, thread.id]);
 
+  const handlePosted = useCallback(() => {
+    load();
+    listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [load]);
+
   useEffect(() => {
     load();
     const t = setInterval(load, POLL_MS);
@@ -485,7 +478,7 @@ function ThreadView({
           <p>いちばん最初のコメントをしてみよう！</p>
         </div>
       )}
-      <ul className="space-y-4 pb-24">
+      <ul ref={listRef} className="scroll-mt-24 space-y-4 pb-24">
         {groups.map((g) => {
           const parent = g.parent;
           const parentRefs = parseReplyNos(parent.content)
@@ -569,7 +562,7 @@ function ThreadView({
           threadId={thread.id}
           initial={sheet}
           onClose={() => setSheet(null)}
-          onPosted={load}
+          onPosted={handlePosted}
         />
       )}
     </div>
@@ -603,6 +596,7 @@ export function ChatBoard({ offices }: { offices: OfficeSummary[] }) {
 
   // 常に全スレッドを出す。選択中チャンネルを含む事務所のスレッド（offices 順）を先頭にし、
   // 残りは更新が新しい順。選択が空なら全件を更新が新しい順に並べる。
+  // そのうえで postCount === 0 のスレッドは（非表示にせず）並びの最後にまとめる。
   const { tabs, starredIds } = useMemo(() => {
     if (!threads) {
       return { tabs: [] as ChatThread[], starredIds: new Set<string>() };
@@ -624,7 +618,10 @@ export function ChatBoard({ offices }: { offices: OfficeSummary[] }) {
       }
     }
     const rest = threads.filter((t) => !pickedIds.has(t.id)).sort(byLastUpdated);
-    return { tabs: [...picked, ...rest], starredIds: pickedIds };
+    const ordered = [...picked, ...rest];
+    const withPosts = ordered.filter((t) => t.postCount !== 0);
+    const empty = ordered.filter((t) => t.postCount === 0);
+    return { tabs: [...withPosts, ...empty], starredIds: pickedIds };
   }, [threads, offices, channelIds]);
 
   const current = tabs.find((t) => t.id === tab) ?? null;
@@ -640,14 +637,7 @@ export function ChatBoard({ offices }: { offices: OfficeSummary[] }) {
     <div className="space-y-4">
       <RulesPanel />
       <div className="-mx-4 px-4">
-        <div className="mb-2 flex items-center justify-between">
-          <p className="text-xs font-medium text-zinc-500">スレッド一覧</p>
-          {activeThread && (
-            <p className="text-xs text-zinc-500">
-              投稿 {activeThread.postCount.toLocaleString()} 件
-            </p>
-          )}
-        </div>
+        <p className="mb-2 text-xs font-medium text-zinc-500">スレッド一覧</p>
         <div className="flex gap-2 overflow-x-auto pb-1">
           {tabs.map((t) => {
             const unread = Math.max(t.postCount - (seenCounts[t.id] ?? 0), 0);
@@ -661,7 +651,7 @@ export function ChatBoard({ offices }: { offices: OfficeSummary[] }) {
                   markSeen(t.id, t.postCount);
                 }}
                 aria-pressed={tab === t.id}
-                className={`relative min-w-44 shrink-0 rounded-2xl border px-3 py-2 text-left shadow-sm ${
+                className={`relative min-w-28 shrink-0 rounded-2xl border px-3 py-1.5 text-left shadow-sm ${
                   tab === t.id
                     ? "border-violet-500 bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white"
                     : "border-zinc-200 bg-white text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
