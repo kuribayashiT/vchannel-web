@@ -1,8 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Reply, Sparkles, Star } from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import { MessageCirclePlus, Reply, Sparkles, Star } from "lucide-react";
 import { useSelectedChannels } from "@/hooks/useSelection";
 import {
   DEFAULT_AUTHOR,
@@ -21,6 +28,49 @@ const SEEN_COUNTS_KEY = "chat:last-seen-post-count";
 
 const NG_MESSAGE = "不適切な表現が含まれているため投稿できません";
 const HIDDEN_TEXT = "この投稿は表示されません";
+
+/**
+ * 日替わりのお題（本来は lib/chat.ts に置く想定。10 個）。
+ */
+const CHAT_TOPICS: readonly string[] = [
+  "最近いちばん笑った配信は？",
+  "推しを知ったきっかけ",
+  "今週の配信でよかったところ",
+  "初見さんにおすすめの切り抜き・アーカイブ",
+  "最近ハマってる歌ってみた・オリ曲",
+  "コラボしてほしい組み合わせ",
+  "記念配信の思い出",
+  "今やってるゲーム配信の感想",
+  "推しの好きなところをひとつ",
+  "今日の配信、何見る？",
+];
+
+const TOPIC_STEPS = [1, 3, 7, 9] as const; // 10 と互いに素な歩幅
+
+/**
+ * JST の日付文字列（yyyy-MM-dd）から決まる順番でお題を選ぶ。
+ * 同じ日なら全員同じ。Math.random は使わない（hydration のずれ防止）。
+ */
+function pickTopics(dateKey: string, count = 3): string[] {
+  const seed = Number(dateKey.replace(/\D/g, "")) || 0;
+  const n = CHAT_TOPICS.length;
+  const start = seed % n;
+  const step = TOPIC_STEPS[Math.floor(seed / n) % TOPIC_STEPS.length];
+  const total = Math.min(count, n);
+  return Array.from({ length: total }, (_, i) => CHAT_TOPICS[(start + i * step) % n]);
+}
+
+const jstDateFmt = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Tokyo" });
+const subscribeNoop = () => () => {};
+
+/** マウント後にだけ JST の日付キーを返す（サーバー側・マウント前は空文字） */
+function useJstDateKey(): string {
+  return useSyncExternalStore(
+    subscribeNoop,
+    () => jstDateFmt.format(new Date()),
+    () => "",
+  );
+}
 
 /**
  * NG ワード（誹謗中傷・差別・性的表現）。
@@ -196,6 +246,31 @@ function RulesPanel() {
           </li>
         </ul>
       )}
+    </div>
+  );
+}
+
+/** お題チップの列。マウント前（topics が空）は 1 行分の高さだけ確保する */
+function TopicChips({
+  topics,
+  onPick,
+}: {
+  topics: string[];
+  onPick: (topic: string) => void;
+}) {
+  return (
+    <div className="flex min-h-7 flex-wrap items-center gap-2">
+      {topics.map((topic) => (
+        <button
+          key={topic}
+          type="button"
+          onClick={() => onPick(topic)}
+          className="inline-flex items-center gap-1 rounded-full border border-violet-200 px-3 py-1 text-left text-xs text-violet-700 hover:bg-violet-50 dark:border-violet-800 dark:text-violet-300 dark:hover:bg-violet-950/20"
+        >
+          <MessageCirclePlus size={12} aria-hidden className="shrink-0" />
+          <span>{topic}</span>
+        </button>
+      ))}
     </div>
   );
 }
@@ -419,6 +494,14 @@ function ThreadView({
     () => new Set(),
   );
   const listRef = useRef<HTMLUListElement | null>(null);
+  const dateKey = useJstDateKey();
+  const topics = useMemo(
+    () => (dateKey ? pickTopics(dateKey, 3) : []),
+    [dateKey],
+  );
+  const openTopic = useCallback((topic: string) => {
+    setSheet(`【お題】${topic}\n`);
+  }, []);
 
   const byPostNo = useMemo(
     () => new Map((posts ?? []).map((p) => [p.postNo, p])),
@@ -470,12 +553,21 @@ function ThreadView({
 
   return (
     <div>
+      <div className="mb-3 space-y-1.5">
+        <p className="text-xs text-zinc-500">話題をえらんで書く</p>
+        <TopicChips topics={topics} onPick={openTopic} />
+      </div>
       {failed && <p className="mb-2 text-sm text-red-600">読み込みに失敗しました</p>}
       {posts === null && !failed && <p className="text-sm text-zinc-500">読み込み中…</p>}
       {posts?.length === 0 && (
-        <div className="rounded-2xl border border-dashed border-violet-300 bg-violet-50 py-10 text-center text-sm text-violet-700 dark:border-violet-800 dark:bg-violet-950/20 dark:text-violet-300">
-          <p className="font-semibold">まだ投稿がありません</p>
-          <p>いちばん最初のコメントをしてみよう！</p>
+        <div className="space-y-3 rounded-2xl border border-dashed border-violet-300 bg-violet-50 px-4 py-8 text-center text-sm text-violet-700 dark:border-violet-800 dark:bg-violet-950/20 dark:text-violet-300">
+          <div>
+            <p className="font-semibold">まだ投稿がありません</p>
+            <p>お題をえらんで、最初のひとことを書いてみよう</p>
+          </div>
+          <div className="flex justify-center">
+            <TopicChips topics={topics} onPick={openTopic} />
+          </div>
         </div>
       )}
       <ul ref={listRef} className="scroll-mt-24 space-y-4 pb-24">

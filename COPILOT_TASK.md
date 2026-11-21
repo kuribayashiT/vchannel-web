@@ -1311,7 +1311,7 @@
     - 投稿に絵文字リアクションが出ない。
     - `FRONTEND_SPEC.md` 5.6（PM 更新済み）の記述と実装が一致している。
 
-- [ ] **CHAT-5. 掲示板に「お題」チップを出して、ワンタップで書き始められるようにする**（CHAT-4 の次に着手）
+- [x] **CHAT-5. 掲示板に「お題」チップを出して、ワンタップで書き始められるようにする**（CHAT-4 の次に着手）
   - **対象ファイル**: `lib/chat.ts`, `components/ChatBoard.tsx`
   - **仕様**:
     - `lib/chat.ts` に `CHAT_TOPICS: readonly string[]` を追加する。中身は以下の 10 個（文言はこのまま使う）。
@@ -2087,6 +2087,60 @@
     - チップの順位の数値が、同じページの要約文の順位と一致している。
     - `curl -s <URL>/vtuber/<id> -o d.html && wc -c d.html` が変更前から +1KB 以内。ブラウザのコンソールにハイドレーションの警告が出ない。
     - 375px 幅で、事務所名が長い事務所でもチップが崩れず、ページ全体の横スクロールが出ない。ダークモードで読める。
+
+- [ ] **AI-20261121-13. VTuber 詳細ページに「次の登録者数の節目まであと約N日」の予測カードを出す**
+  - **対象ファイル**:
+    `lib/milestone.ts`（新規・純粋関数）
+    `components/MilestoneForecast.tsx`（新規・Server Component 可。hooks を使わない純粋な表示コンポーネント）
+    `app/vtuber/[channelId]/page.tsx`
+    `FRONTEND_SPEC.md`（5.4）
+  - **背景**: data.vmato.jp は、登録者数の推移を数字で見せるだけで、「あとどれくらいで 100 万人に届くか」までは示さない。Vちゃんねるの詳細ページには `youtubeSubscriberCountTransition`（30 日分）があるのに、グラフと要約文の「増減」でしか使っていない。ファンが最も知りたいのは「推しの次の節目はいつか」である。次の効果が見込める。
+    - 「〇〇 100万人 いつ」「〇〇 登録者数 予想」のようなロングテール検索の受け皿になる。
+    - ページごとに数値が違う固有の文章になり、IDX 系の「テンプレート文だけで評価が低い」問題の改善にもなる。
+    - 節目の突破を共有・再訪したくなる動機になる。
+  - **仕様**:
+    - `lib/milestone.ts` に純粋関数を追加する。`Date.now()` は使わず、基準日は推移データの最新日付にする（プリレンダー中の不安定な値を避けるため）。
+      - `MILESTONES: readonly number[]` = 1万, 2万, 3万, 5万, 10万, 15万, 20万, 30万, 40万, 50万, 60万, 80万, 100万, 150万, 200万, 300万, 500万, 1000万（数値で持つ）。
+      - `getNextMilestone(current: number): number | null`: `current` より大きい最小の節目。最大を超えていれば `null`。
+      - `estimateMilestone(transition: Record<string, number>, current: number): { milestone: number; remaining: number; dailyGain: number; days: number; eta: { year: number; month: number } ; asOf: { year: number; month: number; day: number } } | null`
+        - `transition` のキーは `YYYYMMDD`。有効なキーと数値だけを日付順に並べる。
+        - 最古と最新の日付差が 7 日未満、または 2 点未満なら `null`。
+        - `dailyGain = (最新値 − 最古値) ÷ 日数差`。0 以下なら `null`。
+        - `remaining = milestone − current`、`days = Math.ceil(remaining / dailyGain)`。`days` が 730 を超える場合は `null`。
+        - `eta` は最新日付（`asOf`）に `days` 日を足した日の年月（UTC の暦計算でよい。タイムゾーンの影響を受けない書き方にする）。
+        - `current` は引数で受け取る（最新値と異なる場合があるため）。
+      - 単体テストは既存のテスト方式に合わせる。無ければ一時スクリプト（コミットしない）で次を確認し、結果を PR 本文に貼る: 通常の入力、増加 0（`null`）、減少（`null`）、データ 1 点（`null`）、7 日未満（`null`）、730 日超（`null`）、最大の節目超え（`null`）、月またぎ・年またぎの `eta`。
+    - `components/MilestoneForecast.tsx` を作る。
+      - Props: `name: string`（表示名。CTR-1 の `displayVtuberName` が実装済みならそれを使い、無ければ `name`）、`current: number`、`transition: Record<string, number>`。
+      - `estimateMilestone` の結果が `null` なら何も出さない。
+      - 表示は 1 枚の小さなカード（`rounded-xl border border-zinc-200 bg-white p-3`、ダーク: `dark:border-zinc-800 dark:bg-zinc-900`）。
+        - 先頭に lucide-react の `Target`（`size={16}`）と見出し `次の節目`（`text-sm font-semibold`）。
+        - 本文 1: `登録者数{formatCompact(milestone)}人まで、あと{formatNumber(remaining)}人`（`text-base font-bold tabular-nums`）。
+        - 進捗バー: 直前の節目（`MILESTONES` で `current` 以下の最大値。無ければ 0）から次の節目までの達成率を、`h-2 rounded-full bg-zinc-100`（ダーク: `dark:bg-zinc-800`）の中に `bg-violet-500` で表示する。`role="progressbar"`、`aria-valuenow`（%）、`aria-label="次の節目までの進捗"`、幅は `style={{ width: `${pct}%` }}`。
+        - 本文 2（`text-xs text-zinc-500`）: `直近{日数差}日の増加ペース（1日あたり約{formatNumber(Math.round(dailyGain))}人）が続くと、{eta.year}年{eta.month}月ごろ（約{days}日後）に届く見込みです。あくまで目安です。`
+      - 時刻に依存する表示（「あと N 日で…」の現在時刻との差）は出さない。`days` は推移データの最新日付からの日数であることが分かる文面にする。
+      - 見た目は 375px 幅で折り返しても崩れない。ダークモード対応。
+    - `app/vtuber/[channelId]/page.tsx` の配置:
+      - 要約文（および AI-20261121-09 が実装済みなら順位チップ）の下、`DetailView` の上に `<MilestoneForecast>` を置く。
+      - 既存のサーバー取得済みの `VTuberDetail`（登録者数と推移）だけを使う。新しいデータ取得や `loadVTubers()` の直接呼び出しは追加しない（FIX-1 のルール）。
+      - 事務所公式チャンネル（`officeFlg === true`）のページには出さない（IDX-4 で順位を出さない方針と同じ）。
+      - 「よくある質問」に、推定できるときだけ次の項目を 1 つ追加する（FAQPage の JSON-LD は追加しない）。
+        - 質問: `{name}のYouTube登録者数が{milestone}人になるのはいつ？`
+        - 回答: `直近{日数差}日の増加ペースが続いた場合、{eta.year}年{eta.month}月ごろの見込みです（目安）。`
+      - 要約文・`generateMetadata`・JSON-LD・`loading.tsx`・`DetailView` は変更しない。`/vtuber` 一覧のタブ UI 内の詳細（`VTuberTabs`）には出さない（一覧の HTML を増やさないため）。
+    - サーバーレンダリングの HTML にカードを含める。クライアント fetch やマウント後の描画にはしない。
+    - `any` は使わない。新しいパッケージは追加しない。
+    - `FRONTEND_SPEC.md` 5.4 に次を追記する。
+      - 詳細ページに「次の節目」カード（節目の一覧、`dailyGain` の計算、7 日以上の推移が必要、730 日超・増加 0 は出さない、基準日は推移の最新日付で `Date.now()` を使わない）。
+      - 事務所公式チャンネルには出さないこと、「よくある質問」に節目の項目を追加すること。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。ビルドログに `Date.now()` の警告が出ない。
+    - 登録者が増加中の VTuber の詳細ページ（例: `/vtuber/UCCzUftO8KOVkV4wQG1vkUvg`）の HTML に `次の節目`、`まであと`、`あくまで目安です` が含まれ、`role="progressbar"` の `aria-valuenow` が 0〜100 の数値になっている。
+    - 登録者数が横ばい・減少、または推移データが 7 日未満の VTuber のページには、カードも FAQ の節目項目も出ない（空の枠も残らない）。
+    - 事務所公式チャンネル（`officeFlg` が true の任意の 1 件）のページにはカードが出ない。
+    - 同じページの FAQ の節目の年月が、カードの `eta` と一致している。
+    - `curl -s <URL>/vtuber/<id> -o d.html && wc -c d.html` が変更前から +2KB 以内。ブラウザのコンソールにハイドレーションの警告が出ない。
+    - 375px 幅・ダークモードで崩れず、ページ全体の横スクロールが出ない。
 
 ### P1-VTLIST: VTuber 一覧ページの回遊改善（2026-11-17 追加）
 
