@@ -502,6 +502,23 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 - 上書きの規則: ファイル先頭に `<!-- auto-generated: dataThrough=YYYY-MM-DD -->` を入れる（ページには表示されない）。既存ファイルは、この目印があり、かつ材料の `dataThrough` の方が新しいときだけ書き直す。人が直したら目印の行を消せば以後は上書きされない。`--force` で常に書き直す。
 - 実行: `.github/workflows/monthly-report.yml`。毎月 1 日 10:00 JST に先月分。手動実行（`month`・`force` 指定可）もできる。ジョブ内でビルドしたサイトを `next start` で起動し、使い捨ての `ADMIN_USER` / `ADMIN_PASSWORD` で材料を取るので、Vercel の環境変数には依存しない。生成後に再ビルドで確認し、PR（`auto-monthly-report`）を作って自動マージする。必要な Secret は `ANTHROPIC_API_KEY` のみ。
 
+### 5.12.3 記事の自動作成：週刊特集（2026-11-21 追加）
+
+毎週月曜 10:00 JST に、サイトの集計データから特集記事を 1 本書いて `content/guide/{slug}.md`（カテゴリ `特集`）に保存する。担当は Claude Code（`ADMIN_TASK.md` の CNT-2）。AdSense・検索向けには「ランキング表の言い換え」ではなく、データから読める独自の切り口を持つ読み物にすることを品質の基準にする。書き手の名義は既存記事と同じ運営（JSON-LD の Organization）で、架空の人物の署名や体験談は付けない。
+
+- テーマ（週番号で順に回す。手動実行で指定も可）:
+  | theme | slug | 材料 |
+  |---|---|---|
+  | `growth` | `weekly-rising-YYYY-MM-DD` | 週間の増加数上位 6 と、登録者 1 万人以上での増加率上位 6。日ごとの登録者数、期間中の動画（タイトル・日付・再生数、各 3 本） |
+  | `events` | `weekly-celebrations-YYYY-MM-DD` | 明日から 7 日間の誕生日・周年（日ごとの件数、登録者の多い順に 6 人、`/events/MM-DD`） |
+  | `live` | `weekly-live-YYYY-MM-DD` | 直近 1 週間の最大同接の上位 15 本と、その事務所の内訳 |
+- 材料: `GET /api/admin/feature-data?theme=…`（Basic 認証、`lib/admin/feature-data.ts`）。再生数は `normalizeVideo()` で落ちるので `allvideos.json` を直接読む。
+- 生成（`scripts/content/write-weekly-feature.mjs`、共通部品は `scripts/content/lib.mjs`）: ① 下書き（文体の手本として既存記事 2 本の冒頭、リンクしてよい既存記事の slug、最近の特集タイトルを渡す）→ ② デスクの推敲（事実の照合と、生成文らしい癖の除去）→ ③ 機械の検査 → 通らなければ 1 回だけ直させ、それでも駄目なら保存しない。
+- 検査: 数字が材料にあること（5.12.2 と同じ規則）、リンクは `/vtuber/{材料の channelId}`・`/ranking`・材料の `eventsPage`・`/guide/{既存 slug}` のみ、title 15〜45 字・description 50〜120 字・本文 1800〜4200 字、`##` 見出し 2〜5 個（「はじめに」「まとめ」等は不可、`#`・`###` 不可）、太字 4 か所まで、箇条書き 1 か所まで、絵文字なし、「！」は 3 つまで、使わない言い回し（「いかがでしたか」「目が離せません」「深掘り」など）なし、視聴体験・一人称の創作なし、「この記事では」で書き出さない。「」『』内（動画タイトルの引用）は言い回しの検査から外す。
+- frontmatter はスクリプトが付ける: `publishedAt` は実行日、`category: 特集`、`relatedVtubers` は本文でリンクした channelId（最大 8）。同じ slug があれば何もしない（`--force` で書き直す）。
+- 実行: `.github/workflows/weekly-feature.yml`。5.12.2 と同じくジョブ内でサイトを起動して材料を取り、記事を足して再ビルドしてから PR（`auto-weekly-feature`）を自動マージする。
+- 既知の限界: 材料にある数字どうしの差がたまたま材料の別の値と一致すると、数字の検査を通ってしまう。
+
 ---
 
 ## 6. 非機能・移行時の注意
@@ -560,7 +577,7 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
   - 任意で `content/reports/{YYYY-MM}.md` に Markdown の編集部コメントを追加できる。`/reports`、記事、sitemap は利用可能な月を推移データから自動生成し、フッターと `/guide` から一覧へリンクする。
 - ガイド記事の追加手順:
   1. `content/guide/{slug}.md` を作成する。slug は小文字英数字とハイフンを使い、ファイル名をそのまま `/guide/{slug}` の URL にする。
-  2. YAML frontmatter に `title`、`description`、`publishedAt`（`YYYY-MM-DD`）、`category`（`事務所紹介` / `データ解説` / `使い方・入門`）を記載する。更新した場合は `updatedAt`、VTuber 詳細カードを出す場合は `relatedVtubers` に channelId の配列を任意で追加する。
+  2. YAML frontmatter に `title`、`description`、`publishedAt`（`YYYY-MM-DD`）、`category`（`特集` / `事務所紹介` / `データ解説` / `使い方・入門`。`特集` は 5.12.3 の自動作成用で、`/guide` の一番上に出る）を記載する。更新した場合は `updatedAt`、VTuber 詳細カードを出す場合は `relatedVtubers` に channelId の配列を任意で追加する。
   3. frontmatter の後に本文を Markdown で記述する。記事一覧・トップページ新着 3 件・静的詳細ページ・sitemap は `lib/guide.ts` がファイル一覧から自動生成するため、ルートやコードの追加は不要。日付・カテゴリ等の不正な frontmatter はビルド時にエラーになる。
 - **ガイド・レポートのカードのタップ（2026-11-20 追加・TAP-1）**:
   - `GuideCard` はカード全体をタップ対象にする。`<article>` に `relative`、タイトルの `<Link>` に `after:absolute after:inset-0 after:content-['']`（カード全体に広がるリンク）を付ける。見出し構造（`<h3>` 内のリンク）とリンクの文言はタイトルのまま変えない。カード内に別のリンクは置かない。

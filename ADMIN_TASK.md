@@ -5,7 +5,7 @@
 
 ## ⏸ 人手待ち（運営者が実施）
 
-- ⏸ **CNT-1T. 月報コメントの初回試運転**: GitHub の Actions → 「Monthly Report Commentary (auto)」→ Run workflow（month `2026-11`）。11/20 までのデータで 11 月分が書かれ、自動マージされる。12/1 の定期実行で月末までのデータで書き直される。
+- ⏸ **CNT-2T. 週刊特集の初回試運転**: Actions → 「Weekly Feature Article (auto)」→ Run workflow（theme は空でよい。11/21 は `growth`）。公開された記事を読んで、文体・切り口を一緒に確認する。
 
 - ⏸ **ADM-0. Vercel の環境変数を設定する**（Production のみ）
   - `FIREBASE_SERVICE_ACCOUNT`: Firebase コンソール → プロジェクトの設定 → サービス アカウント → 新しい秘密鍵を生成。ダウンロードした JSON を `base64 -w0 key.json` で 1 行にした文字列（JSON そのままでも可）。鍵ファイルはリポジトリに置かない。
@@ -17,6 +17,9 @@
 
 ## ✅ 完了
 
+- ✅ **CNT-2. 週刊特集を自動で書く**（2026-11-21）: `/api/admin/feature-data`（`lib/admin/feature-data.ts`）、`scripts/content/write-weekly-feature.mjs`（下書き→デスク推敲→検査）、共通部品 `scripts/content/lib.mjs`（月報スクリプトも移行）、`.github/workflows/weekly-feature.yml`（毎週月曜 10:00 JST）、`/guide` のカテゴリ「特集」。仕様は `FRONTEND_SPEC.md` 5.12.3。検証: `npx tsc --noEmit` / `npm run build` OK、本番ビルドで 3 テーマの材料を実データで取得、検査の異常系（言い回し・まとめ見出し・視聴体験・計算した数字・絵文字・外部リンク・frontmatter なし）を確認。Claude での生成は CNT-2T で確認する。
+
+- ✅ **CNT-1T. 月報コメントの初回試運転**（2026-11-21）: 成功（PR #30）。生成文を材料と照合して誤りなし。
 - ✅ **CNT-1. 月報の編集部コメントを自動で書く**（2026-11-21）: `/api/admin/report-data`、`scripts/content/write-monthly-report.mjs`（数字・リンク・文字数の検査つき）、`.github/workflows/monthly-report.yml`（毎月 1 日 10:00 JST、PR を自動マージ）。仕様は `FRONTEND_SPEC.md` 5.12.2。検証: `npx tsc --noEmit` / `npm run build` OK、ローカルの本番ビルドで認証（未認証 401）と 2026-11 の実データ取得、検査の正常系・異常系（材料にない数字・計算した数字・外部リンク・見出し・文字数）を確認。**実際の Claude API での生成は手元にキーが無いため未確認**（CNT-1T）。
 
 - ✅ **ADM-1. 土台**（2026-11-12）: `proxy.ts` の Basic 認証（未設定なら 404）、firebase-admin の遅延初期化、noindex・robots の `Disallow: /admin`。
@@ -33,7 +36,6 @@
 
 ## 💡 案（未着手）
 
-- 💡 **CNT-2. 週刊の特集記事**: 週間の急上昇・新人デビュー・周年から 1 テーマを選び、`content/guide/*.md`（カテゴリ「特集」を追加）に書く。CNT-1 の検査を流用。
 - 💡 **CNT-3. 業界動向まとめ**: `news.json` を話題ごとにまとめ、出典リンク付きで月 1〜2 本。本文の転載・発言の創作はしない。
 
 - 💡 `adminLog` の閲覧タブと、1 件ずつの取り消し。

@@ -17,7 +17,7 @@
 - **管理画面（`/admin`）の例外**:
   - 運営者向けの管理画面は、ユーザー向け機能ではないため **Claude Code が直接実装・保守する**。タスクは `ADMIN_TASK.md` で管理し、`COPILOT_TASK.md` には載せない。
   - GitHub Copilot は `app/admin/`、`app/api/admin/`、`components/admin/`、`lib/admin/`、`proxy.ts`、`ADMIN_TASK.md` を編集しない。
-  - 記事の自動作成（`scripts/content/`、`.github/workflows/monthly-report.yml`、`content/reports/`）も同じ扱いで、Claude Code が実装・保守する。
+  - 記事の自動作成（`scripts/content/`、`.github/workflows/monthly-report.yml`、`.github/workflows/weekly-feature.yml`、`lib/admin/feature-data.ts`、`content/reports/`、`content/guide/`）も同じ扱いで、Claude Code が実装・保守する。
 
 ## 📋 自律開発ループルール
 タスクの指示を受けた際、以下のステップを必ず自律的に完遂してください。

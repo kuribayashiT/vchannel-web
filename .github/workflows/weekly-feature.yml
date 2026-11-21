@@ -1,0 +1,105 @@
+name: Weekly Feature Article (auto)
+
+# 毎週月曜に、週刊特集（/guide のカテゴリ「特集」）を Claude で書いて content/guide/ に保存し、
+# PR を作って自動マージする。テーマは週ごとに growth → events → live の順に回る。
+# 担当: Claude Code（ADMIN_TASK.md の CNT-2）。GitHub Copilot と自動開発パイプラインは触らない。
+
+on:
+  schedule:
+    # JST 月曜 10:00（UTC 月曜 01:00）
+    - cron: '0 1 * * 1'
+  workflow_dispatch:
+    inputs:
+      theme:
+        description: 'テーマ（空なら週番号で自動）'
+        type: choice
+        options: ['', growth, events, live]
+        default: ''
+      force:
+        description: '同じ日の同じテーマの記事を書き直す'
+        type: boolean
+        default: false
+
+concurrency:
+  group: weekly-feature
+  cancel-in-progress: false
+
+jobs:
+  write:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - run: npm ci
+
+      - name: Build site
+        run: npm run build
+
+      # ビルドしたサイトをこのジョブの中だけで起動し、管理 API から材料を取る（使い捨ての認証情報）
+      - name: Start site and write article
+        id: write
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          INPUT_THEME: ${{ inputs.theme }}
+          INPUT_FORCE: ${{ inputs.force }}
+        run: |
+          export ADMIN_USER=ci
+          export ADMIN_PASSWORD="$(openssl rand -hex 24)"
+          npm run start -- -p 3000 > next.log 2>&1 &
+          for i in $(seq 1 60); do
+            curl -s -o /dev/null http://localhost:3000/ && break
+            sleep 2
+          done
+
+          ARGS=""
+          if [ -n "$INPUT_THEME" ]; then ARGS="$ARGS --theme $INPUT_THEME"; fi
+          if [ "$INPUT_FORCE" = "true" ]; then ARGS="$ARGS --force"; fi
+          node scripts/content/write-weekly-feature.mjs $ARGS
+
+          FILE="$(git status --porcelain content/guide | head -1 | awk '{print $2}')"
+          if [ -n "$FILE" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "file=$FILE" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Show server log on failure
+        if: failure()
+        run: tail -n 100 next.log || true
+
+      # 記事の frontmatter が壊れているとビルドが落ちるので、追加後にもう一度ビルドして確かめる
+      - name: Verify build with article
+        if: steps.write.outputs.changed == 'true'
+        run: npm run build
+
+      - name: Create Pull Request
+        if: steps.write.outputs.changed == 'true'
+        id: cpr
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: auto-weekly-feature
+          add-paths: content/guide/*.md
+          title: '📝 週刊特集の自動作成 (${{ steps.write.outputs.file }})'
+          commit-message: 'content(auto): 週刊特集を自動作成 (${{ steps.write.outputs.file }})'
+          body: |
+            毎週の自動ジョブが特集記事を書きました。
+
+            - 材料: `/api/admin/feature-data`（サイトが集計しているデータ）
+            - 下書き → デスクの推敲 → 検査（数字が材料にあるか・リンク・使わない言い回し・視聴体験の創作・構成・文字数）
+            - 検査とビルドに通ったので自動マージします。直したいときは `${{ steps.write.outputs.file }}` を編集してください。
+          delete-branch: true
+
+      - name: Auto-merge
+        if: steps.cpr.outputs.pull-request-url != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr merge "${{ steps.cpr.outputs.pull-request-url }}" --squash --delete-branch \
+            || gh pr merge "${{ steps.cpr.outputs.pull-request-url }}" --auto --squash --delete-branch

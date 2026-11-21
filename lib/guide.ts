@@ -4,6 +4,7 @@ import matter from "gray-matter";
 import { marked } from "marked";
 
 export const GUIDE_CATEGORIES = [
+  "特集",
   "事務所紹介",
   "データ解説",
   "使い方・入門",

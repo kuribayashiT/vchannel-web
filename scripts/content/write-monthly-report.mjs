@@ -11,9 +11,14 @@
 //   人が直したときは目印の行を消せば、以後は上書きされない。--force で常に書き直す。
 import fs from "node:fs";
 import path from "node:path";
-import Anthropic from "@anthropic-ai/sdk";
+import {
+  callClaude,
+  collectAllowedNumbers,
+  fetchAdminJson,
+  findBadLinks,
+  numbersProblem,
+} from "./lib.mjs";
 
-const MODEL = "claude-opus-5-5";
 const MIN_CHARS = 300;
 const MAX_CHARS = 1200;
 /** 自動生成の目印（HTML コメントなのでページには出ない） */
@@ -42,18 +47,8 @@ function previousMonthJst() {
 
 // ---------- 材料 ----------
 
-async function fetchReportData(baseUrl, month) {
-  const user = process.env.ADMIN_USER;
-  const pass = process.env.ADMIN_PASSWORD;
-  if (!user || !pass) throw new Error("ADMIN_USER / ADMIN_PASSWORD が未設定です");
-  const auth = Buffer.from(`${user}:${pass}`, "utf8").toString("base64");
-  const res = await fetch(
-    `${baseUrl}/api/admin/report-data?month=${encodeURIComponent(month)}`,
-    { headers: { authorization: `Basic ${auth}` } },
-  );
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`report-data の取得に失敗: HTTP ${res.status} ${await res.text()}`);
-  return res.json();
+function fetchReportData(baseUrl, month) {
+  return fetchAdminJson(baseUrl, `/api/admin/report-data?month=${encodeURIComponent(month)}`);
 }
 
 /** モデルに渡す形へ。画像 URL やミニグラフ用の配列など、文章に使わないものは落とす */
@@ -94,52 +89,6 @@ function slimReport(r) {
 
 // ---------- 検査 ----------
 
-/** 材料に出てくる数字（数値フィールドと、文字列中の数字）を全部集める */
-function collectAllowedNumbers(value, out = new Set()) {
-  if (typeof value === "number" && Number.isFinite(value)) out.add(value);
-  else if (typeof value === "string") {
-    for (const m of value.matchAll(/\d[\d,]*(?:\.\d+)?/g)) {
-      out.add(Number(m[0].replace(/,/g, "")));
-    }
-  } else if (Array.isArray(value)) value.forEach((v) => collectAllowedNumbers(v, out));
-  else if (value && typeof value === "object") {
-    Object.values(value).forEach((v) => collectAllowedNumbers(v, out));
-  }
-  return out;
-}
-
-/**
- * 本文の数字が材料のどれかと一致するか。「12.3万人」「約120万」のような丸めは、
- * 書かれた桁の精度の範囲で一致すれば可。31 以下の整数（日付・順位・人数）と年は常に可。
- */
-function findUnsupportedNumbers(markdown, allowed, year) {
-  const text = markdown.replace(/\]\([^)]*\)/g, "]"); // リンク先 URL の中の数字は見ない
-  const bad = [];
-  for (const m of text.matchAll(/(\d[\d,]*(?:\.\d+)?)\s*(万|億)?(%|％)?/g)) {
-    const raw = m[1].replace(/,/g, "");
-    const n = Number(raw);
-    if (!Number.isFinite(n)) continue;
-    const unit = m[2] === "億" ? 1e8 : m[2] === "万" ? 1e4 : 1;
-    const value = n * unit;
-    if (unit === 1 && Number.isInteger(n) && (n <= 31 || n === year || n === year - 1)) continue;
-    const decimals = raw.includes(".") ? raw.split(".")[1].length : 0;
-    const step = 10 ** -decimals * unit;
-    // 整数の人数・同接は完全一致。% と万・億は書いた桁で丸めた範囲なら可
-    const tolerance = unit === 1 && decimals === 0 && !m[3] ? 0 : step;
-    const ok = [...allowed].some((a) => Math.abs(Math.abs(a) - value) <= tolerance + 1e-9);
-    if (!ok) bad.push(m[0].trim());
-  }
-  return [...new Set(bad)];
-}
-
-function findBadLinks(markdown, allowedPaths) {
-  const bad = [];
-  for (const m of markdown.matchAll(/\]\(([^)\s]+)\)/g)) {
-    if (!allowedPaths.has(m[1])) bad.push(m[1]);
-  }
-  return bad;
-}
-
 function validate(markdown, ctx) {
   const problems = [];
   const plain = markdown.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1");
@@ -148,12 +97,8 @@ function validate(markdown, ctx) {
     problems.push(`本文が ${len} 文字です。${MIN_CHARS}〜${MAX_CHARS} 文字にしてください。`);
   }
   if (/^#{1,6}\s/m.test(markdown)) problems.push("見出し（#）は使わないでください。");
-  const nums = findUnsupportedNumbers(markdown, ctx.allowedNumbers, ctx.year);
-  if (nums.length) {
-    problems.push(
-      `材料にない数字があります: ${nums.join("、")}。数字は材料の値をそのまま（または万単位に丸めて）使い、計算で新しい数字を作らないでください。`,
-    );
-  }
+  const nums = numbersProblem(markdown, ctx.allowedNumbers, ctx.year);
+  if (nums) problems.push(nums);
   const links = findBadLinks(markdown, ctx.allowedPaths);
   if (links.length) problems.push(`使えないリンクがあります: ${links.join("、")}`);
   return problems;
@@ -182,7 +127,7 @@ const SYSTEM = `あなたは VTuber データサイト「Vちゃんねる」の�
 
 出力は本文のマークダウンだけ。前置きや説明、コードブロックで囲むことはしない。`;
 
-async function generate(client, materials, feedback) {
+async function generate(materials, feedback) {
   const messages = [
     {
       role: "user",
@@ -197,28 +142,7 @@ async function generate(client, materials, feedback) {
     });
   }
 
-  const response = await client.beta.messages.create({
-    model: MODEL,
-    max_tokens: 16000,
-    thinking: { type: "adaptive" },
-    output_config: { effort: "high" },
-    // 安全分類器が断ったときは、API 側で既定のモデルに切り替えて続ける
-    betas: ["server-side-fallback-2026-07-01"],
-    fallbacks: "default",
-    system: SYSTEM,
-    messages,
-  });
-
-  if (response.stop_reason === "refusal") {
-    throw new Error(`生成が拒否されました: ${JSON.stringify(response.stop_details)}`);
-  }
-  if (response.stop_reason === "max_tokens") throw new Error("出力が上限で切れました");
-  const text = response.content
-    .filter((b) => b.type === "text")
-    .map((b) => b.text)
-    .join("")
-    .trim();
-  return text.replace(/^```(?:markdown|md)?\n([\s\S]*?)\n```$/, "$1").trim();
+  return callClaude({ system: SYSTEM, messages });
 }
 
 // ---------- main ----------
@@ -267,12 +191,11 @@ async function main() {
   const ctx = { allowedNumbers: collectAllowedNumbers(data), allowedPaths, year: y };
   const materials = { label: `${y}年${m}月`, data };
 
-  const client = new Anthropic();
-  let markdown = await generate(client, materials);
+  let markdown = await generate(materials);
   let problems = validate(markdown, ctx);
   if (problems.length) {
     console.log(`1 回目の検査で問題:\n- ${problems.join("\n- ")}\n書き直させます。`);
-    markdown = await generate(client, materials, { previous: markdown, problems });
+    markdown = await generate(materials, { previous: markdown, problems });
     problems = validate(markdown, ctx);
   }
   if (problems.length) {
@@ -286,7 +209,7 @@ async function main() {
   console.log(`✅ ${outFile} を書きました。\n\n${markdown}`);
 }
 
-export { collectAllowedNumbers, slimReport, validate };
+export { slimReport, validate };
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   main().catch((e) => {
