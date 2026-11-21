@@ -204,6 +204,37 @@ export async function getNewsArchive(month: string): Promise<News[]> {
   }
 }
 
+export async function getNewsSourceScores(): Promise<
+  Record<string, { adCount: number; sampled: number; checkedAt: string }>
+> {
+  try {
+    const raw = await fetchGcsJson<unknown>("newsSourceScores.json");
+    if (!raw || typeof raw !== "object") return {};
+    const entries = Object.entries(raw as Record<string, unknown>).flatMap(
+      ([host, value]) => {
+        if (!value || typeof value !== "object") return [];
+        const adCount = Number((value as { adCount?: unknown }).adCount);
+        const sampled = Number((value as { sampled?: unknown }).sampled);
+        const checkedAt = String(
+          (value as { checkedAt?: unknown }).checkedAt ?? "",
+        ).trim();
+        if (
+          !Number.isFinite(adCount) ||
+          !Number.isFinite(sampled) ||
+          !checkedAt
+        ) {
+          return [];
+        }
+        return [[host, { adCount, sampled, checkedAt }] as const];
+      },
+    );
+    return Object.fromEntries(entries);
+  } catch (error) {
+    if (error instanceof GcsFetchError && error.status === 404) return {};
+    throw error;
+  }
+}
+
 export async function getEventList(): Promise<EventList> {
   return toArray<EventList[number]>(await fetchGcsJson(GCS_FILES.events));
 }

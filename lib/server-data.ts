@@ -1,5 +1,10 @@
 import { cacheLife } from "next/cache";
-import { GcsFetchError, getNews, getNewsArchive } from "@/lib/gcs";
+import {
+  GcsFetchError,
+  getNews,
+  getNewsArchive,
+  getNewsSourceScores,
+} from "@/lib/gcs";
 import { getNewsClicks24h } from "@/lib/news-clicks";
 import { buildVTuberAliasIndex, clusterNews, type NewsCluster } from "@/lib/news";
 import {
@@ -252,7 +257,8 @@ export async function getCachedNewsClusters(): Promise<NewsCluster[] | null> {
   const { index } = await loadVTubers();
   const aliases = buildVTuberAliasIndex(index);
   const clicks = await getNewsClicks24h();
-  return clusterNews(news, { now: Date.now(), aliases, clicks });
+  const sourceScores = await getNewsSourceScores();
+  return clusterNews(news, { now: Date.now(), aliases, clicks, sourceScores });
 }
 
 function jstArchiveMonth(now: Date): string {
@@ -307,7 +313,13 @@ async function getCachedRelatedNewsClusters(): Promise<NewsCluster[] | null> {
   const mergedNews = dedupeNewsByUrl(news.concat(currentArchive, previousArchive));
   const { index } = await loadVTubers();
   const aliases = buildVTuberAliasIndex(index);
-  return clusterNews(mergedNews, { now: Date.now(), aliases, maxAgeDays: 60 });
+  const sourceScores = await getNewsSourceScores();
+  return clusterNews(mergedNews, {
+    now: Date.now(),
+    aliases,
+    sourceScores,
+    maxAgeDays: 60,
+  });
 }
 
 export async function getCachedVTuberRelatedNews(

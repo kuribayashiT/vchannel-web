@@ -51,6 +51,11 @@ export type NewsCluster = {
   clicks: number;
 };
 
+export type NewsSourceScores = Record<
+  string,
+  { adCount: number; sampled: number; checkedAt: string }
+>;
+
 const TIER_PRIORITY: Record<NewsTier, number> = {
   official: 0,
   media: 1,
@@ -380,6 +385,7 @@ export function clusterNews(
     now: number;
     aliases: Map<string, VTuberRef>;
     clicks?: Record<string, number>;
+    sourceScores?: NewsSourceScores;
     maxAgeDays?: number;
   },
 ): NewsCluster[] {
@@ -427,6 +433,7 @@ export function clusterNews(
   }
 
   const clicks = opts.clicks ?? {};
+  const sourceScores = opts.sourceScores ?? {};
   return clusters
     .map((cluster) => {
       const lead = cluster.entries[cluster.leadIndex]?.view;
@@ -449,11 +456,29 @@ export function clusterNews(
       const elapsedHours = Number.isFinite(latestMs)
         ? Math.max(0, (opts.now - latestMs) / 3_600_000)
         : 0;
+      let sourceScoreAdjustment = 0;
+      const leadHost = (() => {
+        const safe = safeHttpUrl(lead.url);
+        if (!safe) return "";
+        try {
+          return new URL(safe).hostname.toLowerCase();
+        } catch {
+          return "";
+        }
+      })();
+      if (leadHost) {
+        const adCount = sourceScores[leadHost]?.adCount;
+        if (typeof adCount === "number") {
+          if (adCount >= 20) sourceScoreAdjustment = -2;
+          else if (adCount <= 5) sourceScoreAdjustment = 1;
+        }
+      }
       const score =
         (sourceCount - 1) * 3 +
         TIER_SCORE[lead.tier] +
         Math.min(clusterClicks, 50) / 5 -
-        elapsedHours / 12;
+        elapsedHours / 12 +
+        sourceScoreAdjustment;
       return {
         id: lead.id,
         lead,

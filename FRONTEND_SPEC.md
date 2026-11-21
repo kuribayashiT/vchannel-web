@@ -47,7 +47,7 @@ Cloud Functions が定期更新する。アプリは 1 時間 TTL でキャッ�
 | `allvideos.json` | `[Video, ...]` | お気に入り、VTuber 詳細の動画一覧 |
 | `news.json` | `[News, ...]`（`origin: "serpapi" \| "hololive" \| "gnews"` を含む） | ニュース |
 | `news/archive/YYYY-MM.json` | `[News, ...]`（月ごとの蓄積。削除しない。NEWS-5） | VTuber 詳細の関連ニュース |
-| `newsSourceScores.json` | `{ "<ホスト名>": { adCount, sampled, checkedAt } }`（媒体ごとの広告量。NEWS-7） | ニュースの並び順（表示はしない） |
+| `newsSourceScores.json` | `{ "<ホスト名>": { adCount, sampled, checkedAt } }`（媒体ごとの広告量。NEWS-7。無いときは空データ扱い） | ニュースの並び順（表示はしない） |
 | `eventList.json` | `[ { "<M/D>": [Event, ...] }, ... ]` | イベントカレンダー |
 | `rankingYoutubeRegiData.json` | 登録者数ランキング元データ（`youtubeSubscriberCount`）。旧形式 `{jsonData: ...}` 両対応 | ランキング |
 | `rankingTwitterData.json` | `twitterFollowerCount`。同上 | ランキング（現状 UI 未使用の可能性。要確認） |
@@ -215,7 +215,7 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
    `graduation` 卒業・休止（卒業｜引退｜契約解除｜活動終了｜活動休止｜休止）→ `debut` デビュー（デビュー｜初配信｜新人｜オーディション）→ `notice` お知らせ（お知らせ｜謝罪｜注意喚起｜漏えい｜漏洩｜不正アクセス｜声明｜法的措置）→ `event` ライブ・イベント（ライブ｜フェス｜イベント｜コンサート｜展示｜ポップアップ｜カフェ｜ビューイング｜開催）→ `goods` グッズ（グッズ｜フィギュア｜ぬいぐるみ｜プライズ｜ガシャポン｜予約｜発売｜受注｜スタンプ）→ `game` ゲーム（ゲーム｜Steam｜アプリ）→ `collab` コラボ・出演（コラボ｜タイアップ｜出演｜起用｜アンバサダー）→ `other` その他。
 6. **VTuber との紐づけ**: `loadVTubers()` の名簿のチャンネル名から呼び名を取り出し（`【】《》[]（）()` の中身を除く → `Ch.` `Ch。` `Channel` `Official` `チャンネル` `ちゃんねる` `公式` `所属` を除く → 空白・`/` `|` `-` `_` `:` `、` `!` などで区切る → かな・漢字を含み 3 文字以上で、事務所名・`にじさんじ` `ホロライブ` `切り抜き` でないものを残す。`・` では区切らない）、クラスタ内のどれかのタイトルに含まれる VTuber を最大 3 人まで紐づける。公式アカウント（`officeFlg`）は対象外。2 人以上に同じ呼び名がある場合はその呼び名を使わない。英語名だけのチャンネル（例 `Suisei Channel`）は拾えないので、`lib/news-sources.ts` の `EXTRA_ALIASES`（`channelId` → 呼び名の配列）で補う。2026-11-19 の実データで 93 件中 24 件が紐づき、誤りは無かった。
 7. **注目度スコア**（並び替えには使わない。「今日の注目」と NEWS-7 の調整だけに使う）:
-   `score = (媒体数 − 1) × 3 + 区分点（official 2 / media 1 / それ以外 0）+ min(24 時間のクリック数, 50) ÷ 5 − 経過時間(h) ÷ 12`。媒体数はクラスタ内の異なる媒体名の数。クリック数は NEWS-6 まで 0。
+   `score = (媒体数 − 1) × 3 + 区分点（official 2 / media 1 / それ以外 0）+ min(24 時間のクリック数, 50) ÷ 5 − 経過時間(h) ÷ 12 + 媒体補正`。媒体数はクラスタ内の異なる媒体名の数。クリック数は NEWS-6 まで 0。媒体補正は NEWS-7 の `newsSourceScores` を使い、代表記事のホストの `adCount` が 20 以上なら `-2`、5 以下なら `+1`、それ以外は `0`。
 
 #### 5.3.2 画面（`/news`。NEWS-2）
 - サーバー描画のページ本体（`app/news/page.tsx`）と、クライアント側の絞り込み一覧（`components/NewsList.tsx`）・カード表示（`components/NewsClusterCard.tsx`）に分離する。
@@ -253,7 +253,8 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 - バックエンドでも 5.3.1 の 1 と同じノイズ除去と 14 日の期限をかけ、新しい順に最大 150 件を `news.json` に書く。`cacheControl: 'public, max-age=600'`。
 - 同時に `news/archive/YYYY-MM.json`（`publishedAt` の月）へ URL 重複を除いて追記し、消さない。
 - `scheduledNewsUpdate` の 6:30 実行時に、RTDB `newsClicks` の 7 日より古い日付ノードを削除する。
-- 週 1 回、媒体ごとの広告量を測って `newsSourceScores.json` に書く。広告の多い媒体は「今日の注目」の `score` を下げるだけで、画面には出さない（媒体名を名指しで低評価しない）。
+- 週 1 回（月曜 4:00 JST）の `scheduledNewsSourceAudit` で、今月と前月の `news/archive` から記事数 3 件以上のホストごとに新しい 2 記事を取り、HTML から広告マーカーの出現数（`googlesyndication`、`adsbygoogle`、`doubleclick` など）を数えて平均を `adCount` として `newsSourceScores.json` に保存する（`cacheControl: 'public, max-age=3600'`）。
+- 監査時は `news.google.com` を除外し、User-Agent を指定、1 リクエスト 10 秒タイムアウト、各リクエスト間に 1 秒待機する。広告量は「今日の注目」の `score` 補正にだけ使い、画面には出さない（媒体名を名指しで低評価しない）。
 
 ### 5.4 VTuber
 - `/vtuber` は Server Component で `loadVTubers()` の index を取得し、`getCachedVTuberPageData()`（`"use cache"` + `cacheLife("hours")`）で 1 時間キャッシュする。取得できた index（軽量版）を `VTuberTabs` の `initialIndex` として渡し、初期 HTML に一覧を含める。

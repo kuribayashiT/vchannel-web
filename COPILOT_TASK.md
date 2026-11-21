@@ -1644,7 +1644,7 @@
     - 環境変数が無い環境でも `/news` が表示でき、クリックでエラーが出ない。
     - 完了報告に `firebase deploy --only functions:scheduledNewsUpdate` が必要と書く。Vercel の本番環境変数 `FIREBASE_SERVICE_ACCOUNT`・`FIREBASE_DATABASE_URL` が設定済みか運営者に確認を依頼する（管理画面用に設定済みのはず）。
 
-- [ ] **NEWS-7. バックエンド: 媒体ごとの広告量を週 1 回測り、「今日の注目」の順位に反映する**（NEWS-6 の次に着手）
+- [x] **NEWS-7. バックエンド: 媒体ごとの広告量を週 1 回測り、「今日の注目」の順位に反映する**（NEWS-6 の次に着手）
   - **対象ファイル**: `backend-repo/functions/index.js`（新規 `scheduledNewsSourceAudit`）、`lib/gcs.ts`、`lib/news.ts`、`lib/server-data.ts`、`FRONTEND_SPEC.md`（2.1・5.3.1・5.3.5）
   - **仕様**:
     - 毎週月曜 4:00（JST）に実行。今月と前月のアーカイブから、記事が 3 件以上ある媒体（ホスト名）ごとに新しい記事を 2 件選び、HTML を取得する（汎用的なボット名の User-Agent、タイムアウト 10 秒、1 リクエストごとに 1 秒待つ。`news.google.com` のリンクは対象外）。
