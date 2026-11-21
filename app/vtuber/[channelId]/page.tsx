@@ -6,6 +6,7 @@ import { DetailView } from "@/components/VTuberTabs";
 import { formatDateSlug, todayJstParts } from "@/lib/events";
 import { formatCompact, formatNumber } from "@/lib/format";
 import {
+  getCachedVTuberRelatedNews,
   getCachedVTuberDetail,
   getCachedVTuberPageData,
 } from "@/lib/server-data";
@@ -33,6 +34,11 @@ const jstDate = new Intl.DateTimeFormat("ja-JP", {
   timeZone: "Asia/Tokyo",
   year: "numeric",
   month: "long",
+  day: "numeric",
+});
+const jstMonthDay = new Intl.DateTimeFormat("ja-JP", {
+  timeZone: "Asia/Tokyo",
+  month: "numeric",
   day: "numeric",
 });
 
@@ -175,6 +181,16 @@ function parseYmd(ymd: string): Date | null {
     return null;
   }
   return d;
+}
+
+function parseNewsDate(value: string): Date | null {
+  const normalized = value.trim();
+  if (!normalized) return null;
+  const ms = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(normalized)
+    ? Date.parse(normalized.replace(" ", "T") + "+09:00")
+    : Date.parse(normalized);
+  if (!Number.isFinite(ms)) return null;
+  return new Date(ms);
 }
 
 function latestDateText(latestYmd: string | undefined): string {
@@ -373,12 +389,17 @@ export default async function VTuberDetailPage({ params }: PageProps) {
   const pageTitle = buildTitle(detail, shown);
 
   const isPersonal = detail.office === "個人";
-  const [officeMembers, nearby, ranks, currentYear] = await Promise.all([
-    getCachedOfficeMembers(detail.office, detail.channelId, 12),
-    getCachedNearby(detail.channelId, isPersonal ? 12 : 24),
-    getCachedRanks(detail.channelId),
-    getCurrentJstYear(),
-  ]);
+  const [officeMembers, nearby, ranks, currentYear, relatedNews] =
+    await Promise.all([
+      getCachedOfficeMembers(detail.office, detail.channelId, 12),
+      getCachedNearby(detail.channelId, isPersonal ? 12 : 24),
+      getCachedRanks(detail.channelId),
+      getCurrentJstYear(),
+      getCachedVTuberRelatedNews(detail.channelId, 5).catch((error) => {
+        console.error("Failed to load related news", error);
+        return null;
+      }),
+    ]);
   const officeMemberIds = new Set(officeMembers.map((member) => member.channelId));
   const nearbyMembers = isPersonal
     ? [...nearby.above].reverse().concat(nearby.below)
@@ -512,6 +533,53 @@ export default async function VTuberDetailPage({ params }: PageProps) {
             showSubscriberCount
           />
         </>
+      )}
+
+      {relatedNews && relatedNews.length > 0 && (
+        <section className="mt-8">
+          <h2 className="mb-3 text-base font-bold">関連ニュース</h2>
+          <ul className="space-y-2">
+            {relatedNews.map((cluster) => {
+              const published = parseNewsDate(cluster.latestAt);
+              return (
+                <li
+                  key={cluster.id}
+                  className="rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-800"
+                >
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="text-blue-600">{cluster.lead.source}</span>
+                    {cluster.lead.tier === "official" && (
+                      <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300">
+                        公式
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1 flex items-start justify-between gap-3">
+                    <a
+                      href={cluster.lead.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="min-w-0 flex-1 text-zinc-900 underline-offset-2 hover:underline dark:text-zinc-100"
+                    >
+                      {cluster.lead.title}
+                    </a>
+                    <span className="shrink-0 text-xs text-zinc-500">
+                      {published ? jstMonthDay.format(published) : ""}
+                    </span>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="mt-3">
+            <Link
+              href="/news"
+              className="text-sm text-blue-600 hover:underline dark:text-blue-400"
+            >
+              ニュース一覧へ
+            </Link>
+          </div>
+        </section>
       )}
 
       <section className="mt-8">

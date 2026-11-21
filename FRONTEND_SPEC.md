@@ -236,6 +236,7 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 
 #### 5.3.3 VTuber 詳細の関連ニュース（NEWS-3）
 - `/vtuber/[channelId]` の「よくある質問」の前に `<h2>関連ニュース</h2>` を置き、その VTuber に紐づいたクラスタを新しい順に最大 5 件、コンパクトな行（媒体名・タイトル・日付）で出す。0 件なら節ごと出さない。NEWS-5 以降は蓄積分（直近 60 日）も対象。
+- 取得は `getCachedVTuberRelatedNews(channelId, 5)`（`lib/server-data.ts`）を使う。ニュース取得に失敗したときは節を出さず、ページ全体はエラーにしない。
 
 #### 5.3.4 クリック数の記録（NEWS-6）
 - 記事リンクのクリック時に `navigator.sendBeacon("/api/news/click", JSON.stringify({ id }))`。`id` は記事 URL の FNV-1a 32bit を 36 進数にしたもの（`newsId(url)`）。同じ記事は 1 日 1 回だけ送る（`localStorage` の `newsClicked:YYYYMMDD`、読み書きは try/catch）。

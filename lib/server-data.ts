@@ -251,3 +251,18 @@ export async function getCachedNewsClusters(): Promise<NewsCluster[] | null> {
   const aliases = buildVTuberAliasIndex(index);
   return clusterNews(news, { now: Date.now(), aliases });
 }
+
+export async function getCachedVTuberRelatedNews(
+  channelId: string,
+  limit = 5,
+): Promise<NewsCluster[] | null> {
+  "use cache";
+  cacheLife({ stale: 600, revalidate: 600, expire: 3600 });
+  const clusters = await getCachedNewsClusters();
+  if (!clusters) return null;
+  return clusters
+    .filter((cluster) =>
+      cluster.vtubers.some((vtuber) => vtuber.channelId === channelId),
+    )
+    .slice(0, Math.max(0, limit));
+}

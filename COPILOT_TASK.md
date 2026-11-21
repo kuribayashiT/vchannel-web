@@ -1573,7 +1573,7 @@
     - お気に入り登録済みの VTuber の記事があると `♥ お気に入り` チップが出る。ブラウザのコンソールにハイドレーションの警告が出ない。
     - 375px 幅で横スクロールが出ない。ダークモードで読める。`curl -s <URL>/news -o news.html && wc -c news.html` が改修前の 1.5 倍以内。
 
-- [ ] **NEWS-3. VTuber 詳細ページに「関連ニュース」を出す**（NEWS-2 の次に着手）
+- [x] **NEWS-3. VTuber 詳細ページに「関連ニュース」を出す**（NEWS-2 の次に着手）
   - **対象ファイル**: `app/vtuber/[channelId]/page.tsx`、`lib/server-data.ts`、`FRONTEND_SPEC.md`（5.3.3）
   - **仕様**（`FRONTEND_SPEC.md` 5.3.3 のとおり）:
     - `getCachedNewsClusters()` の結果から、`vtubers` にその `channelId` を含むクラスタを新しい順に最大 5 件。
