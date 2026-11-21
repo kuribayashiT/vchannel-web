@@ -1,8 +1,9 @@
 import { cacheLife } from "next/cache";
-import { GcsFetchError, getNews } from "@/lib/gcs";
+import { GcsFetchError, getNews, getNewsArchive } from "@/lib/gcs";
 import { buildVTuberAliasIndex, clusterNews, type NewsCluster } from "@/lib/news";
 import {
   GCS_FILES,
+  type News,
   type RawOfficeDataList,
   type RawVideo,
   type RawVTuber,
@@ -252,13 +253,66 @@ export async function getCachedNewsClusters(): Promise<NewsCluster[] | null> {
   return clusterNews(news, { now: Date.now(), aliases });
 }
 
+function jstArchiveMonth(now: Date): string {
+  const year = now.toLocaleString("en-US", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+  });
+  const month = now.toLocaleString("en-US", {
+    timeZone: "Asia/Tokyo",
+    month: "2-digit",
+  });
+  return `${year}-${month}`;
+}
+
+function addMonths(month: string, delta: number): string {
+  const [year, mm] = month.split("-").map(Number);
+  if (!year || !mm) return month;
+  const d = new Date(Date.UTC(year, mm - 1 + delta, 1));
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
+}
+
+function dedupeNewsByUrl(items: News[]): News[] {
+  const seen = new Set<string>();
+  const deduped: News[] = [];
+  for (const item of items) {
+    const url = item.url.trim();
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    deduped.push(item);
+  }
+  return deduped;
+}
+
+async function getCachedRelatedNewsClusters(): Promise<NewsCluster[] | null> {
+  "use cache";
+  cacheLife({ stale: 600, revalidate: 600, expire: 3600 });
+  let news: News[];
+  try {
+    news = await getNews();
+  } catch (error) {
+    if (error instanceof GcsFetchError) return null;
+    throw error;
+  }
+  const currentMonth = jstArchiveMonth(new Date());
+  const previousMonth = addMonths(currentMonth, -1);
+  const [currentArchive, previousArchive] = await Promise.all([
+    getNewsArchive(currentMonth),
+    getNewsArchive(previousMonth),
+  ]);
+  const mergedNews = dedupeNewsByUrl(news.concat(currentArchive, previousArchive));
+  const { index } = await loadVTubers();
+  const aliases = buildVTuberAliasIndex(index);
+  return clusterNews(mergedNews, { now: Date.now(), aliases, maxAgeDays: 60 });
+}
+
 export async function getCachedVTuberRelatedNews(
   channelId: string,
   limit = 5,
 ): Promise<NewsCluster[] | null> {
-  "use cache";
-  cacheLife({ stale: 600, revalidate: 600, expire: 3600 });
-  const clusters = await getCachedNewsClusters();
+  const clusters = await getCachedRelatedNewsClusters();
   if (!clusters) return null;
   return clusters
     .filter((cluster) =>

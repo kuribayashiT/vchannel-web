@@ -1,7 +1,6 @@
 import {
   GCS_FILES,
   type EventList,
-  type GcsFileName,
   type News,
   type NumLike,
   type OfficeDataList,
@@ -46,7 +45,7 @@ export class GcsFetchError extends Error {
 
 /** GCS 公開 JSON を取得する共通関数 */
 export async function fetchGcsJson<T = unknown>(
-  file: GcsFileName,
+  file: string,
   revalidate: number | "no-store" = REVALIDATE.default,
 ): Promise<T> {
   let res: Response;
@@ -191,6 +190,18 @@ export async function getAllVideos(): Promise<Video[]> {
 
 export async function getNews(): Promise<News[]> {
   return toArray<News>(await fetchGcsJson(GCS_FILES.news));
+}
+
+export async function getNewsArchive(month: string): Promise<News[]> {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return [];
+  try {
+    return toArray<News>(
+      await fetchGcsJson(`news/archive/${month}.json`, REVALIDATE.default),
+    );
+  } catch (error) {
+    if (error instanceof GcsFetchError && error.status === 404) return [];
+    throw error;
+  }
 }
 
 export async function getEventList(): Promise<EventList> {

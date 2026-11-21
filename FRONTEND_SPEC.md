@@ -45,7 +45,7 @@ Cloud Functions が定期更新する。アプリは 1 時間 TTL でキャッ�
 | `officedataList.json` | `{ "<事務所名>": [VTuber, ...] }` | VTuber / 絞り込み |
 | `livevideoList.json` | `[Video, ...]`（配信中の動画） | 配信タブ全般 |
 | `allvideos.json` | `[Video, ...]` | お気に入り、VTuber 詳細の動画一覧 |
-| `news.json` | `[News, ...]` | ニュース |
+| `news.json` | `[News, ...]`（`origin: "serpapi" \| "hololive" \| "gnews"` を含む） | ニュース |
 | `news/archive/YYYY-MM.json` | `[News, ...]`（月ごとの蓄積。削除しない。NEWS-5） | VTuber 詳細の関連ニュース |
 | `newsSourceScores.json` | `{ "<ホスト名>": { adCount, sampled, checkedAt } }`（媒体ごとの広告量。NEWS-7） | ニュースの並び順（表示はしない） |
 | `eventList.json` | `[ { "<M/D>": [Event, ...] }, ... ]` | イベントカレンダー |
@@ -236,7 +236,7 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 
 #### 5.3.3 VTuber 詳細の関連ニュース（NEWS-3）
 - `/vtuber/[channelId]` の「よくある質問」の前に `<h2>関連ニュース</h2>` を置き、その VTuber に紐づいたクラスタを新しい順に最大 5 件、コンパクトな行（媒体名・タイトル・日付）で出す。0 件なら節ごと出さない。NEWS-5 以降は蓄積分（直近 60 日）も対象。
-- 取得は `getCachedVTuberRelatedNews(channelId, 5)`（`lib/server-data.ts`）を使う。ニュース取得に失敗したときは節を出さず、ページ全体はエラーにしない。
+- 取得は `getCachedVTuberRelatedNews(channelId, 5)`（`lib/server-data.ts`）を使う。`news.json` に加えて `getNewsArchive(month)` で今月・前月の `news/archive/YYYY-MM.json` を読み、URL 重複を除いて `clusterNews(..., { maxAgeDays: 60 })` に渡す。ニュース取得に失敗したときは節を出さず、ページ全体はエラーにしない。
 
 #### 5.3.4 クリック数の記録（NEWS-6）
 - 記事リンクのクリック時に `navigator.sendBeacon("/api/news/click", JSON.stringify({ id }))`。`id` は記事 URL の FNV-1a 32bit を 36 進数にしたもの（`newsId(url)`）。同じ記事は 1 日 1 回だけ送る（`localStorage` の `newsClicked:YYYYMMDD`、読み書きは try/catch）。
@@ -245,6 +245,7 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 
 #### 5.3.5 バックエンド（`scheduledNewsUpdate`。NEWS-4・NEWS-5・NEWS-7）
 - 取得元: SerpApi（従来）＋ ホロライブ公式 RSS `https://hololivepro.com/news/feed/`（`channel: "ホロライブ公式"`、`origin: "hololive"`）＋ Google News RSS（無料）の追加検索 2 本（`origin: "gnews"`）。にじさんじ公式は RSS が無く、ページもクライアント描画なので直接は取らない（Google News に `にじさんじ` 媒体として載る）。
+- SerpApi は `runWith({ secrets: ["SERPAPI_KEY"] })` と `process.env.SERPAPI_KEY` を使う。鍵が未設定でも SerpApi だけをスキップし、他の取得元は続行する。
 - バックエンドでも 5.3.1 の 1 と同じノイズ除去と 14 日の期限をかけ、新しい順に最大 150 件を `news.json` に書く。`cacheControl: 'public, max-age=600'`。
 - 同時に `news/archive/YYYY-MM.json`（`publishedAt` の月）へ URL 重複を除いて追記し、消さない。
 - 週 1 回、媒体ごとの広告量を測って `newsSourceScores.json` に書く。広告の多い媒体は「今日の注目」の `score` を下げるだけで、画面には出さない（媒体名を名指しで低評価しない）。

@@ -1584,7 +1584,7 @@
     - その日の `news.json` に名前が出ている VTuber の詳細ページに関連ニュースが出る。出ていない VTuber のページには節が無い。
     - VTuber 詳細ページの HTML サイズの増加が 1 ページあたり +5KB 以内。
 
-- [ ] **NEWS-4. バックエンド: 取得元を増やし、ノイズと古い記事を除き、SerpApi の鍵を環境変数に移す**（NEWS-3 の次に着手）
+- [x] **NEWS-4. バックエンド: 取得元を増やし、ノイズと古い記事を除き、SerpApi の鍵を環境変数に移す**（NEWS-3 の次に着手）
   - **対象ファイル**: `backend-repo/functions/index.js`（`scheduledNewsUpdate`、1250 行目付近）、`FRONTEND_SPEC.md`（5.3.5・2.1）
   - **仕様**（`FRONTEND_SPEC.md` 5.3.5 のとおり）:
     - **鍵**: SerpApi の URL に直書きされている `api_key` を削除し、`runWith({ secrets: ['SERPAPI_KEY'] })` ＋ `process.env.SERPAPI_KEY` にする。鍵が未設定なら SerpApi だけ飛ばして他の取得元は続ける。
@@ -1599,7 +1599,7 @@
     - `grep -n "serpapi.com" backend-repo/functions/index.js` に `api_key=` の直書きが無い。
     - 完了報告に、運営者の作業として次を書く: ① SerpApi の管理画面で鍵を作り直す（旧鍵は Git 履歴に残るため）② `firebase functions:secrets:set SERPAPI_KEY` ③ `firebase deploy --only functions:scheduledNewsUpdate` ④ デプロイ後、`news.json` に `origin` が `hololive` / `gnews` の記事が入り、YouTube・`t.co` の記事が無いことを確認。
 
-- [ ] **NEWS-5. バックエンド: 記事を月ごとに蓄積し、関連ニュースで過去 60 日分を使う**（NEWS-4 の次に着手）
+- [x] **NEWS-5. バックエンド: 記事を月ごとに蓄積し、関連ニュースで過去 60 日分を使う**（NEWS-4 の次に着手）
   - **対象ファイル**: `backend-repo/functions/index.js`（`scheduledNewsUpdate`）、`lib/gcs.ts`、`lib/server-data.ts`、`FRONTEND_SPEC.md`（2.1・5.3.3）
   - **仕様**:
     - `news.json` を書いた後、記事を `publishedAt` の月ごとに `news/archive/YYYY-MM.json` へ追記する（既存を読み、URL で重複を除き、新しい順で保存。削除はしない）。`cacheControl: 'public, max-age=3600'`。
