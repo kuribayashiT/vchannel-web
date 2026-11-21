@@ -1,4 +1,6 @@
 import { cacheLife } from "next/cache";
+import { GcsFetchError, getNews } from "@/lib/gcs";
+import { buildVTuberAliasIndex, clusterNews, type NewsCluster } from "@/lib/news";
 import {
   GCS_FILES,
   type RawOfficeDataList,
@@ -234,3 +236,18 @@ export const loadAllVideos = memo(async () => {
   }
   return map;
 });
+
+export async function getCachedNewsClusters(): Promise<NewsCluster[] | null> {
+  "use cache";
+  cacheLife({ stale: 600, revalidate: 600, expire: 3600 });
+  let news;
+  try {
+    news = await getNews();
+  } catch (error) {
+    if (error instanceof GcsFetchError) return null;
+    throw error;
+  }
+  const { index } = await loadVTubers();
+  const aliases = buildVTuberAliasIndex(index);
+  return clusterNews(news, { now: Date.now(), aliases });
+}

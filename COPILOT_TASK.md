@@ -1,6 +1,6 @@
 # COPILOT_TASK: ランキングへの「登録者 急上昇」タブ追加および UI 改善バックログ
 
-> 最終更新: 2026-11-19 / 担当: プロダクトデザイナー → 実装: GitHub Copilot
+> 最終更新: 2026-11-21 / 担当: プロダクトデザイナー → 実装: GitHub Copilot
 
 ---
 
@@ -1485,6 +1485,44 @@
 
 ---
 
+### P0-READNAV: 特集・月間レポートへの導線をファーストビュー付近に置く（2026-11-21 追加・CHAT-7 の次、P1-NEWS より先に着手。READ-1 → READ-4 の順）
+
+> **調査結果（2026-11-21）**: 特集（`/guide`）と月間レポート（`/reports`）へのリンクは、フッターと、トップの配信一覧のさらに下にある「ガイド・特集」欄にしかない。上部・下部のナビにも、ランキングにも無い。週刊特集と月報コメントの自動作成（`FRONTEND_SPEC.md` 5.12.2・5.12.3）が始まったので、読まれる場所に出す。仕様は `FRONTEND_SPEC.md` 5.13。
+> ⚠ 自動パイプラインは 1 回で 1 ファイルしか変えられないので、タスクを 1 ファイルずつに分けてある。READ-2・READ-3 は READ-1 の部品を使うので、必ず READ-1 の後に着手すること。
+
+- [ ] **READ-1. 読みものへのリンク部品 `ReadingLinks` を作る**
+  - **対象ファイル**: 新規 `components/ReadingLinks.tsx`（Server Component。`"use client"` を付けない）
+  - **仕様**: `FRONTEND_SPEC.md` 5.13 の「共通部品」のとおり。
+    - `export async function ReadingLinks({ variant }: { variant: "card" | "chips" })`。
+    - 最新の特集は `getAllGuides()`（`@/lib/guide`）から `category === "特集"` の最初の 1 本。無ければ `/guide` への固定リンクにする。
+    - 月は `await getCurrentReportContext()`（`@/lib/reports`）の `month`（`YYYY-MM`）を使う。`new Date()` や `Date.now()` をこのファイルで使わない（`cacheComponents` 有効のためビルドが落ちる）。表示用の月は `Number(month.slice(5, 7))`。
+    - アイコンは `lucide-react` の `Sparkles`・`BookOpen`・`BarChart3`・`ChevronRight`。`next/link` の `<Link>` を使う。
+    - `card` と `chips` のクラスは仕様に書いたとおり。ダークモードのクラスも付ける。
+    - この時点ではどのページにも置かない（READ-2・READ-3 で置く）。`any` は使わない。新しいパッケージは追加しない。
+  - **完了条件**: `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+
+- [ ] **READ-2. トップの「今週の急上昇」の直後に `ReadingLinks`（card）を置く**（READ-1 の次に着手）
+  - **対象ファイル**: `app/page.tsx`
+  - **仕様**: `<GrowthTop3 items={growth} />` の直後、`<section id="streams" …>` の前に `<ReadingLinks variant="card" />` を置く（`ReadingLinks` 側に `mb-6` が無ければ `<div className="mb-6">` で包む）。配信の下の既存「ガイド・特集」欄は消さない。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - スマホ（375px）でトップを開くと、スクロールせずに、または 1 回のスクロールで「最新の特集」と「{M}月の月間レポート」が見え、押すとそれぞれの記事・レポートに移動する。
+    - 選択中の事務所があって `GrowthTop3` が表示されないときも、`ReadingLinks` は表示される。
+
+- [ ] **READ-3. ランキングの説明文の直後に `ReadingLinks`（chips）を置く**（READ-2 の次に着手）
+  - **対象ファイル**: `app/ranking/page.tsx`
+  - **仕様**: 説明文（`{summary}` の `<p className="mb-4 …">`）の直後、`{weekly ? (<Suspense …>` の前に `<ReadingLinks variant="chips" />` を置く（下に `mb-4` の余白）。ランキングの読み込みに失敗したときも表示する。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - スマホ（375px）でチップが 1 行に収まり、表の開始位置が 1 行分（約 44px）以上は下がらない。
+
+- [ ] **READ-4. 設定ページに「読みもの」欄を追加する**（READ-3 の次に着手）
+  - **対象ファイル**: `components/SettingsList.tsx`
+  - **仕様**: 「共有する」ボタンの前に、見出し「読みもの」（`h2`、`text-sm font-bold`）と、`next/link` の `<Link>` 3 つ（`ガイド・特集` → `/guide`、`月間レポート` → `/reports`、`誕生日・周年カレンダー` → `/events`）を置く。見た目は既存の `btn` と同じで、右端に `ChevronRight`（`lucide-react`、`aria-hidden`）。`"use client"` のままでよい（データは使わない）。
+  - **完了条件**: `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。`/settings` から 3 つのページに移動できる。
+
+---
+
 ### P1-NEWS: ニュースタブの改善 — 同じ話題をまとめ、注目・公式の記事を目立たせる（2026-11-19 追加・P1-LIVEFRESH の次、AI 提案タスクより先に着手。NEWS-1 → NEWS-7 の順）
 
 > **調査結果（2026-11-19、`news.json` 93 件）**:
@@ -1497,7 +1535,7 @@
 > 仕様は `FRONTEND_SPEC.md` 5.3（5.3.1〜5.3.5）に書いた。数値（まとめの基準 0.5、呼び名の規則など）は実データで試して決めたものなので、変えないこと。
 > ⚠ バックエンドのタスク（NEWS-4・NEWS-5・NEWS-6 の一部・NEWS-7）は `backend-repo`（別リポジトリ `vtuberchannel`）の変更。Functions のデプロイは運営者が行う。Copilot はコードの変更と `backend-repo` へのコミット・push、親リポジトリのサブモジュール参照の更新までとし、完了報告に必要な `firebase deploy --only functions:<関数名>` を書く。`firebase deploy --only firestore` は実行しない。
 
-- [ ] **NEWS-1. ニュースを加工する純粋関数を作る（ノイズ除去・媒体区分・同じ話題のまとめ・カテゴリ・VTuber 紐づけ）**
+- [x] **NEWS-1. ニュースを加工する純粋関数を作る（ノイズ除去・媒体区分・同じ話題のまとめ・カテゴリ・VTuber 紐づけ）**
   - **対象ファイル**: 新規 `lib/news.ts`、新規 `lib/news-sources.ts`、`types/index.ts`（`News` に `origin?: string` を追加）、`lib/server-data.ts`、`FRONTEND_SPEC.md`（5.3.1 に実装上の差分があれば追記）
   - **仕様**（`FRONTEND_SPEC.md` 5.3.1 のとおり）:
     - `lib/news-sources.ts`: 区分表（`official` / `media` / `aggregator` をホスト名と媒体名の両方で）、ノイズのホスト・媒体名、`EXTRA_ALIASES`（`channelId` → 呼び名配列）。`EXTRA_ALIASES` には、ホロライブで英語名だけのチャンネル（例: `Suisei Channel` → `星街すいせい`）を 5 人以上入れる。`channelId` は `officedataList.json` で確認する。
@@ -1517,7 +1555,7 @@
     - 一時スクリプト（コミットしない）で現在の `news.json` に `clusterNews` をかけ、次を PR 本文に貼る: 入力件数・ノイズ除去後の件数・クラスタ数、媒体数 2 以上のクラスタの一覧（代表のタイトルと媒体名）、VTuber が紐づいたクラスタ数。2026-11-19 のデータなら「前野ハカリ」5 件が 1 つ、「みたらし団」4 件が 1 つにまとまり、別のグッズ記事（`Unit Selection Calendar` と `にじたうんぐっず`）は別クラスタのままになる。
     - YouTube・`t.co`・Howl.Link の記事と 14 日より古い記事が結果に含まれない。
 
-- [ ] **NEWS-2. `/news` を作り直す（今日の注目・カテゴリチップ・日付見出し・まとめカード）**（NEWS-1 の次に着手）
+- [x] **NEWS-2. `/news` を作り直す（今日の注目・カテゴリチップ・日付見出し・まとめカード）**（NEWS-1 の次に着手）
   - **対象ファイル**: `app/news/page.tsx`、新規 `components/NewsList.tsx`（Client Component。チップと一覧）、新規 `components/NewsClusterCard.tsx`、`FRONTEND_SPEC.md`（5.3.2）
   - **仕様**（`FRONTEND_SPEC.md` 5.3.2 のとおり）:
     - `app/news/page.tsx` は `getCachedNewsClusters()` を使う。見出しの下に説明文と `最終更新 HH:mm`（JST）。

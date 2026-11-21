@@ -198,6 +198,7 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 
 #### 5.3.1 データの加工（`lib/news.ts`、サーバー側。NEWS-1）
 `news.json` をそのまま並べず、次の順に加工してから描画する。加工はサーバーで行い、クライアントには表示に必要な項目だけ渡す（`description`・`sourceUrl`・`creator` は渡さない）。
+`News` 型は RSS 由来の識別用に `origin?: string` を許容する。
 
 1. **ノイズ除去**: 記事 URL のホストが `youtu.be` / `youtube.com` / `t.co` / `x.com` / `twitter.com` / `howl.link`（サブドメイン含む）、または `channel` が `YouTube` / `Howl.Link` のものを除く。`publishedAt` が今から 14 日より古いもの、タイトルが空のもの、URL が `safeHttpUrl` を通らないものも除く。
 2. **媒体の区分**（`lib/news-sources.ts` の手作業の表。ホスト名 → 媒体名の順で照合。表記ゆれは NFKC＋空白除去＋小文字で吸収）:
@@ -217,6 +218,7 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
    `score = (媒体数 − 1) × 3 + 区分点（official 2 / media 1 / それ以外 0）+ min(24 時間のクリック数, 50) ÷ 5 − 経過時間(h) ÷ 12`。媒体数はクラスタ内の異なる媒体名の数。クリック数は NEWS-6 まで 0。
 
 #### 5.3.2 画面（`/news`。NEWS-2）
+- サーバー描画のページ本体（`app/news/page.tsx`）と、クライアント側の絞り込み一覧（`components/NewsList.tsx`）・カード表示（`components/NewsClusterCard.tsx`）に分離する。
 - **見出しの下の説明文**（1〜2 行、`text-sm text-zinc-600`）: 「VTuber 関連のニュースを、同じ話題ごとにまとめて新しい順に並べています。事務所や企業の発表には「公式」と表示します。」＋ `最終更新 HH:mm`。
 - **今日の注目**: 48 時間以内のクラスタのうち、媒体数 2 以上（NEWS-6 以降はクリック 3 以上でも可）を `score` の高い順に最大 3 件。大きめのカード（サムネ横幅いっぱい、`aspect-video`）で、`N媒体が報道` バッジ（lucide `Newspaper`）を付ける。該当が 0 件なら節ごと出さない。
 - **Vちゃんねるで読まれている**（NEWS-6 で追加）: 24 時間のクリック数 3 以上のクラスタを多い順に最大 5 件、順位付きのコンパクトな行で表示。
@@ -518,6 +520,27 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 - frontmatter はスクリプトが付ける: `publishedAt` は実行日、`category: 特集`、`relatedVtubers` は本文でリンクした channelId（最大 8）。同じ slug があれば何もしない（`--force` で書き直す）。
 - 実行: `.github/workflows/weekly-feature.yml`。5.12.2 と同じくジョブ内でサイトを起動して材料を取り、記事を足して再ビルドしてから PR（`auto-weekly-feature`）を自動マージする。
 - 既知の限界: 材料にある数字どうしの差がたまたま材料の別の値と一致すると、数字の検査を通ってしまう。
+
+
+### 5.13 読みもの（特集・月間レポート）への導線（2026-11-21 追加）
+
+これまで特集と月間レポートへのリンクは、フッターと、トップの配信一覧のさらに下にある「ガイド・特集」欄だけで、かなり下までスクロールしないと出てこなかった。週刊特集（5.12.3）と月報コメント（5.12.2）の自動作成が始まったので、ファーストビュー付近と、数字に興味がある人が集まるランキングから入れるようにする。
+
+- 共通部品 `components/ReadingLinks.tsx`（Server Component。`"use client"` を付けない）。props は `variant: "card" | "chips"`。
+  - 中身は 2 つのリンク:
+    1. 最新の特集: `getAllGuides()`（`publishedAt` の新しい順）から `category === "特集"` の最初の 1 本。ラベル「最新の特集」、本文は記事タイトル、リンク先 `/guide/{slug}`、アイコン `Sparkles`。特集が 1 本もなければ、ラベル「ガイド・特集」、本文「VTuberの楽しみ方とデータの読み方」、リンク先 `/guide`、アイコン `BookOpen`。
+    2. 月間レポート: `getCurrentReportContext()`（`lib/reports.ts`、`"use cache"` 済み。`cacheComponents` 有効のため `new Date()` を直接使わない）の `month` から、ラベル「月間レポート」、本文「{M}月のVTuber月間レポート」、リンク先 `/reports/{YYYY-MM}`、アイコン `BarChart3`。
+  - `variant="card"`（トップ用）: `section`（`aria-label="読みもの"`）の中に、2 行を縦に並べた 1 枚のカード。各行は `<Link>` で行全体がタップ対象（`min-h-11`、`flex items-center gap-3`、左にアイコン、中央に小さいラベル（`text-xs text-zinc-500`）とタイトル（`text-sm font-medium`、`truncate` で 1 行）、右端に `ChevronRight`）。行の間は `divide-y`。カードは `rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900`。押した瞬間の反応は TAP-1 と同じ（`active:bg-zinc-50 dark:active:bg-zinc-800`、`transition`、`touch-manipulation`）。`sm` 以上では 2 行を横並び（`sm:grid sm:grid-cols-2 sm:divide-x sm:divide-y-0`）。
+  - `variant="chips"`（ランキング用）: `nav`（`aria-label="読みもの"`）に、丸いチップ型のリンクを横に 2 つ（`flex flex-wrap gap-2`、各 `inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 text-xs`、アイコン 14px）。文言は短く「最新の特集」と「{M}月の月間レポート」だけ（記事タイトルは出さない）。表の位置を下げないよう 1 行に収める。
+  - リンク名（スクリーンリーダー）はラベル＋タイトル。アイコンは `aria-hidden`。
+- 置き場所:
+  | ページ | 位置 | variant |
+  |---|---|---|
+  | `/`（トップ） | `<GrowthTop3>` の直後、配信セクション（`#streams`）の前。`mb-6` | `card` |
+  | `/ranking` | 説明文（`summary` の `<p>`）の直後、`<RankingTabs>` の前。`mb-4` | `chips` |
+  | `/settings` | `SettingsList` の「共有する」ボタンの前に「読みもの」欄 | 下記 |
+- `/settings` の「読みもの」欄（`components/SettingsList.tsx` は Client Component なので `ReadingLinks` は使わず、固定のリンクを並べる）: 見出し「読みもの」、リンク 3 つ（`ガイド・特集` → `/guide`、`月間レポート` → `/reports`、`誕生日・周年カレンダー` → `/events`）。見た目は既存の `btn` と同じ枠のボタン型で、右端に `ChevronRight`。
+- トップの既存「ガイド・特集」欄（配信の下）とフッターのリンクはそのまま残す。
 
 ---
 

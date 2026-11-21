@@ -158,6 +158,8 @@ export interface News {
   sourceName: string;
   sourceUrl: string;
   creator: string;
+  /** 取得元の種別（任意） */
+  origin?: string;
   /** 解説動画の YouTube URL（任意） */
   videoUrl?: string;
 }
