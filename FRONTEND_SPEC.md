@@ -489,6 +489,19 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 - 名前は `displayName()` で短くする: 【】〖〗『』[] の中を外し、「/」「Ch.」「Channel」で区切った部分のうち日本語を含む側を使い、「 - 事務所名」「日本語名の後ろのローマ字」「末尾のチャンネル」「末尾の hololive / にじさんじ」を外す。ハッシュタグは `#VTuber` と、空白・記号の無い名前だけ `#名前` を付ける。
 - 文字数は X の数え方（日本語などは 2、URL は 23、上限 280）で表示し、超えたら「X で投稿」を押せなくする。
 
+### 5.12.2 記事の自動作成：月報の編集部コメント（2026-11-21 追加）
+
+`/reports/YYYY-MM` の「編集部コメント」（`content/reports/YYYY-MM.md`）を、毎月 1 日に Claude API で自動で書く。担当は Claude Code（`ADMIN_TASK.md` の CNT-1）。GitHub Copilot と自動開発パイプラインは触らない。
+
+- 材料: `GET /api/admin/report-data?month=YYYY-MM`（Basic 認証。`checkAdminAuth` のみで Firebase は使わない）。ページと同じ `getMonthlyReport()` の結果と、前月分（`previous`、無ければ `null`）を返す。
+- 生成: `scripts/content/write-monthly-report.mjs`。モデル `claude-opus-5-5`（effort `high`、拒否時は server-side fallback `"default"`）。400〜800 字・3〜5 段落・見出しなし。伸びた理由や配信内容は材料に無い限り推測しない。人気配信の材料は直近 1 週間の同接ランキングのうち当月分なので「月間最多」とは書かない。
+- 検査（通らなければ 1 回だけ書き直させ、それでも駄目ならファイルを書かずに失敗）:
+  - 本文の数字がすべて材料にあること。万・億・% は書いた桁での丸めを許す。31 以下の整数と年は常に可。差や合計など計算で作った数字は不可。
+  - リンクは `/vtuber/{材料にある channelId}`、`/ranking`、`/reports/{当月}` のみ。
+  - 本文 300〜1200 字（空白を除く）、`#` 見出しなし。
+- 上書きの規則: ファイル先頭に `<!-- auto-generated: dataThrough=YYYY-MM-DD -->` を入れる（ページには表示されない）。既存ファイルは、この目印があり、かつ材料の `dataThrough` の方が新しいときだけ書き直す。人が直したら目印の行を消せば以後は上書きされない。`--force` で常に書き直す。
+- 実行: `.github/workflows/monthly-report.yml`。毎月 1 日 10:00 JST に先月分。手動実行（`month`・`force` 指定可）もできる。ジョブ内でビルドしたサイトを `next start` で起動し、使い捨ての `ADMIN_USER` / `ADMIN_PASSWORD` で材料を取るので、Vercel の環境変数には依存しない。生成後に再ビルドで確認し、PR（`auto-monthly-report`）を作って自動マージする。必要な Secret は `ANTHROPIC_API_KEY` のみ。
+
 ---
 
 ## 6. 非機能・移行時の注意

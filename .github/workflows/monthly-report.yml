@@ -1,0 +1,103 @@
+name: Monthly Report Commentary (auto)
+
+# 毎月 1 日に、締まったばかりの月の月報（/reports/YYYY-MM）に載せる「編集部コメント」を
+# Claude で書いて content/reports/YYYY-MM.md に保存し、PR を作って自動マージする。
+# 担当: Claude Code（ADMIN_TASK.md の CNT-1）。GitHub Copilot と自動開発パイプラインは触らない。
+
+on:
+  schedule:
+    # JST 1 日 10:00（UTC 1 日 01:00）。前日分のデータ更新が終わってから動かす
+    - cron: '0 1 1 * *'
+  workflow_dispatch:
+    inputs:
+      month:
+        description: '対象月 YYYY-MM（空なら先月）'
+        required: false
+      force:
+        description: '既にあるコメントを書き直す'
+        type: boolean
+        default: false
+
+concurrency:
+  group: monthly-report
+  cancel-in-progress: false
+
+jobs:
+  write:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - run: npm ci
+
+      - name: Build site
+        run: npm run build
+
+      # ビルドしたサイトをこのジョブの中だけで起動し、管理 API から月報の材料を取る。
+      # 認証情報はこの場で作る使い捨ての値なので、Vercel の設定（ADM-0）には依存しない。
+      - name: Start site and write commentary
+        id: write
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          INPUT_MONTH: ${{ inputs.month }}
+          INPUT_FORCE: ${{ inputs.force }}
+        run: |
+          export ADMIN_USER=ci
+          export ADMIN_PASSWORD="$(openssl rand -hex 24)"
+          npm run start -- -p 3000 > next.log 2>&1 &
+          for i in $(seq 1 60); do
+            curl -s -o /dev/null http://localhost:3000/ && break
+            sleep 2
+          done
+
+          ARGS=""
+          if [ -n "$INPUT_MONTH" ]; then ARGS="$ARGS --month $INPUT_MONTH"; fi
+          if [ "$INPUT_FORCE" = "true" ]; then ARGS="$ARGS --force"; fi
+          node scripts/content/write-monthly-report.mjs $ARGS
+
+          if [ -n "$(git status --porcelain content/reports)" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "file=$(git status --porcelain content/reports | head -1 | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Show server log on failure
+        if: failure()
+        run: tail -n 100 next.log || true
+
+      # 書いたコメントを含めてもう一度ビルドし、壊れていないことを確かめる
+      - name: Verify build with commentary
+        if: steps.write.outputs.changed == 'true'
+        run: npm run build
+
+      - name: Create Pull Request
+        if: steps.write.outputs.changed == 'true'
+        id: cpr
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: auto-monthly-report
+          add-paths: content/reports/*.md
+          title: '📝 月報コメントの自動作成 (${{ steps.write.outputs.file }})'
+          commit-message: 'content(auto): 月報の編集部コメントを自動作成 (${{ steps.write.outputs.file }})'
+          body: |
+            毎月の自動ジョブが、月報ページの「編集部コメント」を書きました。
+
+            - 材料: `/api/admin/report-data`（ページの表と同じ `getMonthlyReport()`）
+            - 検査: 本文の数字がすべて材料にあること、リンク先が許可したパスだけであること、文字数
+            - 検査とビルドに通ったので自動マージします。直したいときは `${{ steps.write.outputs.file }}` を編集してください。
+          delete-branch: true
+
+      - name: Auto-merge
+        if: steps.cpr.outputs.pull-request-url != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr merge "${{ steps.cpr.outputs.pull-request-url }}" --squash --delete-branch \
+            || gh pr merge "${{ steps.cpr.outputs.pull-request-url }}" --auto --squash --delete-branch
