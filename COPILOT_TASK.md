@@ -1629,7 +1629,7 @@
     - キーボードの Tab で、1 枚のカードにつき代表記事へのフォーカスが 1 回だけ止まり、枠がカード全体に出る。
     - ダークモードで読める。
 
-- [ ] **NEWS-6. サイト内のクリック数を記録し、「Vちゃんねるで読まれている」を出す**（NEWS-5 の次に着手）
+- [x] **NEWS-6. サイト内のクリック数を記録し、「Vちゃんねるで読まれている」を出す**（NEWS-5 の次に着手）
   - **対象ファイル**: 新規 `app/api/news/click/route.ts`、新規 `lib/news-clicks.ts`（server-only）、`components/NewsList.tsx`・`components/NewsClusterCard.tsx`、`app/news/page.tsx`、`app/vtuber/[channelId]/page.tsx`、`lib/server-data.ts`、`backend-repo/functions/index.js`（古いクリック記録の削除）、`FRONTEND_SPEC.md`（5.3.2・5.3.4）
   - **仕様**（`FRONTEND_SPEC.md` 5.3.4 のとおり）:
     - `lib/news-clicks.ts`: `firebase-admin` の Realtime Database を、環境変数 `FIREBASE_SERVICE_ACCOUNT`・`FIREBASE_DATABASE_URL` で初期化する（名前付きアプリ `news` にする。**`lib/admin/` のファイルは編集も import もしない**）。`incrementNewsClick(id)` と `getNewsClicks24h(): Promise<Record<string, number>>`（今日と昨日の合計。10 分キャッシュ）。環境変数が無い・失敗したときは記録せず、読み取りは `{}` を返す。

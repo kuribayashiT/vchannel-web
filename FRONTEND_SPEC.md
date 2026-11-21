@@ -243,14 +243,16 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 
 #### 5.3.4 クリック数の記録（NEWS-6）
 - 記事リンクのクリック時に `navigator.sendBeacon("/api/news/click", JSON.stringify({ id }))`。`id` は記事 URL の FNV-1a 32bit を 36 進数にしたもの（`newsId(url)`）。同じ記事は 1 日 1 回だけ送る（`localStorage` の `newsClicked:YYYYMMDD`、読み書きは try/catch）。
-- サーバーは Realtime Database の `newsClicks/{YYYYMMDD(JST)}/{id}` を `ServerValue.increment(1)` で加算する。`id` は形式チェック（`^[0-9a-z]{1,8}$`）と、現在のニュース一覧に存在するかを確認し、それ以外は 204 を返して捨てる。
+- サーバーは Realtime Database の `newsClicks/{YYYYMMDD(JST)}/{id}` を原子的に +1 する。`id` は形式チェック（`^[0-9a-z]{1,8}$`）と、現在のニュース一覧に存在するかを確認し、それ以外は 204 を返して捨てる。
 - 24 時間のクリック数は今日と昨日のノードを読み、10 分キャッシュする。自サイトの読者の偏り（にじさんじ・ホロライブのファンが多い）がそのまま出ることに注意。
+- クリック集計のサーバー処理は `FIREBASE_SERVICE_ACCOUNT` と `FIREBASE_DATABASE_URL` が無い環境では無効化し、加算は行わず読み取りは空データ `{}` として扱う（画面表示は継続）。
 
 #### 5.3.5 バックエンド（`scheduledNewsUpdate`。NEWS-4・NEWS-5・NEWS-7）
 - 取得元: SerpApi（従来）＋ ホロライブ公式 RSS `https://hololivepro.com/news/feed/`（`channel: "ホロライブ公式"`、`origin: "hololive"`）＋ Google News RSS（無料）の追加検索 2 本（`origin: "gnews"`）。にじさんじ公式は RSS が無く、ページもクライアント描画なので直接は取らない（Google News に `にじさんじ` 媒体として載る）。
 - SerpApi は `runWith({ secrets: ["SERPAPI_KEY"] })` と `process.env.SERPAPI_KEY` を使う。鍵が未設定でも SerpApi だけをスキップし、他の取得元は続行する。
 - バックエンドでも 5.3.1 の 1 と同じノイズ除去と 14 日の期限をかけ、新しい順に最大 150 件を `news.json` に書く。`cacheControl: 'public, max-age=600'`。
 - 同時に `news/archive/YYYY-MM.json`（`publishedAt` の月）へ URL 重複を除いて追記し、消さない。
+- `scheduledNewsUpdate` の 6:30 実行時に、RTDB `newsClicks` の 7 日より古い日付ノードを削除する。
 - 週 1 回、媒体ごとの広告量を測って `newsSourceScores.json` に書く。広告の多い媒体は「今日の注目」の `score` を下げるだけで、画面には出さない（媒体名を名指しで低評価しない）。
 
 ### 5.4 VTuber

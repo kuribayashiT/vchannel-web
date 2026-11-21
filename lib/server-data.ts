@@ -1,5 +1,6 @@
 import { cacheLife } from "next/cache";
 import { GcsFetchError, getNews, getNewsArchive } from "@/lib/gcs";
+import { getNewsClicks24h } from "@/lib/news-clicks";
 import { buildVTuberAliasIndex, clusterNews, type NewsCluster } from "@/lib/news";
 import {
   GCS_FILES,
@@ -250,7 +251,8 @@ export async function getCachedNewsClusters(): Promise<NewsCluster[] | null> {
   }
   const { index } = await loadVTubers();
   const aliases = buildVTuberAliasIndex(index);
-  return clusterNews(news, { now: Date.now(), aliases });
+  const clicks = await getNewsClicks24h();
+  return clusterNews(news, { now: Date.now(), aliases, clicks });
 }
 
 function jstArchiveMonth(now: Date): string {

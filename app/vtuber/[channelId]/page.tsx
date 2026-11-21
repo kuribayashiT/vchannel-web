@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { cacheLife } from "next/cache";
 import { notFound } from "next/navigation";
+import { NewsExternalLink } from "@/components/NewsExternalLink";
 import { DetailView } from "@/components/VTuberTabs";
 import { formatDateSlug, todayJstParts } from "@/lib/events";
 import { formatCompact, formatNumber } from "@/lib/format";
@@ -555,14 +556,13 @@ export default async function VTuberDetailPage({ params }: PageProps) {
                     )}
                   </div>
                   <div className="mt-1 flex items-start justify-between gap-3">
-                    <a
+                    <NewsExternalLink
+                      id={cluster.lead.id}
                       href={cluster.lead.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
                       className="min-w-0 flex-1 text-zinc-900 underline-offset-2 hover:underline dark:text-zinc-100"
                     >
                       {cluster.lead.title}
-                    </a>
+                    </NewsExternalLink>
                     <span className="shrink-0 text-xs text-zinc-500">
                       {published ? jstMonthDay.format(published) : ""}
                     </span>

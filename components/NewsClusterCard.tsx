@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ChevronDown, Heart } from "lucide-react";
+import { NewsExternalLink } from "@/components/NewsExternalLink";
 import { SafeImage } from "@/components/SafeImage";
 import { NEWS_CATEGORY_LABELS, type NewsCluster } from "@/lib/news";
 
@@ -37,10 +38,9 @@ export function NewsClusterCard({
   return (
     <article className="rounded-xl border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
       <div className={featured ? "space-y-2" : "flex gap-3"}>
-        <a
+        <NewsExternalLink
+          id={cluster.lead.id}
           href={cluster.lead.url}
-          target="_blank"
-          rel="noopener noreferrer"
           className={featured ? "block" : "shrink-0"}
         >
           <SafeImage
@@ -55,7 +55,7 @@ export function NewsClusterCard({
                 : "h-20 w-32 rounded object-cover"
             }
           />
-        </a>
+        </NewsExternalLink>
         <div className="min-w-0 flex-1 space-y-1">
           <p className="text-xs text-blue-600">
             {cluster.lead.source}
@@ -68,14 +68,13 @@ export function NewsClusterCard({
               {NEWS_CATEGORY_LABELS[cluster.category]}
             </span>
           </p>
-          <a
+          <NewsExternalLink
+            id={cluster.lead.id}
             href={cluster.lead.url}
-            target="_blank"
-            rel="noopener noreferrer"
             className="line-clamp-2 text-sm font-medium"
           >
             {cluster.lead.title}
-          </a>
+          </NewsExternalLink>
           <p className="text-xs text-zinc-500">{formatNewsDate(cluster.latestAt)}</p>
         </div>
       </div>
@@ -117,14 +116,13 @@ export function NewsClusterCard({
           <ul className="mt-2 space-y-1 pl-4 text-xs">
             {cluster.others.map((other) => (
               <li key={other.id}>
-                <a
+                <NewsExternalLink
+                  id={other.id}
                   href={other.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   className="text-zinc-700 underline-offset-2 hover:underline dark:text-zinc-200"
                 >
                   {other.source} — {other.title}
-                </a>
+                </NewsExternalLink>
               </li>
             ))}
           </ul>

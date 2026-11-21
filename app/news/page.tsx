@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cacheLife } from "next/cache";
 import { Newspaper } from "lucide-react";
+import { NewsExternalLink } from "@/components/NewsExternalLink";
 import { NewsClusterCard } from "@/components/NewsClusterCard";
 import { NewsList } from "@/components/NewsList";
 import { getCachedNewsClusters } from "@/lib/server-data";
@@ -88,6 +89,41 @@ export default async function NewsPage() {
                     </div>
                   ))}
                 </div>
+              </section>
+            );
+          })()}
+
+          {(() => {
+            const readOnVchannel = clusters
+              .filter((cluster) => cluster.clicks >= 3)
+              .sort((a, b) => b.clicks - a.clicks)
+              .slice(0, 5);
+            if (readOnVchannel.length === 0) return null;
+            return (
+              <section className="mt-5">
+                <h2 className="mb-3 text-base font-bold">Vちゃんねるで読まれている</h2>
+                <ol className="space-y-2">
+                  {readOnVchannel.map((cluster, index) => (
+                    <li
+                      key={cluster.id}
+                      className="flex items-center gap-3 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-900"
+                    >
+                      <span className="w-5 shrink-0 text-center text-xs font-semibold text-zinc-500">
+                        {index + 1}
+                      </span>
+                      <NewsExternalLink
+                        id={cluster.lead.id}
+                        href={cluster.lead.url}
+                        className="min-w-0 flex-1 truncate text-zinc-900 underline-offset-2 hover:underline dark:text-zinc-100"
+                      >
+                        {cluster.lead.title}
+                      </NewsExternalLink>
+                      <span className="shrink-0 text-xs text-zinc-500">
+                        {cluster.clicks}回
+                      </span>
+                    </li>
+                  ))}
+                </ol>
               </section>
             );
           })()}
