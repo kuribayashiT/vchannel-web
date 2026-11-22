@@ -1,8 +1,7 @@
 import fs from 'fs';
-import path from 'path';
+import { OUTPUT_FORMAT_INSTRUCTIONS, callClaude, parseAiOutput, writeFiles } from './ai-output.mjs';
 
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-if (!ANTHROPIC_API_KEY) {
+if (!process.env.ANTHROPIC_API_KEY) {
   console.error('Error: ANTHROPIC_API_KEY is not set.');
   process.exit(1);
 }
@@ -15,12 +14,14 @@ async function fixCode() {
     return;
   }
 
-  // エラーログの行からファイルパスを確実に抽出する（より堅牢なパース処理）
+  // エラーログの行からファイルパスを抽出する（tsc 形式: path(行,列): error / Next.js ビルド形式: ./path:行:列）
   const targetFiles = new Set();
   const lines = errorLog.split('\n');
   for (const line of lines) {
     // 例: app/layout.tsx(69,56): error TS2304... のファイル名部分を抽出
-    const match = line.match(/^([a-zA-Z0-9_\-\/.[\]]+)\(\d+,\d+\):\s*error/);
+    const match =
+      line.match(/^([a-zA-Z0-9_\-\/.[\]()@]+)\(\d+,\d+\):\s*error/) ||
+      line.match(/^\.\/([a-zA-Z0-9_\-\/.[\]()@]+\.(?:tsx?|css)):\d+:\d+/);
     if (match && match[1]) {
       targetFiles.add(match[1]);
     }
@@ -48,58 +49,15 @@ async function fixCode() {
     "   - PageProps: `type PageProps = { params: Promise<{ channelId: string }> };`\n" +
     "   - LayoutProps: `type LayoutProps = { children: React.ReactNode };`\n" +
     "3. 存在しないモジュールや関数を勝手に捏造してインポートしないでください。エラー解決に最低限必要な修正のみを行い、確実にビルドが通る状態にしてください。\n" +
-    "4. **絶対に解説文や挨拶などの余計なテキストを出力せず、純粋なJSON配列のみを出力してください。**\n\n" +
-    "## 出力形式\n" +
-    "エラーログに含まれるファイルすべてについて、修正後のファイル全体を以下のJSON配列形式（コードブロックなしのプレーンなJSON）で出力してください。解説文は一切不要です。\n\n" +
-    "[\n  {\n    \"filePath\": \"app/layout.tsx\",\n    \"content\": \"修正後のファイルの中身全体...\"\n  }\n]";
+    "4. 修正が必要なファイルだけを出力してください（エラーの原因が別ファイルにある場合はそのファイルも可）。\n\n" +
+    OUTPUT_FORMAT_INSTRUCTIONS.replace(/<<<SPEC[\s\S]*?省略）\n/, '').replace(/\n- SPEC の見出し.*$/, '');
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01'
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-5-5',
-      max_tokens: 16384,
-      messages: [{ role: 'user', content: prompt }]
-    })
-  });
-
-  const data = await response.json();
-  if (!response.ok || !data.content) {
-    console.error('API Error:', data);
-    process.exit(1);
-  }
-
-  let textOutput = '';
-  for (const block of data.content) {
-    if (block.type === 'text') {
-      textOutput += block.text;
-    }
-  }
-
+  const textOutput = await callClaude(prompt);
   try {
-    const jsonMatch = textOutput.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) {
-      throw new Error('有効なJSON配列が見つかりませんでした');
-    }
-    const fixes = JSON.parse(jsonMatch[0]);
-
-    for (const fix of fixes) {
-      if (fix.filePath && fix.content) {
-        const dir = path.dirname(fix.filePath);
-        if (!fs.existsSync(dir)) {
-          fs.mkdirSync(dir, { recursive: true });
-        }
-        fs.writeFileSync(fix.filePath, fix.content, 'utf8');
-        console.log(`Successfully fixed: ${fix.filePath}`);
-      }
-    }
+    writeFiles(parseAiOutput(textOutput).files);
   } catch (e) {
-    console.error('Failed to parse AI response or apply fixes:', e);
-    console.log('Raw output:', textOutput);
+    console.error('Failed to apply fixes:', e.message);
+    console.log('Raw output (先頭 3000 文字):', textOutput.slice(0, 3000));
     process.exit(1);
   }
 }

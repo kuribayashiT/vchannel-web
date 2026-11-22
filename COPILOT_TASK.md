@@ -15,7 +15,7 @@
 
 **⚠ このファイルのタスク（完了済み・未完了とも）を削除・要約しないこと。** 完了したら該当行の `[ ]` を `[x]` にするだけにする。コードブロックの ``` も消さないこと（2026-11-12 の PR #17、2026-11-13 の PR #18 でファイル後半約 250 行と ``` が消えたため、PM が復元した。原因は `scripts/task-fallback.js` がファイル全体を書き直すこと）。
 
-上から順に着手すること（P0 → P1 → P2）。1タスク = 1PR を目安とし、実装完了時は `[ ]` を `[x]`（または ✅）に更新すること。
+上から順に着手すること（P0 → P1 → P2）。タスク行に `【Copilot】` がある項目（backend-repo の変更など）は、自動パイプラインは飛ばし、運営者が GitHub Copilot に依頼して実装する。1タスク = 1PR を目安とし、実装完了時は `[ ]` を `[x]`（または ✅）に更新すること。
 
 ### P0-GSC: Google Search Console 所有権確認（最優先・P0-AFF より先に着手）
 
@@ -1360,7 +1360,7 @@
     - 変更後、`grep -rn "officedataList\|GCS_FILES.officeData\|GCS_FILES.allVideos" app lib components` で、`lib/admin/` 以外に読み込み箇所が残っていないこと（`lib/admin/feature-data.ts` は PM 管理のため触らない）。`lib/gcs.ts` の `getAllVideos()` も使われていなければ消す。
   - **完了条件**: `npx tsc --noEmit` / `npm run build` がエラーなし。`/vtuber`・VTuber 詳細・`/events`・`/llms.txt`・`/api/vtuber` が変更前と同じ内容を返す。
 
-- [ ] **COST-8. 登録者推移ファイルを fetch キャッシュに載せる**（COST-7 の次に着手）
+- ⏸ **COST-8. 登録者推移ファイルを fetch キャッシュに載せる** — **保留（前提待ち・チェックボックスなし＝着手禁止）**。2026-11-22 PM 再確認でもまだ 1,939,680 バイト。自動パイプラインは前提を確認できないため、PM が 1,500,000 未満を確認してから `- [ ]` に戻す。
   - **対象ファイル**: `lib/gcs.ts` のみ
   - **前提の確認**: `curl -s --compressed https://storage.googleapis.com/vtuber-335811.appspot.com/youtubeSubscriberCountTransitionList.json | wc -c` が **1,500,000 未満**であること。Next.js は本文を base64 で保存するため、2MB の上限は元のサイズで約 1.5MB に当たる（`FRONTEND_SPEC.md` 6 章）。
     - 2026-11-22 時点は 1,939,680（インデント付きの旧形式）で、`npm run build` で `items over 2MB can not be cached (2587279 bytes)` になり Copilot が保留にした（正しい判断）。バックエンドの 24 時間ジョブが次に動くとインデントなしの約 930,000 になる。
@@ -1792,7 +1792,7 @@
 
 > **背景（2026-11-22）**: `firebase deploy` で「`functions.config()` と Runtime Config は非推奨。2027 年 3 月の停止後は、`functions.config()` に依存するデプロイが失敗する」という警告が出た。`backend-repo/functions/index.js` では、モジュールの先頭で `new OpenAI({ apiKey: functions.config().openai.key })` を実行している。この 1 行は全関数の読み込み時に実行されるため、停止後は OpenAI を使わない関数を含めて、どの関数もデプロイできなくなる。
 
-- [ ] **BE-1. OpenAI の鍵を `functions.config()` から Secret Manager に移す**
+- [ ] 【Copilot】**BE-1. OpenAI の鍵を `functions.config()` から Secret Manager に移す**
   - **対象ファイル**: `backend-repo/functions/index.js`、`FRONTEND_SPEC.md`（2 章のバックエンドの注意、または 6 章）
   - **仕様**:
     - モジュール先頭の `const openai = new OpenAI({ apiKey: functions.config().openai.key });` を削除する。
@@ -1805,6 +1805,41 @@
     - `node --check backend-repo/functions/index.js` が通る。親リポジトリで `npx tsc --noEmit` と `npm run build` が成功する。
     - `grep -rn "functions.config()" backend-repo/functions --include=*.js --exclude-dir=node_modules` が 0 件。
     - 完了報告に、運営者の作業として次を書く: ① `firebase functions:secrets:set OPENAI_API_KEY`（値は `firebase functions:config:get openai.key` で確認できる）② OpenAI を使う関数をまとめてデプロイする `firebase deploy --only functions:<関数名>,...` のコマンド（関数名を列挙する）③ デプロイ時に `functions.config()` の非推奨警告が出なくなったことを確認する。
+
+---
+
+### P1-AUTOFIX: 自動パイプラインが 1 ファイルにまとめて実装した部分の整理（2026-11-22 追加）
+
+> **背景（2026-11-22 PM 調査）**: 11/22 まで、自動パイプライン（`scripts/auto-coder.js`）は 1 回に 1 ファイルしか変更できなかった。そのため、次の 4 件は機能としては動くが、タスクが指定したファイル分けをせずに 1 ファイルの中にまとめて実装されている。仕様書（`FRONTEND_SPEC.md`）にも反映されていない。
+> - ADS-8: NG ワードの一覧と判定関数が `components/ChatBoard.tsx` の中にある（本来は `lib/ngWords.ts`）。
+> - CHAT-5: `CHAT_TOPICS` と `pickTopics` が `components/ChatBoard.tsx` の中にある（本来は `lib/chat.ts`）。
+> - CTR-1: `displayVtuberName` が `app/vtuber/[channelId]/page.tsx` の中にある（本来は `lib/vtuberName.ts`。管理画面と共通化する予定のため、切り出しが必要）。
+> - FILTER-9: `migrateLegacyFullSelection` が `components/AppShell.tsx` の中にある（本来は `hooks/useSelection.ts`。`selectedChannelIds` のキー名が 2 か所に重複している）。
+>
+> **共通ルール**: **見た目・挙動は一切変えない**（関数の移動と import の付け替えだけ）。関数の中身は今のコードをそのまま移す。
+
+- [ ] **AUTOFIX-1. 掲示板の NG ワードとお題を lib に移す**
+  - **対象ファイル**: `lib/ngWords.ts`（新規）、`lib/chat.ts`、`components/ChatBoard.tsx`
+  - **仕様**:
+    - `components/ChatBoard.tsx` にある `NG_WORDS`・`NG_PATTERNS`・`containsNgWord` を `lib/ngWords.ts` に移し、`containsNgWord` を export する。`ChatBoard.tsx` からは import して使う。`isHiddenPost`・`reportHref` は `ChatBoard.tsx` に残してよい。
+    - `components/ChatBoard.tsx` にある `CHAT_TOPICS` と `pickTopics` を `lib/chat.ts` に移して export する。`ChatBoard.tsx` からは import して使う。
+    - `lib/ngWords.ts` と `lib/chat.ts` は React やブラウザ API に依存させない（サーバーからも使えるように）。
+    - 仕様書: `FRONTEND_SPEC.md` の `### 5.6 チャット（掲示板）` の節に、「NG ワードは `lib/ngWords.ts`（`containsNgWord`）、お題は `lib/chat.ts`（`CHAT_TOPICS`・`pickTopics`）で管理する」と追記する。
+  - **完了条件**:
+    - `npx tsc --noEmit` / `npm run build` がエラーなし。
+    - `grep -n "NG_WORDS\|CHAT_TOPICS" components/ChatBoard.tsx` が 0 件。
+    - 掲示板の見た目・お題チップ・NG ワードでの投稿拒否と非表示・通報リンクが変更前と同じ。
+
+- [ ] **AUTOFIX-2. VTuber 表示名と旧選択データの移行処理を本来のファイルに移す**（AUTOFIX-1 の次に着手）
+  - **対象ファイル**: `lib/vtuberName.ts`（新規）、`app/vtuber/[channelId]/page.tsx`、`hooks/useSelection.ts`、`components/AppShell.tsx`
+  - **仕様**:
+    - `app/vtuber/[channelId]/page.tsx` にある `displayVtuberName` を `lib/vtuberName.ts` に移して export する。`page.tsx` からは import して使う。
+    - `components/AppShell.tsx` にある `migrateLegacyFullSelection` を `hooks/useSelection.ts` に移して export する。localStorage のキーは `useSelection.ts` の既存の定数（`CHANNELS_KEY`）を使い、`AppShell.tsx` の `SELECTED_IDS_KEY` は削除する。`AppShell.tsx` は import して、今と同じ場所で 1 回呼ぶ。
+    - 仕様書: `FRONTEND_SPEC.md` の `### 6.1 SEO / AIO 方針（2026-11-09 策定）` の節に、VTuber 詳細ページの title・description の型（CTR-1 の仕様の title / description の形）と、表示名は `lib/vtuberName.ts` の `displayVtuberName` で作ることを追記する。
+  - **完了条件**:
+    - `npx tsc --noEmit` / `npm run build` がエラーなし。
+    - `grep -n "function displayVtuberName" app/vtuber` と `grep -n "function migrateLegacyFullSelection" components` が 0 件。
+    - `/vtuber/UC-hM6YJuNYVAmUWxeIr9FeA` の `<title>` と h1 が変更前と同じ。
 
 ---
 

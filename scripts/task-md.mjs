@@ -13,6 +13,8 @@ export const AI_SECTION_HEADING =
   '### 🤖 AI 提案タスク（自動追加・PM 未レビュー。上の PM のタスクがすべて終わってから着手）';
 
 const TASK_LINE = /^- \[[ xX]\] /;
+/** タスク行にこの印があると、自動パイプラインは実装せず飛ばす（GitHub Copilot が手動で実装する） */
+export const COPILOT_ONLY_MARK = '【Copilot】';
 const OPEN_TASK_LINE = /^- \[ \] /;
 /** タスクのブロックの終わり（次のタスク・見出し・区切り線） */
 const BLOCK_END = /^(- \[[ xX]\] |#{1,6} |---\s*$)/;
@@ -30,12 +32,13 @@ function fenceCount(content) {
 }
 
 /**
- * ファイル内で最初の未完了タスク（行頭が `- [ ] `）を返す。
+ * ファイル内で最初の未完了タスク（行頭が `- [ ] `、【Copilot】付きを除く）を返す。
  * auto-coder・完了マーク・失敗メモはすべてこの関数で対象を決め、ずれないようにする。
  */
 export function firstOpenTask(content) {
   const lines = content.split('\n');
-  const start = lines.findIndex((l) => OPEN_TASK_LINE.test(l));
+  // 【Copilot】付きのタスク（backend-repo の変更など、パイプラインでは実装できないもの）は飛ばす
+  const start = lines.findIndex((l) => OPEN_TASK_LINE.test(l) && !l.includes(COPILOT_ONLY_MARK));
   if (start === -1) return null;
   let end = start + 1;
   while (end < lines.length && !BLOCK_END.test(lines[end])) end++;
