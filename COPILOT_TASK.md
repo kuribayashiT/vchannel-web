@@ -1328,7 +1328,7 @@
   - **仕様**: `loadVTubers()` の `details` の代わりに `getVTuberDetail(channelId)` を使う。`null` なら今と同じ 404、例外なら 502。
   - **完了条件**: `npx tsc --noEmit` / `npm run build` がエラーなし。レスポンスの JSON の形が変更前と同じ。
 
-- [ ] **COST-6. お気に入りの動画を `videoShards` から引く**（COST-5 の次に着手）
+- [x] **COST-6. お気に入りの動画を `videoShards` から引く**（COST-5 の次に着手）
   - **対象ファイル**: `app/api/videos/route.ts` のみ
   - **仕様**: `loadAllVideos()` の代わりに `getVideosByIds(ids)` を使う。`MAX_IDS`・ID の検証・エラー時の 502 はそのまま。
   - **完了条件**: `npx tsc --noEmit` / `npm run build` がエラーなし。お気に入りに登録した動画（30 日以内のもの）が `/favorites` に今までどおり出る。
