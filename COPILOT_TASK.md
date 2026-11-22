@@ -1318,7 +1318,7 @@
     - `npx tsc --noEmit` / `npm run build` がエラーなし。
     - VTuber 詳細ページ（例: ホロライブ公式・にじさんじ所属の数名）で、動画一覧・登録者推移グラフ・順位チップ・近い VTuber が変更前と同じに出る。
 
-- [ ] **COST-4. サイトマップの VTuber 更新日を `loadVTuberIndex()` から取る**（COST-3 の次に着手）
+- [x] **COST-4. サイトマップの VTuber 更新日を `loadVTuberIndex()` から取る**（COST-3 の次に着手）
   - **対象ファイル**: `app/sitemap.ts` のみ
   - **仕様**: `vtuberEntries()` で `loadVTubers()` の代わりに `loadVTuberIndex()` を使い、`lastModified` は `parseYmd(latestTransitionDate[item.channelId])` にする。
   - **完了条件**: `npx tsc --noEmit` / `npm run build` がエラーなし。`/sitemap.xml` の VTuber の URL 数と `lastmod` が変更前と同じ。

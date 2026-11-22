@@ -4,7 +4,7 @@ import { allDateSlugs } from "@/lib/events";
 import { getCachedSortedEventsMapByDateSlug } from "@/lib/events-data";
 import { getAllGuides } from "@/lib/guide";
 import { getCurrentReportContext, getReportMonths } from "@/lib/reports";
-import { loadVTubers } from "@/lib/server-data";
+import { loadVTuberIndex } from "@/lib/server-data";
 import { SITE_URL } from "@/lib/site";
 
 const PAGES: {
@@ -74,16 +74,13 @@ function parseYmd(ymd: string | undefined): Date | undefined {
 async function vtuberEntries(): Promise<MetadataRoute.Sitemap> {
   "use cache";
   cacheLife("days");
-  const { index, details } = await loadVTubers();
-  return index.map((item) => {
-    const latestYmd = details.get(item.channelId)?.transition.at(-1)?.date;
-    return {
-      url: `${SITE_URL}/vtuber/${item.channelId}`,
-      changeFrequency: "daily" as const,
-      priority: 0.6,
-      lastModified: parseYmd(latestYmd),
-    };
-  });
+  const { index, latestTransitionDate } = await loadVTuberIndex();
+  return index.map((item) => ({
+    url: `${SITE_URL}/vtuber/${item.channelId}`,
+    changeFrequency: "daily" as const,
+    priority: 0.6,
+    lastModified: parseYmd(latestTransitionDate[item.channelId]),
+  }));
 }
 
 async function eventDateEntries(): Promise<MetadataRoute.Sitemap> {
