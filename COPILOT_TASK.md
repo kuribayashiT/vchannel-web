@@ -917,12 +917,31 @@
     - `npm run build` が成功する。
     - NG ワードを含む投稿は送信できず、表示もされない。通報リンクから件名入りのメール作成画面が開く。
 
-- ⏸ **ADS-9. AdSense のコード・`ads.txt`・広告枠の設置** — **人手待ち（チェックボックスなし＝着手禁止）**
-  - **前提（人手作業）**: ADS-1〜8 が本番に出た後、ユーザーが AdSense に申請する。申請画面で発行される**サイト所有権の確認コード**（`ca-pub-XXXXXXXXXXXXXXXX`）を PM に渡す。PM がこのタスクに値を書き込み、行頭を `- [ ]` に変えた時点で着手可能になる。
+- [ ] **ADS-9. AdSense のサイト確認コードと `ads.txt` を設置する（審査リクエスト用）**（🚨2026-11-22 着手可・P0-SEC の次、他の未完了タスクより先に着手）
+  - **背景**: ユーザーが AdSense にサイト `vchannel.net` を追加した。審査をリクエストするには、サイトの所有権を確認するコードを本番に置く必要がある。
+  - **パブリッシャー ID**: **`ca-pub-1929244717899448`**（公開値。秘密情報ではない）
+  - **対象ファイル**: `lib/site.ts`、`app/layout.tsx`、`public/ads.txt`（新規）
+  - **仕様**:
+    - `lib/site.ts` に `ADSENSE_CLIENT_ID = "ca-pub-1929244717899448"` を追加する。
+    - `app/layout.tsx` の `metadata` に `other: { "google-adsense-account": ADSENSE_CLIENT_ID }` を追加する。既存の `verification`（Google Search Console）などは消さない。結果として `<meta name="google-adsense-account" content="ca-pub-1929244717899448">` が全ページの `<head>` に出ること。
+    - `public/ads.txt` を作り、内容は次の 1 行（末尾に改行）にする。
+      ```
+      google.com, pub-1929244717899448, DIRECT, f08c47fec0942fa0
+      ```
+    - **広告のスクリプト（`adsbygoogle.js`）と広告枠は、このタスクでは入れない**（ADS-10 で合格後に扱う）。
+    - `/admin` 配下にも meta が出ることは問題ない。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - 本番で `curl -s https://www.vchannel.net/ | grep google-adsense-account` に `ca-pub-1929244717899448` が含まれる。
+    - 本番で `curl -s https://www.vchannel.net/ads.txt` と `curl -sL https://vchannel.net/ads.txt` が、どちらも上記の 1 行を返す（`text/plain`、200）。
+    - 完了報告に「AdSense で『審査をリクエスト』を押してください」と添える。
+
+- ⏸ **ADS-10. AdSense の広告スクリプトと広告枠の設置** — **人手待ち（チェックボックスなし＝着手禁止）**
+  - **前提（人手作業）**: AdSense の審査に合格したら、ユーザーが PM に伝える。PM が広告枠の位置を決めてこのタスクに書き込み、行頭を `- [ ]` に変えた時点で着手可能になる。
   - 予定している内容:
-    - `layout.tsx` への AdSense スクリプトの追加（`next/script`、`afterInteractive`）。
-    - `public/ads.txt`（`google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0`）の設置。
-    - 合格後の広告枠の位置（記事本文の下、ランキングの下など。**掲示板には置かない**）。
+    - `layout.tsx` への AdSense スクリプトの追加（`next/script`、`afterInteractive`、`client=ca-pub-1929244717899448`）。
+    - 広告枠の位置（記事本文の下、ランキングの下など）。**掲示板には置かない**。
+    - プライバシーポリシーの「予定を含む」の表現の見直し。
 
 ### P0-CTR: 検索結果からのクリック率を上げる（2026-11-20 追加・P0-SEC の次に着手）
 
