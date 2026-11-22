@@ -36,6 +36,7 @@ export function shardOf(id: string): string {
 export const SPLIT_FILES = {
   vtuberIndex: "vtuberIndex.json",
   streamVideos: "streamVideos.json",
+  weeklyLiveViewTop: "weeklyLiveViewTop.json",
   vtuberDetail: (shard: string) => `vtuberDetail/${shard}.json`,
   videoShard: (shard: string) => `videoShards/${shard}.json`,
 } as const;
@@ -306,7 +307,7 @@ export async function getTwitterFollowerRanking(): Promise<
 export async function getWeeklyLiveViewRanking(): Promise<
   WeeklyLiveViewRankingItem[]
 > {
-  const raw = await fetchGcsJson(GCS_FILES.weeklyLiveView, REVALIDATE.live);
+  const raw = await fetchGcsJson(SPLIT_FILES.weeklyLiveViewTop, REVALIDATE.live);
   return toArray<RawVideo>(raw).map(normalizeVideo);
 }
 

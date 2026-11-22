@@ -1349,7 +1349,7 @@
   - **仕様**: `fetchGcsJson(GCS_FILES.subscriberTransition, 0)` の `0` を消して `REVALIDATE.default` にする。関連コメント（2MB 超のため…）を直す。（`FRONTEND_SPEC.md` 6 の該当行は PM が後で直すので触らない）
   - **完了条件**: `npx tsc --noEmit` / `npm run build` がエラーなし、かつビルドログに `youtubeSubscriberCountTransitionList.json` の `items over 2MB can not be cached` が出ない。ランキングの「登録者 急上昇」が変更前と同じ。
 
-- [ ] **COST-9. 同時視聴者数ランキングを `weeklyLiveViewTop.json`（上位 500 件）から読む**（COST-8 の次に着手。COST-8 が保留でも着手してよい）
+- [x] **COST-9. 同時視聴者数ランキングを `weeklyLiveViewTop.json`（上位 500 件）から読む**（COST-8 の次に着手。COST-8 が保留でも着手してよい）
   - **対象ファイル**: `lib/gcs.ts` のみ
   - **背景**: `weeklyLiveViewRanking.json` は約 1.97MB（2,735 件）あり、base64 換算で 2MB を超えるため fetch キャッシュに載らず、ランキング・月間レポートを表示するたびに丸ごとダウンロードされている。画面で使うのは上位 100 件まで（`RANKING_LIMIT`）なので、バックエンドが上位 500 件だけの `weeklyLiveViewTop.json`（約 0.3MB、形は同じ）を 5 分ごとに書き出すようにした。
   - **前提の確認**: `curl -sI https://storage.googleapis.com/vtuber-335811.appspot.com/weeklyLiveViewTop.json` が `200`。
