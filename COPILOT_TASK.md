@@ -1306,7 +1306,7 @@
     - `npx tsc --noEmit` / `npm run build` がエラーなし。
     - トップの「今日の配信」「明日の配信」「明日以降の配信」「過去アーカイブ」の件数・並びが、変更前とほぼ同じ（更新タイミング差の数件は可）。
 
-- [ ] **COST-3. `lib/server-data.ts` に分割ファイル版の読み込みを追加し、VTuber 詳細を `vtuberDetail/NN.json` から作る**（COST-2 の次に着手）
+- [x] **COST-3. `lib/server-data.ts` に分割ファイル版の読み込みを追加し、VTuber 詳細を `vtuberDetail/NN.json` から作る**（COST-2 の次に着手）
   - **対象ファイル**: `lib/server-data.ts` のみ
   - **仕様**:
     - `export async function loadVTuberIndex(): Promise<{ index: VTuberIndexItem[]; latestTransitionDate: Record<string, string> }>` を追加する。`"use cache"` ＋ `cacheLife("hours")`。`getVTuberIndexRaw()` から、今の `loadVTubers` と同じ並び（事務所の出現順 → 事務所内で公式を先頭）で `index` を作る。`latestTransitionDate` は channelId → `latestTransitionDate`（空文字は入れない）。

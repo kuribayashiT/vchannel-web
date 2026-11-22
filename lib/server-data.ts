@@ -1,9 +1,13 @@
 import { cacheLife } from "next/cache";
 import {
   GcsFetchError,
+  getVTuberDetailShard,
+  getVTuberIndexRaw,
+  getVideoShard,
   getNews,
   getNewsArchive,
   getNewsSourceScores,
+  shardOf,
 } from "@/lib/gcs";
 import { getNewsClicks24h } from "@/lib/news-clicks";
 import { buildVTuberAliasIndex, clusterNews, type NewsCluster } from "@/lib/news";
@@ -103,6 +107,41 @@ export const loadVTubers = memo(async () => {
   return { details, index };
 });
 
+export async function loadVTuberIndex(): Promise<{
+  index: VTuberIndexItem[];
+  latestTransitionDate: Record<string, string>;
+}> {
+  "use cache";
+  cacheLife("hours");
+  const raw = await getVTuberIndexRaw();
+  const index: VTuberIndexItem[] = [];
+  const latestTransitionDate: Record<string, string> = {};
+  for (const list of Object.values(raw)) {
+    const members = list
+      .map((item) => ({
+        raw: item,
+        normalized: normalizeVTuber(item),
+      }))
+      .filter((item) => item.normalized.channelId)
+      .sort(
+        (a, b) => Number(b.normalized.officeFlg) - Number(a.normalized.officeFlg),
+      );
+    for (const { raw: item, normalized } of members) {
+      index.push({
+        channelId: normalized.channelId,
+        name: normalized.name,
+        office: normalized.office,
+        officeFlg: normalized.officeFlg,
+        thumbnail: normalized.channelThumbnail,
+        subscriberCount: normalized.subscriberCount,
+      });
+      const latest = item.latestTransitionDate?.trim();
+      if (latest) latestTransitionDate[normalized.channelId] = latest;
+    }
+  }
+  return { index, latestTransitionDate };
+}
+
 export function toVTuberTabItems(index: VTuberIndexItem[]): VTuberTabItem[] {
   return index.map(({ channelId, name }) => ({
     channelId,
@@ -153,7 +192,7 @@ export async function getCachedVTuberPageData(): Promise<{
 }> {
   "use cache";
   cacheLife("hours");
-  const { index } = await loadVTubers();
+  const { index } = await loadVTuberIndex();
   const counts = countVTuberIndex(index);
   return {
     tabItems: toVTuberTabItems(index),
@@ -167,8 +206,23 @@ export async function getCachedVTuberPageData(): Promise<{
 export async function getVTuberDetail(
   channelId: string,
 ): Promise<VTuberDetail | null> {
-  const { details } = await loadVTubers();
-  return details.get(channelId) ?? null;
+  const rawIndex = await getVTuberIndexRaw();
+  let indexItem: RawVTuber | null = null;
+  for (const list of Object.values(rawIndex)) {
+    const found = list.find((item) => normalizeVTuber(item).channelId === channelId);
+    if (found) {
+      indexItem = found;
+      break;
+    }
+  }
+  if (!indexItem) return null;
+
+  const shard = await getVTuberDetailShard(shardOf(channelId));
+  const shardEntry = shard[channelId];
+  const detailSource: RawVTuber = shardEntry
+    ? { ...indexItem, ...shardEntry }
+    : { ...indexItem, videos: {} };
+  return toDetail(detailSource);
 }
 
 export async function getCachedVTuberDetail(
@@ -187,7 +241,7 @@ export async function getCachedVTuberRanks(channelId: string): Promise<{
 } | null> {
   "use cache";
   cacheLife("hours");
-  const { index } = await loadVTubers();
+  const { index } = await loadVTuberIndex();
   const sorted = [...index].sort((a, b) => b.subscriberCount - a.subscriberCount);
   const overallIndex = sorted.findIndex((item) => item.channelId === channelId);
   if (overallIndex < 0) return null;
@@ -211,7 +265,7 @@ export async function getCachedNearbyVTubers(
 ): Promise<VTuberIndexItem[]> {
   "use cache";
   cacheLife("hours");
-  const { index } = await loadVTubers();
+  const { index } = await loadVTuberIndex();
   const sorted = [...index].sort((a, b) => b.subscriberCount - a.subscriberCount);
   const center = sorted.findIndex((item) => item.channelId === channelId);
   if (center < 0 || sorted.length <= 1 || limit <= 0) return [];
@@ -244,6 +298,40 @@ export const loadAllVideos = memo(async () => {
   return map;
 });
 
+export async function getVideosByIds(ids: string[]): Promise<Video[]> {
+  if (ids.length === 0) return [];
+  const shardToIds = new Map<string, string[]>();
+  for (const id of ids) {
+    if (!id) continue;
+    const shard = shardOf(id);
+    const current = shardToIds.get(shard);
+    if (current) {
+      current.push(id);
+      continue;
+    }
+    shardToIds.set(shard, [id]);
+  }
+
+  const shardEntries = await Promise.all(
+    Array.from(shardToIds.keys()).map(async (shard) => [
+      shard,
+      await getVideoShard(shard),
+    ] as const),
+  );
+  const shardMap = new Map<string, Record<string, RawVideo>>(shardEntries);
+
+  const videos: Video[] = [];
+  for (const id of ids) {
+    if (!id) continue;
+    const raw = shardMap.get(shardOf(id))?.[id];
+    if (!raw) continue;
+    const video = normalizeVideo(raw);
+    if (!video.videoId) continue;
+    videos.push(video);
+  }
+  return videos;
+}
+
 export async function getCachedNewsClusters(): Promise<NewsCluster[] | null> {
   "use cache";
   cacheLife({ stale: 600, revalidate: 600, expire: 3600 });
@@ -254,7 +342,7 @@ export async function getCachedNewsClusters(): Promise<NewsCluster[] | null> {
     if (error instanceof GcsFetchError) return null;
     throw error;
   }
-  const { index } = await loadVTubers();
+  const { index } = await loadVTuberIndex();
   const aliases = buildVTuberAliasIndex(index);
   const clicks = await getNewsClicks24h();
   const sourceScores = await getNewsSourceScores();
@@ -311,7 +399,7 @@ async function getCachedRelatedNewsClusters(): Promise<NewsCluster[] | null> {
     getNewsArchive(previousMonth),
   ]);
   const mergedNews = dedupeNewsByUrl(news.concat(currentArchive, previousArchive));
-  const { index } = await loadVTubers();
+  const { index } = await loadVTuberIndex();
   const aliases = buildVTuberAliasIndex(index);
   const sourceScores = await getNewsSourceScores();
   return clusterNews(mergedNews, {
