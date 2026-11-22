@@ -1,6 +1,6 @@
 # COPILOT_TASK: ランキングへの「登録者 急上昇」タブ追加および UI 改善バックログ
 
-> 最終更新: 2026-11-21 / 担当: プロダクトデザイナー → 実装: GitHub Copilot
+> 最終更新: 2026-11-22 / 担当: プロダクトデザイナー → 実装: GitHub Copilot
 
 ---
 
@@ -1272,6 +1272,82 @@
     - `/vtuber` の HTML サイズの増加が 5KB 以内（`npm run build` 後の `.next/server/app/vtuber.html` で比べる）。
     - フィルターを開いてから `/vtuber` に移っても、`/api/office-thumbnails` へのリクエストが 2 回目に飛ばない。
     - `FRONTEND_SPEC.md` 5.4（PM 更新済み）の記述と実装が一致している。
+
+---
+
+### 🚨 P0-COST: 巨大 JSON の読み込みをやめて GCS の転送料を下げる（2026-11-22 追加・**最優先。CHAT-6 より先に着手**。COST-1 → COST-8 の順）
+
+> **調査結果（2026-11-22）**: 今月の Firebase 請求 ¥4,175 のうち ¥2,796 が GCS の外部転送（165GB）。原因は Web が `officedataList.json`（約 20MB）と `allvideos.json`（約 18MB）を読んでいること。Next.js の fetch キャッシュは 2MB 超を保持できないため、`lib/server-data.ts` の `memo`（インスタンス内 1 時間）や `lib/stream-data.ts`（5 分ごと）のたびに丸ごとダウンロードされていた。11/13 のドメイン移行後にクロールが増えて急増した。
+> バックエンドが用途別の小さいファイル（`vtuberIndex.json`・`vtuberDetail/NN.json`・`videoShards/NN.json`・`streamVideos.json`）を 30 分ごとに書き出すようにした。仕様は `FRONTEND_SPEC.md` 2.1・6。
+> **着手前の確認**: `curl -sI https://storage.googleapis.com/vtuber-335811.appspot.com/vtuberIndex.json` と `.../streamVideos.json`、`.../vtuberDetail/00.json`、`.../videoShards/00.json` がすべて `200` であること。どれかが `404` なら PM のバックエンドのデプロイ待ちなので、P0-COST を飛ばして次のタスクに進む。
+> ⚠ 1 タスク = 1 ファイル。各タスクの完了時点で `npx tsc --noEmit` と `npm run build` が通る順番にしてあるので、順番を変えないこと。見た目・表示内容は一切変えない（データの取り方だけを変える）。
+
+- [ ] **COST-1. `lib/gcs.ts` に分割ファイルの取得関数を追加し、事務所一覧を `vtuberIndex.json` から読む**
+  - **対象ファイル**: `lib/gcs.ts` のみ
+  - **仕様**:
+    - `export const SHARD_COUNT = 64;` と `export function shardOf(id: string): string`（各文字の `charCodeAt` の合計 % 64 を `padStart(2, "0")`）を追加する。`FRONTEND_SPEC.md` 2.1 の「シャード番号」と同じ計算。
+    - ファイル名定数 `export const SPLIT_FILES = { vtuberIndex: "vtuberIndex.json", streamVideos: "streamVideos.json", vtuberDetail: (shard: string) => \`vtuberDetail/${shard}.json\`, videoShard: (shard: string) => \`videoShards/${shard}.json\` } as const;` を追加する（`types/index.ts` の `GCS_FILES` は変えない）。
+    - 型 `export type RawVTuberIndexItem = RawVTuber & { latestTransitionDate?: string };`、`export type RawVTuberDetailShard = Record<string, { videos?: Record<string, RawVideo>; youtubeSubscriberCountTransition?: Record<string, NumLike> }>;` を追加する。
+    - 取得関数を追加する（すべて `fetchGcsJson` を使い、第 2 引数は省略＝`REVALIDATE.default`。`0` や `"no-store"` にしない）:
+      - `getVTuberIndexRaw(): Promise<Record<string, RawVTuberIndexItem[]>>`
+      - `getVTuberDetailShard(shard: string): Promise<RawVTuberDetailShard>`
+      - `getVideoShard(shard: string): Promise<Record<string, RawVideo>>`
+      - `getStreamVideoList(): Promise<Video[]>`（`streamVideos.json`、`revalidate: 300`、`toArray<RawVideo>(raw).map(normalizeVideo)`）
+    - 既存の `getOfficeDataList()` は `officedataList.json` ではなく `getVTuberIndexRaw()` を使うように変える（戻り値の型・正規化はそのまま。`revalidate: 0` をやめる）。JSDoc の「約 25MB」の説明も直す。
+    - 既存の `getAllVideos()` は残す（COST-2 で使わなくなる）。
+  - **完了条件**:
+    - `npx tsc --noEmit` / `npm run build` がエラーなし。
+    - フィルターの事務所一覧（`/api/office-thumbnails` とレイアウトの事務所名）が今までと同じ並びで出る。
+
+- [ ] **COST-2. トップの配信一覧を `streamVideos.json` から作る**（COST-1 の次に着手）
+  - **対象ファイル**: `lib/stream-data.ts` のみ
+  - **仕様**: `getAllVideos()` の代わりに `getStreamVideoList()` を使う。`trimStreamVideos()` はそのまま通す（今日〜7 日後＋過去 60 件に絞る処理は変えない）。`cacheLife` もそのまま。
+  - **完了条件**:
+    - `npx tsc --noEmit` / `npm run build` がエラーなし。
+    - トップの「今日の配信」「明日の配信」「明日以降の配信」「過去アーカイブ」の件数・並びが、変更前とほぼ同じ（更新タイミング差の数件は可）。
+
+- [ ] **COST-3. `lib/server-data.ts` に分割ファイル版の読み込みを追加し、VTuber 詳細を `vtuberDetail/NN.json` から作る**（COST-2 の次に着手）
+  - **対象ファイル**: `lib/server-data.ts` のみ
+  - **仕様**:
+    - `export async function loadVTuberIndex(): Promise<{ index: VTuberIndexItem[]; latestTransitionDate: Record<string, string> }>` を追加する。`"use cache"` ＋ `cacheLife("hours")`。`getVTuberIndexRaw()` から、今の `loadVTubers` と同じ並び（事務所の出現順 → 事務所内で公式を先頭）で `index` を作る。`latestTransitionDate` は channelId → `latestTransitionDate`（空文字は入れない）。
+    - `getVTuberDetail(channelId)` を書き換える: `getVTuberIndexRaw()` から該当 VTuber を探し（無ければ `null`）、`getVTuberDetailShard(shardOf(channelId))` の同じ channelId の `videos`・`youtubeSubscriberCountTransition` を重ねて（`{ ...indexItem, ...shardEntry }`）、既存の `toDetail()` に渡す。シャードに無ければ `videos: {}`・推移なしで作る。`getCachedVTuberDetail` はそのまま。
+    - `export async function getVideosByIds(ids: string[]): Promise<Video[]>` を追加する。ID をシャードごとにまとめ、必要なシャードだけ `getVideoShard()` で並列取得し、`ids` の順で `normalizeVideo` した動画を返す（見つからない ID は飛ばす）。
+    - このファイル内で `loadVTubers()` の `index` を使っている関数（`getCachedVTuberDirectory` 系・順位・近い VTuber・ニュースのエイリアスなど）は、すべて `loadVTuberIndex()` に置き換える。
+    - `loadVTubers` と `loadAllVideos` はまだ消さない（他ファイルが使っているため。COST-7 で消す）。
+  - **完了条件**:
+    - `npx tsc --noEmit` / `npm run build` がエラーなし。
+    - VTuber 詳細ページ（例: ホロライブ公式・にじさんじ所属の数名）で、動画一覧・登録者推移グラフ・順位チップ・近い VTuber が変更前と同じに出る。
+
+- [ ] **COST-4. サイトマップの VTuber 更新日を `loadVTuberIndex()` から取る**（COST-3 の次に着手）
+  - **対象ファイル**: `app/sitemap.ts` のみ
+  - **仕様**: `vtuberEntries()` で `loadVTubers()` の代わりに `loadVTuberIndex()` を使い、`lastModified` は `parseYmd(latestTransitionDate[item.channelId])` にする。
+  - **完了条件**: `npx tsc --noEmit` / `npm run build` がエラーなし。`/sitemap.xml` の VTuber の URL 数と `lastmod` が変更前と同じ。
+
+- [ ] **COST-5. `/api/vtuber/[channelId]` を `getVTuberDetail()` で返す**（COST-4 の次に着手）
+  - **対象ファイル**: `app/api/vtuber/[channelId]/route.ts` のみ
+  - **仕様**: `loadVTubers()` の `details` の代わりに `getVTuberDetail(channelId)` を使う。`null` なら今と同じ 404、例外なら 502。
+  - **完了条件**: `npx tsc --noEmit` / `npm run build` がエラーなし。レスポンスの JSON の形が変更前と同じ。
+
+- [ ] **COST-6. お気に入りの動画を `videoShards` から引く**（COST-5 の次に着手）
+  - **対象ファイル**: `app/api/videos/route.ts` のみ
+  - **仕様**: `loadAllVideos()` の代わりに `getVideosByIds(ids)` を使う。`MAX_IDS`・ID の検証・エラー時の 502 はそのまま。
+  - **完了条件**: `npx tsc --noEmit` / `npm run build` がエラーなし。お気に入りに登録した動画（30 日以内のもの）が `/favorites` に今までどおり出る。
+
+- [ ] **COST-7. `loadVTubers` を `vtuberIndex.json` 版に置き換え、巨大ファイルの読み込みと `memo` を消す**（COST-6 の次に着手）
+  - **対象ファイル**: `lib/server-data.ts` のみ
+  - **仕様**:
+    - `loadVTubers` を `export const loadVTubers = loadVTuberIndex;` にする（`app/llms.txt/route.ts`・`app/api/vtuber/route.ts`・`lib/events-data.ts`・`app/api/admin/vtubers/route.ts` は `.index` だけを使っているので、そのまま動く）。
+    - `loadAllVideos`・`memo`・`TTL_MS` と、ファイル先頭の「約19MB / 約16MB をメモリ保持する」コメントを消す。
+    - 変更後、`grep -rn "officedataList\|GCS_FILES.officeData\|GCS_FILES.allVideos" app lib components` で、`lib/admin/` 以外に読み込み箇所が残っていないこと（`lib/admin/feature-data.ts` は PM 管理のため触らない）。`lib/gcs.ts` の `getAllVideos()` も使われていなければ消す。
+  - **完了条件**: `npx tsc --noEmit` / `npm run build` がエラーなし。`/vtuber`・VTuber 詳細・`/events`・`/llms.txt`・`/api/vtuber` が変更前と同じ内容を返す。
+
+- [ ] **COST-8. 登録者推移ファイルを fetch キャッシュに載せる**（COST-7 の次に着手）
+  - **対象ファイル**: `lib/gcs.ts` のみ
+  - **前提の確認**: `curl -s https://storage.googleapis.com/vtuber-335811.appspot.com/youtubeSubscriberCountTransitionList.json | wc -c` が 2,000,000 未満であること（2026-11-22 からバックエンドがインデントなしで書くため約 0.93MB になる見込み）。2MB 以上なら何もせずこのタスクを `[x]` にせず PM に報告する。
+  - **仕様**: `fetchGcsJson(GCS_FILES.subscriberTransition, 0)` の `0` を消して `REVALIDATE.default` にする。関連コメント（2MB 超のため…）を直す。（`FRONTEND_SPEC.md` 6 の該当行は PM が後で直すので触らない）
+  - **完了条件**: `npx tsc --noEmit` / `npm run build` がエラーなし。ランキングの「登録者 急上昇」が変更前と同じ。
+
+---
 
 ### P0-CHATUX: 掲示板の見た目の整理と「書き込むきっかけ」づくり（2026-11-14 追加・P0-VTFIND の次に着手。FILTER-1 が終わっていること）
 
