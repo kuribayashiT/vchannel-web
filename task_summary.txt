@@ -1,3 +1,12 @@
-### 🚀 本日の自動実装成果
-- **対象ファイル**: `components/ChatBoard.tsx`
-- **改善内容**: 掲示板に日替わりの「お題」チップを追加しました。スレッドの投稿リスト上と空状態の枠内に 3 つ出て、タップすると `【お題】…` が入った投稿シートが開きます。お題は JST の日付から決まる順番で選ぶので、同じ日は全員同じで、Math.random は使っていません。日付キーはマウント後に作り、マウント前は 1 行分の高さだけ確保しています。空状態の文言も変更しました。1 回の出力で変更できるのは 1 ファイルだけで、`lib/chat.ts` の現状の中身が見えないため、`CHAT_TOPICS` と `pickTopics` は `ChatBoard.tsx` 内に置いています。`lib/chat.ts` への移動は、同ファイルを見られる別の実行で行ってください。型チェックとビルドは未実行です。
+### 🚀 自動実装の成果
+- **タスク**: **CHAT-6. `/chat?channel=…&draft=…` で事務所スレッドを開き、VTuber 詳細ページから書き込めるようにする**（CHAT-5 の次に着手）
+- **変更したファイル**:
+  - `app/chat/page.tsx`
+  - `components/ChatBoard.tsx`
+  - `app/vtuber/[channelId]/page.tsx`
+- **改善内容**: `/chat?channel=…&draft=…` のディープリンクを実装しました。`channel` の所属事務所のスレッドを初期タブにして `scrollIntoView` で見える位置へ出し、`draft` は投稿シートを 1 回だけ自動で開きます（自動送信はしません）。
+シートを閉じると `router.replace("/chat", { scroll: false })` でクエリを消します。`app/chat/page.tsx` は `ChatBoard` を `Suspense` で包み、`canonical` を `/chat` にしました。
+VTuber 詳細ページの `DetailView` 直後に、`{事務所名}の掲示板` カードと `{VTuber名}さんについて書く` ボタン（`rel="nofollow"`）を追加しました。`listThreads()` は `"use cache"` で約 10 分キャッシュし、失敗した場合や対応スレッドがない事務所ではカードを出しません。
+`tsc` と `npm run build` は実行していません。
+`draft` は前後の空白を取って 100 字に切り詰めますが、元の `draft` が空白で終わっていれば末尾に半角スペース 1 つを戻します。`○○さん ` の形で書き始められるようにするためで、仕様書の「前後の空白を取る」とは少し異なります。
+`lib/firestore.ts` は変更していません。
