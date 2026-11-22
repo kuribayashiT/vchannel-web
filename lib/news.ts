@@ -5,6 +5,8 @@ import {
   NEWS_NOISE_HOSTS,
   NEWS_NOISE_SOURCES,
   NEWS_SOURCE_TIER_MAP,
+  VTUBER_KEYWORDS,
+  VTUBER_MEDIA,
   normalizeNewsSourceName,
   type SourceTier,
 } from "@/lib/news-sources";
@@ -118,6 +120,7 @@ const ALIAS_BLOCK_LIST = new Set(
     "official",
     "channel",
     "ch",
+    "マスター",
   ].map((x) => normalizeMatchText(x)),
 );
 
@@ -150,6 +153,33 @@ function hostMatches(hostname: string, candidate: string): boolean {
 function sourceNameFromNews(news: News): string {
   const source = news.channel.trim();
   return source || DISPLAY_SOURCE_FALLBACK;
+}
+
+function isVtuberMediaNews(news: News): boolean {
+  const normalizedSource = normalizeNewsSourceName(sourceNameFromNews(news));
+  if (VTUBER_MEDIA.sourceNames.has(normalizedSource)) return true;
+  const safeUrl = safeHttpUrl(news.url);
+  if (!safeUrl) return false;
+  const host = new URL(safeUrl).hostname.toLowerCase();
+  return VTUBER_MEDIA.hostnames.some((baseHost) => hostMatches(host, baseHost));
+}
+
+function matchesVtuberAlias(title: string, aliases: Map<string, VTuberRef>): boolean {
+  const normalizedTitle = normalizeMatchText(title);
+  if (!normalizedTitle) return false;
+  for (const alias of aliases.keys()) {
+    if (normalizedTitle.includes(alias)) return true;
+  }
+  return false;
+}
+
+function isRelevantGoogleNews(news: News, aliases: Map<string, VTuberRef>): boolean {
+  if (news.origin !== "gnews") return true;
+  return (
+    VTUBER_KEYWORDS.test(news.title) ||
+    matchesVtuberAlias(news.title, aliases) ||
+    isVtuberMediaNews(news)
+  );
 }
 
 function cleanTitle(title: string): string {
@@ -391,6 +421,7 @@ export function clusterNews(
 ): NewsCluster[] {
   const filtered = items
     .filter((item) => !isNoiseNews(item, opts.now, opts.maxAgeDays))
+    .filter((item) => isRelevantGoogleNews(item, opts.aliases))
     .map((item) => ({
       raw: item,
       view: toNewsItemView(item),

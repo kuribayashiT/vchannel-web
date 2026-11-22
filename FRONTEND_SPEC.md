@@ -254,6 +254,7 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
   - VTuber の呼び名（5.3.1 の 6）に一致する（フロントのみ）。
   - 媒体が VTuber 専門メディア（PANORA、MoguLive / Mogura VR）。
   - SerpApi・ホロライブ公式の記事にはこの条件をかけない（検索語が VTuber 向けのため）。
+  - 実装は `lib/news-sources.ts` の `VTUBER_KEYWORDS`・`VTUBER_MEDIA` を使う（フロントはキーワード + 呼び名 + 専門メディア、バックエンドはキーワード + 専門メディア）。
 - **サムネの補い方**: クラスタの `imageSrc` は、代表記事に画像があればそれ、無ければ `others` のうち画像がある最初の記事の画像にする（同じ話題の別媒体の画像を借りる）。それでも無いもの、または読み込みに失敗したものは、次の代替サムネを出す。
 - **代替サムネ**（`components/NewsThumbFallback.tsx`）: 壊れた画像アイコン（`ImageOff`）はやめ、カテゴリごとの淡いグラデーションにアイコンと媒体名を載せたカードにする。
 
@@ -286,7 +287,9 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 
 #### 5.3.5 バックエンド（`scheduledNewsUpdate`。NEWS-4・NEWS-5・NEWS-7）
 - 取得元: SerpApi（従来）＋ ホロライブ公式 RSS `https://hololivepro.com/news/feed/`（`channel: "ホロライブ公式"`、`origin: "hololive"`）＋ Google News RSS（無料）の追加検索 2 本（`origin: "gnews"`）。にじさんじ公式は RSS が無く、ページもクライアント描画なので直接は取らない（Google News に `にじさんじ` 媒体として載る）。
+- Google News RSS の検索語は `ぶいすぽ OR ネオポルテ OR ななしいんく OR 774inc OR どっとライブ` と `VTuber デビュー OR 個人勢VTuber`（`.LIVE` は使わない）。
 - SerpApi は `runWith({ secrets: ["SERPAPI_KEY"] })` と `process.env.SERPAPI_KEY` を使う。鍵が未設定でも SerpApi だけをスキップし、他の取得元は続行する。
+- gnews はバックエンドでも 5.3.2.1 の「キーワード」または「VTuber 専門メディア」を満たす記事だけ `news.json` に入れる（呼び名の照合はフロントのみ）。
 - バックエンドでも 5.3.1 の 1 と同じノイズ除去と 14 日の期限をかけ、新しい順に最大 150 件を `news.json` に書く。`cacheControl: 'public, max-age=600'`。
 - 同時に `news/archive/YYYY-MM.json`（`publishedAt` の月）へ URL 重複を除いて追記し、消さない。
 - `scheduledNewsUpdate` の 6:30 実行時に、RTDB `newsClicks` の 7 日より古い日付ノードを削除する。

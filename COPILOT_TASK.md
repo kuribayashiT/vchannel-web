@@ -1714,7 +1714,7 @@
     - アーカイブがまだ無い状態でも `/vtuber/[channelId]` がエラーにならない。
     - 完了報告に `firebase deploy --only functions:scheduledNewsUpdate` が必要と書く。
 
-- [ ] **NEWS-FIX-1. Google News 由来の関係ない記事（EXILE・音楽ライブ・スポーツ中継など）を除く**（🚨 NEWS-TAP より先に着手）
+- [x] **NEWS-FIX-1. Google News 由来の関係ない記事（EXILE・音楽ライブ・スポーツ中継など）を除く**（🚨 NEWS-TAP より先に着手）
   - **対象ファイル**: `lib/news.ts`、`lib/news-sources.ts`、`backend-repo/functions/index.js`（`scheduledNewsUpdate` の Google News RSS の検索語と絞り込み）、`FRONTEND_SPEC.md`（5.3.2.1・5.3.5）
   - **背景**: 2026-11-22 の `news.json` 150 件のうち 58 件が Google News RSS（`origin: "gnews"`）由来で、VTuber 関係は 3〜4 件だけ。NEWS-4 の検索語の `.LIVE` が「LIVE」全般に一致している（PM の仕様ミス）。この記事は画像も無いため、サムネが出ない記事のほとんどがこれ。
   - **仕様**（`FRONTEND_SPEC.md` 5.3.2.1 のとおり）:
@@ -1785,6 +1785,26 @@
     - `node --check backend-repo/functions/index.js` が通る。`npx tsc --noEmit` と `npm run build` が成功する。
     - `newsSourceScores.json` が無い状態でも `/news` が従来どおり表示される。
     - 完了報告に `firebase deploy --only functions:scheduledNewsSourceAudit` が必要と書く。
+
+---
+
+### P2-BACKEND: Cloud Functions の保守（2026-11-22 追加・期限 2027-02 末。P1-NEWS の次に着手）
+
+> **背景（2026-11-22）**: `firebase deploy` で「`functions.config()` と Runtime Config は非推奨。2027 年 3 月の停止後は、`functions.config()` に依存するデプロイが失敗する」という警告が出た。`backend-repo/functions/index.js` では、モジュールの先頭で `new OpenAI({ apiKey: functions.config().openai.key })` を実行している。この 1 行は全関数の読み込み時に実行されるため、停止後は OpenAI を使わない関数を含めて、どの関数もデプロイできなくなる。
+
+- [ ] **BE-1. OpenAI の鍵を `functions.config()` から Secret Manager に移す**
+  - **対象ファイル**: `backend-repo/functions/index.js`、`FRONTEND_SPEC.md`（2 章のバックエンドの注意、または 6 章）
+  - **仕様**:
+    - モジュール先頭の `const openai = new OpenAI({ apiKey: functions.config().openai.key });` を削除する。
+    - 代わりに `getOpenAI()` を作り、初回呼び出し時に `process.env.OPENAI_API_KEY` で `OpenAI` を生成して使い回す（遅延生成）。鍵が無いときは `null` を返し、呼び出し側はログを出して OpenAI を使う処理だけを飛ばす。関数全体は失敗させない。
+    - `openai.` を使っているすべての関数（`grep -n "openai\." functions/index.js` で特定する）を `getOpenAI()` に置き換える。その関数の `runWith` に `secrets: ['OPENAI_API_KEY']` を追加する（既に `secrets` がある関数は配列に足す）。
+    - `functions.config()` の呼び出しが `functions/` 配下に 1 つも残らないようにする（`index.js` 以外のファイルも確認する）。
+    - SerpApi（NEWS-4）と同じ書き方にそろえる。
+    - `firebase-functions` のメジャーバージョンを上げる作業は、このタスクではしない（破壊的変更があるため。必要なら別タスクにする）。
+  - **完了条件**:
+    - `node --check backend-repo/functions/index.js` が通る。親リポジトリで `npx tsc --noEmit` と `npm run build` が成功する。
+    - `grep -rn "functions.config()" backend-repo/functions --include=*.js --exclude-dir=node_modules` が 0 件。
+    - 完了報告に、運営者の作業として次を書く: ① `firebase functions:secrets:set OPENAI_API_KEY`（値は `firebase functions:config:get openai.key` で確認できる）② OpenAI を使う関数をまとめてデプロイする `firebase deploy --only functions:<関数名>,...` のコマンド（関数名を列挙する）③ デプロイ時に `functions.config()` の非推奨警告が出なくなったことを確認する。
 
 ---
 

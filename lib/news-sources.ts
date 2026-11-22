@@ -100,6 +100,16 @@ export const NEWS_NOISE_SOURCES = new Set(
   ["youtube", "howl.link"].map(normalizeSource),
 );
 
+export const VTUBER_KEYWORDS =
+  /(VTuber|Vtuber|ブイチューバー|バーチャル|Vぷろ|ホロライブ|hololive|にじさんじ|NIJISANJI|ぶいすぽ|ネオポルテ|ななしいんく|774inc|どっとライブ|アップランド)/i;
+
+export const VTUBER_MEDIA = {
+  sourceNames: new Set(
+    ["PANORA", "MoguLive", "Mogura VR", "MoguraVR"].map(normalizeSource),
+  ),
+  hostnames: ["panora.tokyo", "moguravr.com", "www.moguravr.com"] as const,
+} as const;
+
 export function normalizeNewsSourceName(value: string): string {
   return normalizeSource(value);
 }
