@@ -4,6 +4,7 @@ export const SITE_DESCRIPTION =
   "VTuberの配信スケジュール・ニュース・ランキング・イベント情報をまとめて確認できるサイトです。";
 export const CONTACT_EMAIL = "vchannel.com.info@gmail.com";
 export const OPERATOR_NAME = "Vちゃんねる運営事務局";
+export const ADSENSE_CLIENT_ID = "ca-pub-1929244717899448";
 
 /** 本番の正式ドメイン（www あり）。URL の直書きはここだけ。 */
 const PRODUCTION_SITE_URL = "https://www.vchannel.net";

@@ -3,7 +3,13 @@ import { Analytics } from "@vercel/analytics/next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AppShell } from "@/components/AppShell";
 import { getOfficeSummaries, type OfficeSummary } from "@/lib/offices";
-import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/site";
+import {
+  ADSENSE_CLIENT_ID,
+  SITE_DESCRIPTION,
+  SITE_NAME,
+  SITE_TITLE,
+  SITE_URL,
+} from "@/lib/site";
 import "./globals.css";
 
 type LayoutProps = { children: React.ReactNode };
@@ -22,6 +28,9 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: { default: SITE_TITLE, template: `%s | ${SITE_NAME}` },
   description: SITE_DESCRIPTION,
+  other: {
+    "google-adsense-account": ADSENSE_CLIENT_ID,
+  },
   verification: {
     google: "dlA9QuuEy2gQC1AuuiFp96bz0wPej2D3daAPKi3q890",
   },

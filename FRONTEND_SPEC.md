@@ -631,7 +631,8 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
   - `/reports` の月カードも同じ「押した瞬間の反応」と「遷移待ちの表示」にそろえる（カード全体がリンクなのは現状どおり）。
   - 遷移先の読み込み中表示: `app/guide/loading.tsx`（`list`、`4xl`）、`app/guide/[slug]/loading.tsx`（`detail`。記事は `max-w-3xl` なので `PageSkeleton` の `maxWidth` に `3xl` を追加して使う）、`app/reports/[month]/loading.tsx`（`detail`、`4xl`）。押したらすぐ画面が切り替わり、骨組みが出てから本文が入る。
 - 掲示板は NG ワードで投稿・表示を制限し、通報リンクを付ける。掲示板には広告を置かない。
-- AdSense のスクリプトと `ads.txt` は、審査用コードを受け取ってから入れる（ADS-9）。
+- AdSense 審査用のサイト確認は実装済み（ADS-9）。`app/layout.tsx` の共通 `metadata.other["google-adsense-account"]` と `public/ads.txt` を維持する。
+- AdSense の広告スクリプト（`adsbygoogle.js`）と広告枠は、審査合格後に ADS-10 で導入する。
 
 ## 7. SPEC.md との差異（コード基準）
 1. 下部ナビは 4 項目（ランキングは画面内タブバー）。SPEC.md は 5 タブ。
