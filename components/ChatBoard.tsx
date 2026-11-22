@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -25,6 +26,7 @@ import { CONTACT_EMAIL } from "@/lib/site";
 
 const POLL_MS = 15_000;
 const SEEN_COUNTS_KEY = "chat:last-seen-post-count";
+const MAX_DRAFT = 100;
 
 const NG_MESSAGE = "不適切な表現が含まれているため投稿できません";
 const HIDDEN_TEXT = "この投稿は表示されません";
@@ -70,6 +72,19 @@ function useJstDateKey(): string {
     () => jstDateFmt.format(new Date()),
     () => "",
   );
+}
+
+/**
+ * `draft` クエリを投稿シートの初期値にする。
+ * 前後の空白を取り 100 字で切り詰める。空なら null（開かない）。
+ * 元の値が空白で終わっていた場合は、続きを書き始めやすいよう末尾に半角スペースを 1 つ戻す。
+ */
+function parseDraft(raw: string | null): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const text = trimmed.slice(0, MAX_DRAFT);
+  return /\s$/.test(raw) && text.length < MAX_DRAFT ? `${text} ` : text;
 }
 
 /**
@@ -482,13 +497,18 @@ function PostItem({
 function ThreadView({
   thread,
   onSeen,
+  autoOpenDraft,
+  onSheetClosed,
 }: {
   thread: ChatThread;
   onSeen: (postNo: number) => void;
+  /** ディープリンクの draft。マウント時だけ投稿シートの初期値として使う（1 回だけ開く） */
+  autoOpenDraft: string | null;
+  onSheetClosed: () => void;
 }) {
   const [posts, setPosts] = useState<ChatPost[] | null>(null);
   const [failed, setFailed] = useState(false);
-  const [sheet, setSheet] = useState<string | null>(null);
+  const [sheet, setSheet] = useState<string | null>(autoOpenDraft);
   const [baselinePostNo, setBaselinePostNo] = useState<number | null>(null);
   const [expandedParents, setExpandedParents] = useState<Set<number>>(
     () => new Set(),
@@ -502,6 +522,10 @@ function ThreadView({
   const openTopic = useCallback((topic: string) => {
     setSheet(`【お題】${topic}\n`);
   }, []);
+  const closeSheet = useCallback(() => {
+    setSheet(null);
+    onSheetClosed();
+  }, [onSheetClosed]);
 
   const byPostNo = useMemo(
     () => new Map((posts ?? []).map((p) => [p.postNo, p])),
@@ -653,7 +677,7 @@ function ThreadView({
         <PostSheet
           threadId={thread.id}
           initial={sheet}
-          onClose={() => setSheet(null)}
+          onClose={closeSheet}
           onPosted={handlePosted}
         />
       )}
@@ -663,12 +687,23 @@ function ThreadView({
 
 export function ChatBoard({ offices }: { offices: OfficeSummary[] }) {
   const { channelIds } = useSelectedChannels();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const channelParam = searchParams.get("channel") ?? "";
+  const hasDeepLinkQuery = searchParams.has("channel") || searchParams.has("draft");
+
   const [threads, setThreads] = useState<ChatThread[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [tab, setTab] = useState("");
   const [seenCounts, setSeenCounts] = useState<Record<string, number>>(() =>
     readSeenCounts(),
   );
+  // 自動で開く投稿シートの初期値。最初のマウント時のクエリから 1 回だけ決める。
+  const [pendingDraft, setPendingDraft] = useState<string | null>(() =>
+    parseDraft(searchParams.get("draft")),
+  );
+  const tabRefs = useRef(new Map<string, HTMLButtonElement>());
+  const scrollPendingRef = useRef(channelParam !== "");
 
   useEffect(() => {
     fetch("/api/chat/threads")
@@ -716,14 +751,44 @@ export function ChatBoard({ offices }: { offices: OfficeSummary[] }) {
     return { tabs: [...withPosts, ...empty], starredIds: pickedIds };
   }, [threads, offices, channelIds]);
 
-  const current = tabs.find((t) => t.id === tab) ?? null;
+  // ディープリンク: channel の所属事務所と同名（小文字比較）のスレッド。見つからなければ null。
+  const deepLinkThreadId = useMemo(() => {
+    if (!channelParam || !threads) return null;
+    const office = offices.find((o) =>
+      o.members.some((m) => m.channelId === channelParam),
+    );
+    if (!office) return null;
+    const name = office.name.toLowerCase();
+    return threads.find((t) => t.name.toLowerCase() === name)?.id ?? null;
+  }, [channelParam, offices, threads]);
+
+  // 初期タブ（tab が空の間）はディープリンクのスレッドを優先する
+  const current = tabs.find((t) => t.id === (tab || deepLinkThreadId)) ?? null;
   const activeThread = current ?? tabs[0] ?? null;
 
   useEffect(() => {
     if (!tabs.length) return;
-    const hasSelected = tabs.some((t) => t.id === tab);
-    if (!hasSelected) setTab(tabs[0].id);
+    if (tab === "") {
+      setTab(deepLinkThreadId ?? tabs[0].id);
+      return;
+    }
+    if (!tabs.some((t) => t.id === tab)) setTab(tabs[0].id);
+  }, [tab, tabs, deepLinkThreadId]);
+
+  // 選んだタブが見えるよう、横スクロールで中央へ（ディープリンクで開いたときの 1 回だけ）
+  useEffect(() => {
+    if (!scrollPendingRef.current || !tab) return;
+    const el = tabRefs.current.get(tab);
+    if (!el) return;
+    scrollPendingRef.current = false;
+    el.scrollIntoView({ inline: "center", block: "nearest" });
   }, [tab, tabs]);
+
+  // 投稿シートを閉じたらクエリを消す（再読込でシートが再び開かないように）
+  const handleSheetClosed = useCallback(() => {
+    setPendingDraft(null);
+    if (hasDeepLinkQuery) router.replace("/chat", { scroll: false });
+  }, [hasDeepLinkQuery, router]);
 
   return (
     <div className="space-y-4">
@@ -734,17 +799,22 @@ export function ChatBoard({ offices }: { offices: OfficeSummary[] }) {
           {tabs.map((t) => {
             const unread = Math.max(t.postCount - (seenCounts[t.id] ?? 0), 0);
             const starred = starredIds.has(t.id);
+            const selected = activeThread?.id === t.id;
             return (
               <button
                 key={t.id}
+                ref={(el) => {
+                  if (el) tabRefs.current.set(t.id, el);
+                  else tabRefs.current.delete(t.id);
+                }}
                 type="button"
                 onClick={() => {
                   setTab(t.id);
                   markSeen(t.id, t.postCount);
                 }}
-                aria-pressed={tab === t.id}
+                aria-pressed={selected}
                 className={`relative min-w-28 shrink-0 rounded-2xl border px-3 py-1.5 text-left shadow-sm ${
-                  tab === t.id
+                  selected
                     ? "border-violet-500 bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white"
                     : "border-zinc-200 bg-white text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200"
                 }`}
@@ -756,7 +826,7 @@ export function ChatBoard({ offices }: { offices: OfficeSummary[] }) {
                       fill="currentColor"
                       aria-label="選択中の事務所"
                       className={`shrink-0 ${
-                        tab === t.id ? "text-amber-200" : "text-amber-500"
+                        selected ? "text-amber-200" : "text-amber-500"
                       }`}
                     />
                   )}
@@ -764,7 +834,7 @@ export function ChatBoard({ offices }: { offices: OfficeSummary[] }) {
                 </p>
                 <p
                   className={`text-xs ${
-                    tab === t.id ? "text-white/90" : "text-zinc-500"
+                    selected ? "text-white/90" : "text-zinc-500"
                   }`}
                 >
                   {t.postCount.toLocaleString()} 件
@@ -798,6 +868,8 @@ export function ChatBoard({ offices }: { offices: OfficeSummary[] }) {
           key={activeThread.id}
           thread={activeThread}
           onSeen={(postNo) => markSeen(activeThread.id, postNo)}
+          autoOpenDraft={pendingDraft}
+          onSheetClosed={handleSheetClosed}
         />
       )}
     </div>

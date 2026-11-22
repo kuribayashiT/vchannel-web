@@ -2,9 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { cacheLife } from "next/cache";
 import { notFound } from "next/navigation";
+import { PenLine } from "lucide-react";
 import { NewsExternalLink } from "@/components/NewsExternalLink";
 import { DetailView } from "@/components/VTuberTabs";
 import { formatDateSlug, todayJstParts } from "@/lib/events";
+import { listThreads } from "@/lib/firestore";
 import { formatCompact, formatNumber } from "@/lib/format";
 import {
   getCachedVTuberRelatedNews,
@@ -95,6 +97,18 @@ async function getCachedOfficeMembers(
     .filter((item) => item.office === office && item.channelId !== excludeChannelId)
     .sort((a, b) => b.subscriberCount - a.subscriberCount)
     .slice(0, limit);
+}
+
+/**
+ * 掲示板（Firestore threads）のスレッド名を小文字にしたもの。
+ * 詳細ページの描画ごとに Firestore を読まないよう 10 分キャッシュする。
+ * 失敗時は例外を投げる（失敗結果をキャッシュしないため。呼び出し側で握りつぶす）。
+ */
+async function getCachedThreadNames(): Promise<string[]> {
+  "use cache";
+  cacheLife({ stale: 600, revalidate: 600, expire: 3600 });
+  const threads = await listThreads();
+  return threads.map((t) => t.name.trim().toLowerCase());
 }
 
 /** 事務所の公式チャンネル（officeFlg）を除き、登録者数の降順に並べた全 VTuber */
@@ -390,7 +404,7 @@ export default async function VTuberDetailPage({ params }: PageProps) {
   const pageTitle = buildTitle(detail, shown);
 
   const isPersonal = detail.office === "個人";
-  const [officeMembers, nearby, ranks, currentYear, relatedNews] =
+  const [officeMembers, nearby, ranks, currentYear, relatedNews, threadNames] =
     await Promise.all([
       getCachedOfficeMembers(detail.office, detail.channelId, 12),
       getCachedNearby(detail.channelId, isPersonal ? 12 : 24),
@@ -400,7 +414,15 @@ export default async function VTuberDetailPage({ params }: PageProps) {
         console.error("Failed to load related news", error);
         return null;
       }),
+      getCachedThreadNames().catch((error) => {
+        console.error("Failed to load chat threads", error);
+        return null;
+      }),
     ]);
+  const hasBoard =
+    threadNames !== null &&
+    threadNames.includes(detail.office.trim().toLowerCase());
+  const chatHref = `/chat?channel=${encodeURIComponent(channelId)}&draft=${encodeURIComponent(`${shown}さん `)}`;
   const officeMemberIds = new Set(officeMembers.map((member) => member.channelId));
   const nearbyMembers = isPersonal
     ? [...nearby.above].reverse().concat(nearby.below)
@@ -515,6 +537,24 @@ export default async function VTuberDetailPage({ params }: PageProps) {
       />
 
       <DetailView detail={detail} />
+
+      {hasBoard && (
+        <section
+          aria-label={`${detail.office}の掲示板`}
+          className="mt-8 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900"
+        >
+          <h2 className="text-base font-bold">{detail.office}の掲示板</h2>
+          <p className="mt-1 text-sm text-zinc-500">{shown}さんの話をしよう</p>
+          <Link
+            href={chatHref}
+            rel="nofollow"
+            className="mt-3 inline-flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-violet-500"
+          >
+            <PenLine size={16} aria-hidden />
+            {shown}さんについて書く
+          </Link>
+        </section>
+      )}
 
       {isPersonal ? (
         <RelatedVTuberGrid

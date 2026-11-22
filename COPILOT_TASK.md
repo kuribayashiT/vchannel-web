@@ -1441,7 +1441,7 @@
     - 日付が変わるとお題が変わる。同じ日は何度開いても同じ。
     - `FRONTEND_SPEC.md` 5.6（PM 更新済み）の記述と実装が一致している。
 
-- [ ] **CHAT-6. `/chat?channel=…&draft=…` で事務所スレッドを開き、VTuber 詳細ページから書き込めるようにする**（CHAT-5 の次に着手）
+- [x] **CHAT-6. `/chat?channel=…&draft=…` で事務所スレッドを開き、VTuber 詳細ページから書き込めるようにする**（CHAT-5 の次に着手）
   - **対象ファイル**: `app/chat/page.tsx`, `components/ChatBoard.tsx`, `app/vtuber/[channelId]/page.tsx`, `lib/firestore.ts`（必要なら）
   - **仕様**:
     - **ディープリンク**（`components/ChatBoard.tsx`）
