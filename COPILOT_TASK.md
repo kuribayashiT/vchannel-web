@@ -1282,7 +1282,7 @@
 > **着手前の確認**: `curl -sI https://storage.googleapis.com/vtuber-335811.appspot.com/vtuberIndex.json` と `.../streamVideos.json`、`.../vtuberDetail/00.json`、`.../videoShards/00.json` がすべて `200` であること。どれかが `404` なら PM のバックエンドのデプロイ待ちなので、P0-COST を飛ばして次のタスクに進む。
 > ⚠ 1 タスク = 1 ファイル。各タスクの完了時点で `npx tsc --noEmit` と `npm run build` が通る順番にしてあるので、順番を変えないこと。見た目・表示内容は一切変えない（データの取り方だけを変える）。
 
-- [ ] **COST-1. `lib/gcs.ts` に分割ファイルの取得関数を追加し、事務所一覧を `vtuberIndex.json` から読む**
+- [x] **COST-1. `lib/gcs.ts` に分割ファイルの取得関数を追加し、事務所一覧を `vtuberIndex.json` から読む**
   - **対象ファイル**: `lib/gcs.ts` のみ
   - **仕様**:
     - `export const SHARD_COUNT = 64;` と `export function shardOf(id: string): string`（各文字の `charCodeAt` の合計 % 64 を `padStart(2, "0")`）を追加する。`FRONTEND_SPEC.md` 2.1 の「シャード番号」と同じ計算。

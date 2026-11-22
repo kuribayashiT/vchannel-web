@@ -4,7 +4,6 @@ import {
   type News,
   type NumLike,
   type OfficeDataList,
-  type RawOfficeDataList,
   type RawVideo,
   type RawSubscriberTransitionList,
   type RawVTuber,
@@ -26,6 +25,30 @@ export const REVALIDATE = {
   default: 3600,
   live: 60,
 } as const;
+
+export const SHARD_COUNT = 64;
+
+export function shardOf(id: string): string {
+  const sum = Array.from(id).reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  return String(sum % SHARD_COUNT).padStart(2, "0");
+}
+
+export const SPLIT_FILES = {
+  vtuberIndex: "vtuberIndex.json",
+  streamVideos: "streamVideos.json",
+  vtuberDetail: (shard: string) => `vtuberDetail/${shard}.json`,
+  videoShard: (shard: string) => `videoShards/${shard}.json`,
+} as const;
+
+export type RawVTuberIndexItem = RawVTuber & { latestTransitionDate?: string };
+
+export type RawVTuberDetailShard = Record<
+  string,
+  {
+    videos?: Record<string, RawVideo>;
+    youtubeSubscriberCountTransition?: Record<string, NumLike>;
+  }
+>;
 
 export class GcsFetchError extends Error {
   constructor(
@@ -164,12 +187,8 @@ function rankingBase(r: RankingRow) {
 
 // ---------- 型付き取得関数 ----------
 
-/**
- * officedataList.json は約 25MB で fetch キャッシュ上限(2MB)を超えるため
- * revalidate: 0 で取得する。呼び出し側で "use cache" 等により結果を保持すること。
- */
 export async function getOfficeDataList(): Promise<OfficeDataList> {
-  const raw = await fetchGcsJson<RawOfficeDataList>(GCS_FILES.officeData, 0);
+  const raw = await getVTuberIndexRaw();
   return Object.fromEntries(
     Object.entries(raw).map(([office, list]) => [
       office,
@@ -185,6 +204,31 @@ export async function getLiveVideoList(): Promise<Video[]> {
 
 export async function getAllVideos(): Promise<Video[]> {
   const raw = await fetchGcsJson(GCS_FILES.allVideos);
+  return toArray<RawVideo>(raw).map(normalizeVideo);
+}
+
+export async function getVTuberIndexRaw(): Promise<
+  Record<string, RawVTuberIndexItem[]>
+> {
+  return fetchGcsJson<Record<string, RawVTuberIndexItem[]>>(
+    SPLIT_FILES.vtuberIndex,
+  );
+}
+
+export async function getVTuberDetailShard(
+  shard: string,
+): Promise<RawVTuberDetailShard> {
+  return fetchGcsJson<RawVTuberDetailShard>(SPLIT_FILES.vtuberDetail(shard));
+}
+
+export async function getVideoShard(
+  shard: string,
+): Promise<Record<string, RawVideo>> {
+  return fetchGcsJson<Record<string, RawVideo>>(SPLIT_FILES.videoShard(shard));
+}
+
+export async function getStreamVideoList(): Promise<Video[]> {
+  const raw = await fetchGcsJson(SPLIT_FILES.streamVideos, 300);
   return toArray<RawVideo>(raw).map(normalizeVideo);
 }
 
