@@ -1299,7 +1299,7 @@
     - `npx tsc --noEmit` / `npm run build` がエラーなし。
     - フィルターの事務所一覧（`/api/office-thumbnails` とレイアウトの事務所名）が今までと同じ並びで出る。
 
-- [ ] **COST-2. トップの配信一覧を `streamVideos.json` から作る**（COST-1 の次に着手）
+- [x] **COST-2. トップの配信一覧を `streamVideos.json` から作る**（COST-1 の次に着手）
   - **対象ファイル**: `lib/stream-data.ts` のみ
   - **仕様**: `getAllVideos()` の代わりに `getStreamVideoList()` を使う。`trimStreamVideos()` はそのまま通す（今日〜7 日後＋過去 60 件に絞る処理は変えない）。`cacheLife` もそのまま。
   - **完了条件**:
