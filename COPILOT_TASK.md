@@ -1714,6 +1714,32 @@
     - アーカイブがまだ無い状態でも `/vtuber/[channelId]` がエラーにならない。
     - 完了報告に `firebase deploy --only functions:scheduledNewsUpdate` が必要と書く。
 
+- [ ] **NEWS-FIX-1. Google News 由来の関係ない記事（EXILE・音楽ライブ・スポーツ中継など）を除く**（🚨 NEWS-TAP より先に着手）
+  - **対象ファイル**: `lib/news.ts`、`lib/news-sources.ts`、`backend-repo/functions/index.js`（`scheduledNewsUpdate` の Google News RSS の検索語と絞り込み）、`FRONTEND_SPEC.md`（5.3.2.1・5.3.5）
+  - **背景**: 2026-11-22 の `news.json` 150 件のうち 58 件が Google News RSS（`origin: "gnews"`）由来で、VTuber 関係は 3〜4 件だけ。NEWS-4 の検索語の `.LIVE` が「LIVE」全般に一致している（PM の仕様ミス）。この記事は画像も無いため、サムネが出ない記事のほとんどがこれ。
+  - **仕様**（`FRONTEND_SPEC.md` 5.3.2.1 のとおり）:
+    - フロント: `lib/news-sources.ts` に `VTUBER_KEYWORDS`（正規表現）と `VTUBER_MEDIA`（PANORA、MoguLive / Mogura VR の媒体名・ホスト名）を追加する。`clusterNews` のノイズ除去の後、`origin === "gnews"` の記事は「キーワードに一致」「VTuber の呼び名に一致」「VTuber 専門メディア」のどれかを満たすものだけ残す。`origin` が無い記事・SerpApi・ホロライブ公式には条件をかけない。デプロイ前のデータにもすぐ効くよう、フロントの実装を先に入れる。
+    - バックエンド: Google News RSS の 1 本目の検索語から `.LIVE` を外して `どっとライブ` に替える（`ぶいすぽ OR ネオポルテ OR ななしいんく OR 774inc OR どっとライブ`）。gnews の記事はキーワードか VTuber 専門メディアの条件を満たすものだけ `news.json` に入れる（呼び名の照合はフロントだけ）。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。`node --check backend-repo/functions/index.js` が通る。
+    - 一時スクリプト（コミットしない）で現在の `news.json` に `clusterNews` をかけ、gnews 由来で残った記事の一覧を PR 本文に貼る。EXILE TRIBE mobile・ビルボードライブ・ナタリー（音楽）・スポーツ中継の記事が残っていないこと。`アップランドフェス`・`らびぱれ!!`・`UltraLMTM` の記事は残ること。
+    - 完了報告に `firebase deploy --only functions:scheduledNewsUpdate` が必要と書く。
+
+- [ ] **NEWS-THUMB. サムネが無い記事に、同じ話題の別媒体の画像を借り、それでも無ければカテゴリ別のかわいい代替サムネを出す**（NEWS-FIX-1 の次、NEWS-TAP より先に着手）
+  - **対象ファイル**: `lib/news.ts`（`NewsCluster` に `imageSrc` を追加）、新規 `components/NewsThumbFallback.tsx`、`components/SafeImage.tsx`（`fallback?: ReactNode` を追加）、`components/NewsClusterCard.tsx`、`FRONTEND_SPEC.md`（5.3.2.1）
+  - **仕様**（`FRONTEND_SPEC.md` 5.3.2.1 のとおり）:
+    - `NewsCluster.imageSrc`: 代表記事の `imageSrc`、無ければ `others` で最初に画像がある記事の `imageSrc`、どれも無ければ `null`。カードはこの値を使う。
+    - `SafeImage` に任意の `fallback` を追加する。指定されていれば、`src` が空・読み込み失敗のときに既定のアイコンの代わりにそれを表示する。既存の呼び出し元の挙動は変えない。
+    - `NewsThumbFallback({ category, source, size: "list" | "featured", className })`: 5.3.2.1 の表のとおり、カテゴリ別のグラデーション＋アイコン＋媒体名。色のクラスはカテゴリごとに完全なクラス名を書いたオブジェクトで持つ（文字列の組み立て禁止）。Server Component のままでよい（状態を持たない）。
+    - `NewsClusterCard` の一覧・今日の注目の両方で、`SafeImage` に `fallback={<NewsThumbFallback ... />}` を渡す。
+    - `any` は使わない。新しいパッケージや画像ファイルは追加しない。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - `/news` に壊れた画像アイコン（`ImageOff`）が 1 つも出ない。画像が無い記事は、カテゴリに合った色とアイコンと媒体名の代替サムネになる（例: ライブ・イベントは水色にマイク）。
+    - 代表記事に画像が無くても、`ほか N 媒体` に画像付きの記事があればその画像が出る。
+    - 画像の URL が 404 のときも代替サムネに切り替わる（DevTools で画像のリクエストをブロックして確認）。
+    - 375px 幅とダークモードで、代替サムネが元のサムネと同じ大きさで崩れない。
+
 - [ ] **NEWS-TAP. ニュースカードの上段全体を押せるようにする（タイトルの文字だけでなく、媒体名・日時・余白も）**（NEWS-6 より先に着手）
   - **対象ファイル**: `components/NewsClusterCard.tsx`、`FRONTEND_SPEC.md`（5.3.2 の「タップ範囲」）
   - **背景**: NEWS-2 の仕様に「カード全体を `<a>` で包むのをやめる」と書いたため、記事が開くのはサムネとタイトルの文字だけになり、媒体名・日時・余白を押しても反応しない（PM の仕様ミス）。スマホでは押しても反応しないカードに見える。ガイドのカード（TAP-1）と同じ「カード全体に広がるリンク」で直す。

@@ -247,6 +247,33 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 - ローディング・エラー表示（`ニュースデータの取得に失敗しました（空データ）` ＋ `再読み込み`）は従来どおり。
 - `/news` の初期 HTML サイズの目安: 改修前の 1.5 倍以内。
 
+#### 5.3.2.1 関係ない記事の除外とサムネイル（2026-11-22 追加・NEWS-FIX-1・NEWS-THUMB）
+- **調査結果（2026-11-22、`news.json` 150 件）**: サムネが出ない 60 件のうち 58 件は Google News RSS（`origin: "gnews"`）由来。Google News の RSS には画像が無い。さらに gnews の 58 件のうち VTuber 関係は 3〜4 件だけだった。NEWS-4 の検索語の `.LIVE` が「LIVE」全般に一致し、EXILE・ビルボードライブ・スポーツ中継などを拾っていた（PM の仕様ミス）。SerpApi 由来の画像は正常に読み込めている。
+- **gnews の記事は VTuber に関係あるものだけ残す**（フロントの `clusterNews` とバックエンドの両方）。次のどれかを満たすものだけ残す。
+  - タイトルが `VTuber|Vtuber|ブイチューバー|バーチャル|Vぷろ|ホロライブ|hololive|にじさんじ|NIJISANJI|ぶいすぽ|ネオポルテ|ななしいんく|774inc|どっとライブ|アップランド` のどれかを含む（英字は大文字小文字を区別しない）。
+  - VTuber の呼び名（5.3.1 の 6）に一致する（フロントのみ）。
+  - 媒体が VTuber 専門メディア（PANORA、MoguLive / Mogura VR）。
+  - SerpApi・ホロライブ公式の記事にはこの条件をかけない（検索語が VTuber 向けのため）。
+- **サムネの補い方**: クラスタの `imageSrc` は、代表記事に画像があればそれ、無ければ `others` のうち画像がある最初の記事の画像にする（同じ話題の別媒体の画像を借りる）。それでも無いもの、または読み込みに失敗したものは、次の代替サムネを出す。
+- **代替サムネ**（`components/NewsThumbFallback.tsx`）: 壊れた画像アイコン（`ImageOff`）はやめ、カテゴリごとの淡いグラデーションにアイコンと媒体名を載せたカードにする。
+
+  | カテゴリ | 背景（ライト） | アイコン（lucide） | 色 |
+  |---|---|---|---|
+  | デビュー | `from-pink-100 to-rose-200` | `Sparkles` | rose |
+  | 卒業・休止 | `from-indigo-100 to-violet-200` | `Flower2` | violet |
+  | お知らせ | `from-amber-100 to-orange-200` | `Megaphone` | amber |
+  | ライブ・イベント | `from-sky-100 to-blue-200` | `Mic` | sky |
+  | グッズ | `from-emerald-100 to-teal-200` | `ShoppingBag` | emerald |
+  | ゲーム | `from-violet-100 to-purple-200` | `Gamepad2` | purple |
+  | コラボ・出演 | `from-fuchsia-100 to-pink-200` | `Handshake` | fuchsia |
+  | その他 | `from-zinc-100 to-slate-200` | `Newspaper` | zinc |
+
+  - `bg-gradient-to-br`。ダークモードは `from-<色>-500/20 to-<色>-500/30`、アイコンは `text-<色>-500`（ダーク `text-<色>-300`）。
+  - 中央にアイコン（一覧 24px、今日の注目 40px）を白の半透明の丸（`bg-white/60 dark:bg-white/10 rounded-full p-2`）に入れ、その下に媒体名（一覧 `text-[10px]`、今日の注目 `text-sm`、`font-bold line-clamp-1`、アイコンと同じ色）。
+  - 大きさと角丸は元のサムネと同じ（一覧 `h-20 w-32 rounded`、今日の注目 `aspect-video w-full rounded`）。`aria-hidden`。
+  - Tailwind がクラス名を拾えるよう、色のクラスは文字列を組み立てず、カテゴリごとに完全なクラス名を書いた表（オブジェクト）で持つ。
+  - 将来マスコットのイラストを用意したら、この部品の中身を差し替えるだけで済むようにする。
+
 #### 5.3.3 VTuber 詳細の関連ニュース（NEWS-3）
 - `/vtuber/[channelId]` の「よくある質問」の前に `<h2>関連ニュース</h2>` を置き、その VTuber に紐づいたクラスタを新しい順に最大 5 件、コンパクトな行（媒体名・タイトル・日付）で出す。0 件なら節ごと出さない。NEWS-5 以降は蓄積分（直近 60 日）も対象。
 - 取得は `getCachedVTuberRelatedNews(channelId, 5)`（`lib/server-data.ts`）を使う。`news.json` に加えて `getNewsArchive(month)` で今月・前月の `news/archive/YYYY-MM.json` を読み、URL 重複を除いて `clusterNews(..., { maxAgeDays: 60 })` に渡す。ニュース取得に失敗したときは節を出さず、ページ全体はエラーにしない。
