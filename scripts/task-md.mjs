@@ -49,6 +49,20 @@ export function firstOpenTask(content) {
   };
 }
 
+/** AI 提案セクションより上（= PM のタスク）に未完了タスクが残っているか */
+export function hasOpenPmTask(content) {
+  for (const line of content.split('\n')) {
+    if (line === AI_SECTION_HEADING) return false;
+    if (OPEN_TASK_LINE.test(line)) return true;
+  }
+  return false;
+}
+
+/** タスク行（タイトル）だけを返す。重複チェック用に AI へ渡す */
+export function taskTitleLines(content) {
+  return taskLines(content).join('\n');
+}
+
 /**
  * 既存のタスク行がすべて残っているか、コードブロック記号が減っていないかを検査する。
  * `checkedLine` を渡した場合、その 1 行だけは `- [x]` への変更を許す。

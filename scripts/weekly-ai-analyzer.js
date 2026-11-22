@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { appendToAiSection, unwrapOuterFence, writeTaskFileSafely } from './task-md.mjs';
+import { appendToAiSection, hasOpenPmTask, taskTitleLines, unwrapOuterFence, writeTaskFileSafely } from './task-md.mjs';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 if (!ANTHROPIC_API_KEY) {
@@ -12,6 +12,13 @@ async function main() {
   const agentsMd = fs.existsSync('AGENTS.md') ? fs.readFileSync('AGENTS.md', 'utf8') : '';
   const frontendSpec = fs.existsSync('FRONTEND_SPEC.md') ? fs.readFileSync('FRONTEND_SPEC.md', 'utf8') : '';
   const copilotTask = fs.existsSync('COPILOT_TASK.md') ? fs.readFileSync('COPILOT_TASK.md', 'utf8') : '';
+
+  // AI 提案タスクは PM のタスクがすべて終わってから着手する決まりなので、
+  // PM の未完了タスクが残っている間は追加しても溜まるだけ。API を呼ばずに終わる（トークン節約）
+  if (hasOpenPmTask(copilotTask)) {
+    console.log('PM の未完了タスクが残っているため、AI 提案タスクの追加をスキップします。');
+    return;
+  }
 
   // 1日に複数回実行されるため、ID は JST の日付＋時刻で一意にする（例: AI-20261118-13）
   const jst = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString();
@@ -28,8 +35,8 @@ ${agentsMd}
 ## FRONTEND_SPEC.md
 ${frontendSpec}
 
-## 現在の COPILOT_TASK.md
-${copilotTask}
+## 現在の COPILOT_TASK.md のタスク一覧（タイトルのみ。完了済みを含む）
+${taskTitleLines(copilotTask)}
 
 ## 指示
 - すでに記載されているタスク（完了済みを含む）と重複しないものを1件選定してください。

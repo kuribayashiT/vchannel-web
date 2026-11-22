@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { firstOpenTask } from './task-md.mjs';
+import { buildTaskContext, sourceFileTree } from './context-files.mjs';
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
 if (!ANTHROPIC_API_KEY) {
@@ -8,29 +9,11 @@ if (!ANTHROPIC_API_KEY) {
   process.exit(1);
 }
 
-// 指定ディレクトリから主要なソースコード（動的ルート等の括弧付きも含めて）を再帰的に読み込む
-function loadSourceFiles(dir, fileList = []) {
-  if (!fs.existsSync(dir)) return fileList;
-  const files = fs.readdirSync(dir);
-  for (const file of files) {
-    const filePath = path.join(dir, file);
-    const stat = fs.statSync(filePath);
-    if (stat.isDirectory()) {
-      if (file !== 'node_modules' && file !== '.next' && file !== '.git') {
-        loadSourceFiles(filePath, fileList);
-      }
-    } else if (file.endsWith('.ts' ) || file.endsWith('.tsx')) {
-      const content = fs.readFileSync(filePath, 'utf8');
-      fileList.push(`### File: ${filePath}\n\`\`\`tsx\n${content}\n\`\`\`\n`);
-    }
-  }
-  return fileList;
-}
-
 async function main() {
   const agentsMd = fs.existsSync('AGENTS.md') ? fs.readFileSync('AGENTS.md', 'utf8') : '';
   const frontendSpec = fs.existsSync('FRONTEND_SPEC.md') ? fs.readFileSync('FRONTEND_SPEC.md', 'utf8') : '';
   const copilotTask = fs.existsSync('COPILOT_TASK.md') ? fs.readFileSync('COPILOT_TASK.md', 'utf8') : '';
+  // COPILOT_TASK.md 全文はプロンプトに入れない（今回のタスク本文だけを渡す。トークン節約のため）
 
   // 実装するタスクは「ファイル内で最初の未完了タスク」に固定する。
   // ビルド成功時の完了マーク（scripts/mark-task-done.mjs）と失敗メモ（scripts/task-fallback.js）も同じタスクを対象にする。
@@ -41,19 +24,18 @@ async function main() {
   }
   console.log(`実装対象タスク: ${target.line}`);
 
-  console.log('既存のソースコードをスキャン中...');
-  const sourceCodeContext = [
-    ...loadSourceFiles('app'),
-    ...loadSourceFiles('components')
-  ].join('\n');
+  // ソースはタスクに関係するファイルだけを渡す（全ファイルを送るとトークンの大半を占めるため）
+  const { context: sourceCodeContext, files: contextFiles } = buildTaskContext(target.block);
+  console.log(`コンテキストに含めるファイル (${contextFiles.length} 件):\n  ${contextFiles.join('\n  ')}`);
+  const fileTree = sourceFileTree();
 
   const prompt = "あなたは Next.js (App Router) + TypeScript + Tailwind CSS のプロフェッショナルなフロントエンドエンジニアです。\n" +
-    "以下のプロジェクト資料および既存のソースコード構造を完全に理解した上で、COPILOT_TASK.md の次のタスク（最初の未完了タスク）を正確に実装してください。ほかのタスクには手を付けないでください。\n\n" +
+    "以下のプロジェクト資料および既存のソースコードを理解した上で、次のタスクを正確に実装してください。ほかのタスクには手を付けないでください。\n\n" +
     "## 🎯 今回実装するタスク\n" + target.block + "\n\n" +
     "## AGENTS.md\n" + agentsMd + "\n\n" +
     "## FRONTEND_SPEC.md\n" + frontendSpec + "\n\n" +
-    "## COPILOT_TASK.md\n" + copilotTask + "\n\n" +
-    "## 📂 既存のソースコード（参考コンテキスト）\n" + sourceCodeContext + "\n\n" +
+    "## 📁 プロジェクトのソースファイル一覧（パスのみ。存在しないファイルをインポートしないための参考）\n" + fileTree + "\n\n" +
+    "## 📂 タスクに関係する既存のソースコード（対象ファイルと、そこから読み込んでいるファイル）\n" + (sourceCodeContext || "（タスク本文に既存ファイルの指定なし）") + "\n\n" +
     "## 🛑 絶対守るべきルール（禁止事項・制限）\n" +
     "1. AGENTS.md, FRONTEND_SPEC.md, COPILOT_TASK.md などのマークダウン（.md）ファイルは、**絶対に新規作成・変更・出力してはなりません**。変更は app/ や components/ などのソースコード（.ts, .tsx）のみに限定してください。\n" +
     "2. 一度の実行で変更・作成するファイルは**必ず1ファイルのみ**にしてください。複数ファイルを同時に出力しては絶対いけません。\n" +
