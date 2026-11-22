@@ -1275,7 +1275,7 @@
 
 ---
 
-### 🚨 P0-COST: 巨大 JSON の読み込みをやめて GCS の転送料を下げる（2026-11-22 追加・**最優先。CHAT-6 より先に着手**。COST-1 → COST-8 の順）
+### 🚨 P0-COST: 巨大 JSON の読み込みをやめて GCS の転送料を下げる（2026-11-22 追加・**最優先。CHAT-6 より先に着手**。COST-1 → COST-9 の順）
 
 > **調査結果（2026-11-22）**: 今月の Firebase 請求 ¥4,175 のうち ¥2,796 が GCS の外部転送（165GB）。原因は Web が `officedataList.json`（約 20MB）と `allvideos.json`（約 18MB）を読んでいること。Next.js の fetch キャッシュは 2MB 超を保持できないため、`lib/server-data.ts` の `memo`（インスタンス内 1 時間）や `lib/stream-data.ts`（5 分ごと）のたびに丸ごとダウンロードされていた。11/13 のドメイン移行後にクロールが増えて急増した。
 > バックエンドが用途別の小さいファイル（`vtuberIndex.json`・`vtuberDetail/NN.json`・`videoShards/NN.json`・`streamVideos.json`）を 30 分ごとに書き出すようにした。仕様は `FRONTEND_SPEC.md` 2.1・6。
@@ -1343,9 +1343,18 @@
 
 - [ ] **COST-8. 登録者推移ファイルを fetch キャッシュに載せる**（COST-7 の次に着手）
   - **対象ファイル**: `lib/gcs.ts` のみ
-  - **前提の確認**: `curl -s https://storage.googleapis.com/vtuber-335811.appspot.com/youtubeSubscriberCountTransitionList.json | wc -c` が 2,000,000 未満であること（2026-11-22 からバックエンドがインデントなしで書くため約 0.93MB になる見込み）。2MB 以上なら何もせずこのタスクを `[x]` にせず PM に報告する。
+  - **前提の確認**: `curl -s --compressed https://storage.googleapis.com/vtuber-335811.appspot.com/youtubeSubscriberCountTransitionList.json | wc -c` が **1,500,000 未満**であること。Next.js は本文を base64 で保存するため、2MB の上限は元のサイズで約 1.5MB に当たる（`FRONTEND_SPEC.md` 6 章）。
+    - 2026-11-22 時点は 1,939,680（インデント付きの旧形式）で、`npm run build` で `items over 2MB can not be cached (2587279 bytes)` になり Copilot が保留にした（正しい判断）。バックエンドの 24 時間ジョブが次に動くとインデントなしの約 930,000 になる。
+    - 1,500,000 以上なら、何も変えずに次のタスクへ進む（このタスクは `[ ]` のまま）。
   - **仕様**: `fetchGcsJson(GCS_FILES.subscriberTransition, 0)` の `0` を消して `REVALIDATE.default` にする。関連コメント（2MB 超のため…）を直す。（`FRONTEND_SPEC.md` 6 の該当行は PM が後で直すので触らない）
-  - **完了条件**: `npx tsc --noEmit` / `npm run build` がエラーなし。ランキングの「登録者 急上昇」が変更前と同じ。
+  - **完了条件**: `npx tsc --noEmit` / `npm run build` がエラーなし、かつビルドログに `youtubeSubscriberCountTransitionList.json` の `items over 2MB can not be cached` が出ない。ランキングの「登録者 急上昇」が変更前と同じ。
+
+- [ ] **COST-9. 同時視聴者数ランキングを `weeklyLiveViewTop.json`（上位 500 件）から読む**（COST-8 の次に着手。COST-8 が保留でも着手してよい）
+  - **対象ファイル**: `lib/gcs.ts` のみ
+  - **背景**: `weeklyLiveViewRanking.json` は約 1.97MB（2,735 件）あり、base64 換算で 2MB を超えるため fetch キャッシュに載らず、ランキング・月間レポートを表示するたびに丸ごとダウンロードされている。画面で使うのは上位 100 件まで（`RANKING_LIMIT`）なので、バックエンドが上位 500 件だけの `weeklyLiveViewTop.json`（約 0.3MB、形は同じ）を 5 分ごとに書き出すようにした。
+  - **前提の確認**: `curl -sI https://storage.googleapis.com/vtuber-335811.appspot.com/weeklyLiveViewTop.json` が `200`。
+  - **仕様**: `getWeeklyLiveViewRanking()` が読むファイルを `"weeklyLiveViewTop.json"` に変える（COST-1 で作った `SPLIT_FILES` に `weeklyLiveViewTop` を足して使う）。`REVALIDATE.live`（60 秒）と正規化処理はそのまま。`types/index.ts` の `GCS_FILES.weeklyLiveView` は変えない。
+  - **完了条件**: `npx tsc --noEmit` / `npm run build` がエラーなし、かつビルドログに `weeklyLive` の `items over 2MB can not be cached` が出ない。`/ranking` の同時視聴者数タブの上位 100 件と、今月の月間レポートの「人気配信」が変更前と同じ。
 
 ---
 

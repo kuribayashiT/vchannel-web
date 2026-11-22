@@ -53,14 +53,15 @@ Cloud Functions が定期更新する。アプリは 1 時間 TTL でキャッ�
 | `rankingTwitterData.json` | `twitterFollowerCount`。同上 | ランキング（現状 UI 未使用の可能性。要確認） |
 | `weeklyLiveViewRanking.json` | `[ {..., concurrent_viewers} ]` | ランキング |
 | `rankingVideoCountData.json` | `[ {..., videoCount} ]` | ランキング |
-| `vtuberIndex.json` | `{ "<事務所名>": [VTuber, ...] }`。`officedataList.json` から `videos`・`youtubeSubscriberCountTransition`・`twitterSubscriberCountTransition` を除き、`latestTransitionDate`（登録者推移の最終日 `YYYY-MM-DD`、無ければ `""`）を足したもの。並び順は元と同じ（約 1MB） | VTuber 一覧・絞り込み・事務所一覧・順位・サイトマップ（P0-COST） |
+| `vtuberIndex.json` | `{ "<事務所名>": [VTuber, ...] }`。`officedataList.json` から `videos`・`youtubeSubscriberCountTransition`・`twitterSubscriberCountTransition` と Web で使わない `youtubeChId`・`createdAt`・`updateTime`・`twicasID`・`twitterID`・`twitterName` を除き、`latestTransitionDate`（登録者推移の最終日 `YYYY-MM-DD`、無ければ `""`）を足したもの。`channeID` は必ず入る。並び順は元と同じ（約 0.7MB） | VTuber 一覧・絞り込み・事務所一覧・順位・サイトマップ（P0-COST） |
 | `vtuberDetail/{NN}.json` | `{ "<channelId>": { videos: { <videoID>: Video }, youtubeSubscriberCountTransition: { "YYYY-MM-DD": 数 }（直近 30 日） } }`。`NN` = シャード番号（下記） | VTuber 詳細（P0-COST） |
 | `videoShards/{NN}.json` | `{ "<videoID>": Video }`。`allvideos.json` を videoID で 64 分割 | お気に入り（P0-COST） |
+| `weeklyLiveViewTop.json` | `weeklyLiveViewRanking.json` と同じ形で、同時視聴者数の多い順に上位 500 件だけ（約 0.3MB。5 分ごと更新） | ランキングの同時視聴者数・月間レポート・特集（P0-COST） |
 | `streamVideos.json` | `[Video, ...]`。前日 0 時（JST）〜9 日後の動画すべて＋それより前の新しい順 100 件。項目は `videoID`・`title`・`channelId`・`channelTitle`・`thumbnail`・`comparisonDay` のみ（約 0.5MB） | トップの配信一覧（P0-COST） |
 
 **シャード番号（`NN`）**: ID（channelId または videoID）の UTF-16 コード単位（`charCodeAt`）の合計を 64 で割った余りを 2 桁ゼロ埋め（`"00"`〜`"63"`）。バックエンド `backend-repo/functions/splitData.js` の `shardOf()` と同じ計算にすること。
 
-> **⚠ `officedataList.json`（約 20MB）と `allvideos.json`（約 18MB）を Web から読まない（2026-11-22 P0-COST）。** Next.js の fetch キャッシュは 2MB 超を保持できないため、サーバーインスタンスごと・再検証ごとに丸ごとダウンロードされ、GCS の外部転送料が月約 2,800 円（165GB）かかっていた。上の 4 ファイルで代替する（どれも 2MB 未満なので `next: { revalidate }` の共有キャッシュが効く）。2 ファイルは旧アプリ互換のためバックエンドは書き続ける。
+> **⚠ `officedataList.json`（約 20MB）と `allvideos.json`（約 18MB）を Web から読まない（2026-11-22 P0-COST）。** Next.js の fetch キャッシュは 2MB 超を保持できないため、サーバーインスタンスごと・再検証ごとに丸ごとダウンロードされ、GCS の外部転送料が月約 2,800 円（165GB）かかっていた。上の 4 ファイルで代替する（どれも 1.5MB 未満なので `next: { revalidate }` の共有キャッシュが効く。上限の考え方は 6 章）。2 ファイルは旧アプリ互換のためバックエンドは書き続ける。
 > 公開 JSON はすべて gzip で保存されている（`Content-Encoding: gzip`）。サーバー側の `fetch` は自動で解凍するので、Web 側の対応は不要。
 
 > 旧 Cloud Functions（`getOfficeListData` など `https://us-central1-vtuber-335811.cloudfunctions.net/<name>`）は現行アプリでは未使用。新規実装では使わない。
@@ -565,8 +566,9 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 
 - **料金**：RTDB の公開読み取りは禁止（過去に無認証スキャンで課金急増）。データ取得は GCS 公開 JSON を使う。`/vtuber` 全体（約 780KB）を RTDB から読まない。
 - **キャッシュ**：JSON は 1 時間程度の鮮度で十分（更新は定期バッチ）。`/api/streams` の配信中データ（`livevideoList.json`）は Web 側で毎回 GCS から `no-store` 取得し、`/api/streams` は `Cache-Control: no-store` を返してブラウザ・CDN のレスポンス再利用を避ける。`weeklyLiveViewRanking.json` は `revalidate: 60` のまま。
-- `youtubeSubscriberCountTransitionList.json` は 2MB 超のため Next.js の fetch キャッシュに載せない（`revalidate: 0`）。ランキングの増減集計結果は `"use cache"`（1 時間）で保持する。※ 2026-11-22 からバックエンドがインデントなしで書くため 2MB 未満になる見込み。COST-8 で確認のうえ `revalidate: 3600` に戻す。
-- **GCS 転送量（2026-11-22 P0-COST）**：GCS からの外部転送は 1GB あたり約 17 円かかる。2MB を超える JSON を Web から読まない（fetch キャッシュに載らず、インスタンスごとに毎回ダウンロードされる）。大きなデータが必要になったら、バックエンドに用途別の小さいファイルを作ってもらう（2.1 の分割ファイル参照）。インスタンス内のメモリ保持（`memo`）で済ませない。
+- `youtubeSubscriberCountTransitionList.json` は 2MB 超のため Next.js の fetch キャッシュに載せない（`revalidate: 0`）。ランキングの増減集計結果は `"use cache"`（1 時間）で保持する。※ 2026-11-22 からバックエンドがインデントなしで書くため約 0.93MB になる見込み（24 時間ジョブの次回実行後）。COST-8 で確認のうえ `revalidate: 3600` に戻す。
+- **fetch キャッシュの実質上限は 1.5MB**：Next.js はレスポンス本文を base64 にして保存するため、2MB の上限は元のサイズで約 1.5MB に当たる（例: 1,939,680 バイトのファイルは 2,587,279 バイト扱いで `items over 2MB can not be cached` になった）。`curl --compressed … | wc -c` が 1,500,000 未満のファイルだけキャッシュに載せる。
+- **GCS 転送量（2026-11-22 P0-COST）**：GCS からの外部転送は 1GB あたり約 17 円かかる。1.5MB を超える JSON を Web から読まない（fetch キャッシュに載らず、インスタンスごとに毎回ダウンロードされる）。大きなデータが必要になったら、バックエンドに用途別の小さいファイルを作ってもらう（2.1 の分割ファイル参照）。インスタンス内のメモリ保持（`memo`）で済ませない。
 - **CORS**：GCS 公開 JSON はブラウザ直 fetch 可（`cors.json` 参照）。確認済みでなければ Next.js のサーバー側 fetch にする。
 - **日時**：ISO8601(UTC) → `Asia/Tokyo` で表示・日付振り分け（今日/明日/明後日以降は JST 暦日で判定）。
 - **型変換**：数値文字列（`concurrent_viewers`, `videoCount` 等）は数値化。キー名の揺れ（`videoID`/`videoId`, `channeID`/`channelId`/`youtubeChId`）に注意。
