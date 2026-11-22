@@ -1323,7 +1323,7 @@
   - **仕様**: `vtuberEntries()` で `loadVTubers()` の代わりに `loadVTuberIndex()` を使い、`lastModified` は `parseYmd(latestTransitionDate[item.channelId])` にする。
   - **完了条件**: `npx tsc --noEmit` / `npm run build` がエラーなし。`/sitemap.xml` の VTuber の URL 数と `lastmod` が変更前と同じ。
 
-- [ ] **COST-5. `/api/vtuber/[channelId]` を `getVTuberDetail()` で返す**（COST-4 の次に着手）
+- [x] **COST-5. `/api/vtuber/[channelId]` を `getVTuberDetail()` で返す**（COST-4 の次に着手）
   - **対象ファイル**: `app/api/vtuber/[channelId]/route.ts` のみ
   - **仕様**: `loadVTubers()` の `details` の代わりに `getVTuberDetail(channelId)` を使う。`null` なら今と同じ 404、例外なら 502。
   - **完了条件**: `npx tsc --noEmit` / `npm run build` がエラーなし。レスポンスの JSON の形が変更前と同じ。
