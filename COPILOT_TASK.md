@@ -1333,7 +1333,7 @@
   - **仕様**: `loadAllVideos()` の代わりに `getVideosByIds(ids)` を使う。`MAX_IDS`・ID の検証・エラー時の 502 はそのまま。
   - **完了条件**: `npx tsc --noEmit` / `npm run build` がエラーなし。お気に入りに登録した動画（30 日以内のもの）が `/favorites` に今までどおり出る。
 
-- [ ] **COST-7. `loadVTubers` を `vtuberIndex.json` 版に置き換え、巨大ファイルの読み込みと `memo` を消す**（COST-6 の次に着手）
+- [x] **COST-7. `loadVTubers` を `vtuberIndex.json` 版に置き換え、巨大ファイルの読み込みと `memo` を消す**（COST-6 の次に着手）
   - **対象ファイル**: `lib/server-data.ts` のみ
   - **仕様**:
     - `loadVTubers` を `export const loadVTubers = loadVTuberIndex;` にする（`app/llms.txt/route.ts`・`app/api/vtuber/route.ts`・`lib/events-data.ts`・`app/api/admin/vtubers/route.ts` は `.index` だけを使っているので、そのまま動く）。

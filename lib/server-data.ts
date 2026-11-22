@@ -12,9 +12,7 @@ import {
 import { getNewsClicks24h } from "@/lib/news-clicks";
 import { buildVTuberAliasIndex, clusterNews, type NewsCluster } from "@/lib/news";
 import {
-  GCS_FILES,
   type News,
-  type RawOfficeDataList,
   type RawVideo,
   type RawVTuber,
   type Video,
@@ -23,30 +21,9 @@ import {
   type VTuberOfficeGroup,
   type VTuberTabItem,
 } from "@/types";
-import { fetchGcsJson, normalizeVTuber, normalizeVideo } from "@/lib/gcs";
+import { normalizeVTuber, normalizeVideo } from "@/lib/gcs";
 import { parseDebut, parseMonthDay } from "@/lib/profile-date";
 import { shortenYtThumb } from "@/lib/thumbnail";
-
-/**
- * officedataList.json(約19MB) / allvideos.json(約16MB) は Next.js の fetch キャッシュ上限(2MB)を
- * 超えるため、サーバーインスタンス内で 1 時間メモリ保持する（Route Handler 専用）。
- */
-const TTL_MS = 3_600_000;
-
-function memo<T>(load: () => Promise<T>) {
-  let entry: { at: number; value: Promise<T> } | null = null;
-  return () => {
-    if (!entry || Date.now() - entry.at > TTL_MS) {
-      const value = load();
-      entry = { at: Date.now(), value };
-      // 失敗結果は保持しない
-      value.catch(() => {
-        entry = null;
-      });
-    }
-    return entry.value;
-  };
-}
 
 const MAX_VIDEOS = 30;
 const MAX_DAYS = 30;
@@ -81,31 +58,6 @@ function toDetail(raw: RawVTuber): VTuberDetail {
     videos,
   };
 }
-
-export const loadVTubers = memo(async () => {
-  const raw = await fetchGcsJson<RawOfficeDataList>(GCS_FILES.officeData, 0);
-  const details = new Map<string, VTuberDetail>();
-  const index: VTuberIndexItem[] = [];
-  // 事務所の初出順 → 各事務所内で公式アカウントを先頭に
-  for (const list of Object.values(raw)) {
-    const members = list
-      .map(toDetail)
-      .filter((d) => d.channelId)
-      .sort((a, b) => Number(b.officeFlg) - Number(a.officeFlg));
-    for (const d of members) {
-      details.set(d.channelId, d);
-      index.push({
-        channelId: d.channelId,
-        name: d.name,
-        office: d.office,
-        officeFlg: d.officeFlg,
-        thumbnail: d.thumbnail,
-        subscriberCount: d.subscriberCount,
-      });
-    }
-  }
-  return { details, index };
-});
 
 export function toVTuberTabItems(index: VTuberIndexItem[]): VTuberTabItem[] {
   return index.map(({ channelId, name }) => ({
@@ -180,27 +132,27 @@ export async function loadVTuberIndex(): Promise<{
   // 事務所の初出順 → 各事務所内で公式アカウントを先頭に
   for (const list of Object.values(raw)) {
     const members = list
-      .map(normalizeVTuber)
-      .filter((d) => d.channelId)
-      .sort((a, b) => Number(b.officeFlg) - Number(a.officeFlg));
-    for (const d of members) {
-      const latestDate = list.find((item) => normalizeVTuber(item).channelId === d.channelId)
-        ?.latestTransitionDate;
-      if (latestDate) {
-        latestTransitionDate[d.channelId] = latestDate;
+      .map((item) => ({ vtuber: normalizeVTuber(item), latest: item.latestTransitionDate }))
+      .filter(({ vtuber }) => vtuber.channelId)
+      .sort((a, b) => Number(b.vtuber.officeFlg) - Number(a.vtuber.officeFlg));
+    for (const { vtuber, latest } of members) {
+      if (latest) {
+        latestTransitionDate[vtuber.channelId] = latest;
       }
       index.push({
-        channelId: d.channelId,
-        name: d.name,
-        office: d.office,
-        officeFlg: d.officeFlg,
-        thumbnail: d.channelThumbnail,
-        subscriberCount: d.subscriberCount,
+        channelId: vtuber.channelId,
+        name: vtuber.name,
+        office: vtuber.office,
+        officeFlg: vtuber.officeFlg,
+        thumbnail: vtuber.channelThumbnail,
+        subscriberCount: vtuber.subscriberCount,
       });
     }
   }
   return { index, latestTransitionDate };
 }
+
+export const loadVTubers = loadVTuberIndex;
 
 export async function getVTuberDetail(
   channelId: string,
@@ -287,16 +239,6 @@ export async function getCachedNearbyVTubers(
     .filter((item) => item.channelId !== channelId)
     .slice(0, maxCount);
 }
-
-export const loadAllVideos = memo(async () => {
-  const raw = await fetchGcsJson<RawVideo[]>(GCS_FILES.allVideos, 0);
-  const map = new Map<string, Video>();
-  for (const r of Array.isArray(raw) ? raw : []) {
-    const v = normalizeVideo(r);
-    if (v.videoId) map.set(v.videoId, v);
-  }
-  return map;
-});
 
 export async function getVideosByIds(ids: string[]): Promise<Video[]> {
   const uniqueShards = Array.from(new Set(ids.map((id) => shardOf(id))));
