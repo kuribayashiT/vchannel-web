@@ -1,5 +1,5 @@
 import fs from 'fs';
-import { firstOpenTask } from './task-md.mjs';
+import { firstOpenTask, taskTargetFiles } from './task-md.mjs';
 import { buildTaskContext, sourceFileTree } from './context-files.mjs';
 import {
   MAX_FILES,
@@ -34,10 +34,17 @@ async function main() {
   const { context: sourceCodeContext, files: contextFiles } = buildTaskContext(target.block);
   console.log(`コンテキストに含めるファイル (${contextFiles.length} 件):\n  ${contextFiles.join('\n  ')}`);
   const fileTree = sourceFileTree();
+  // 完了前に scripts/verify-task-files.mjs が「必須の対象ファイルがすべて変わったか」を検査する。AI にも明示しておく
+  const targets = taskTargetFiles(target.block);
+  const requiredNote = targets && targets.required.length
+    ? "必須の対象ファイル（すべて変更・新規作成すること。1 つでも変わっていないと完了にならず、変更は捨てられます）: " +
+      targets.required.map((f) => `\`${f}\``).join("、") +
+      (targets.optional.length ? "\n任意の対象ファイル（必要な場合だけ変更）: " + targets.optional.map((f) => `\`${f}\``).join("、") : "")
+    : "";
 
   const prompt = "あなたは Next.js (App Router) + TypeScript + Tailwind CSS のプロフェッショナルなフロントエンドエンジニアです。\n" +
     "以下のプロジェクト資料および既存のソースコードを理解した上で、次のタスクを**仕様のすべての項目について**実装してください。ほかのタスクには手を付けないでください。\n\n" +
-    "## 🎯 今回実装するタスク\n" + target.block + "\n\n" +
+    "## 🎯 今回実装するタスク\n" + target.block + "\n\n" + (requiredNote ? requiredNote + "\n\n" : "") +
     "## AGENTS.md\n" + agentsMd + "\n\n" +
     "## FRONTEND_SPEC.md\n" + frontendSpec + "\n\n" +
     "## 📁 プロジェクトのソースファイル一覧（パスのみ。存在しないファイルをインポートしないための参考）\n" + fileTree + "\n\n" +

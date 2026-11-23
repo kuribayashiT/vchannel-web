@@ -125,6 +125,48 @@ export function insertNoteAfterFirstOpenTask(content, note) {
   return lines.join('\n');
 }
 
+/** パイプラインが書き込めるファイル（ai-output.mjs の ALLOWED_DIRS / ALLOWED_EXT / FORBIDDEN_PREFIXES と同じ条件） */
+export function isPipelineWritable(p) {
+  return (
+    /^(app|components|lib|hooks|types)\//.test(p) &&
+    /\.(tsx?|css)$/.test(p) &&
+    !/^(app\/admin|app\/api\/admin|components\/admin|lib\/admin)\//.test(p)
+  );
+}
+
+const PATH_RE = /[A-Za-z0-9_@\-\[\]().\/]+\.(?:tsx?|mjs|js|css|json|ya?ml|md)\b/g;
+/** パスの直後がこれなら任意のファイル（例: `lib/x.ts`（任意）、`lib/x.ts`（必要なら）） */
+const OPTIONAL_AFTER = /^`?\s*[（(]\s*(?:任意|必要なら|必要に応じて|あれば)/;
+/** パスの直前がこれなら代替のファイル（例: （または `lib/x.ts`）、A に作るか、`B` を新規作成） */
+const OPTIONAL_BEFORE = /(?:または|か、)\s*`?$/;
+
+/**
+ * タスク本文の「対象ファイル」欄からファイルを取り出す。
+ * 戻り値: { required: string[], optional: string[] }（どちらもパイプラインが書き込めるファイルだけ）。
+ * 「対象ファイル」欄が無ければ null。
+ */
+export function taskTargetFiles(taskBlock) {
+  const lines = taskBlock.split('\n');
+  const start = lines.findIndex((l) => l.includes('対象ファイル'));
+  if (start === -1) return null;
+  let end = start + 1;
+  while (end < lines.length && !/^\s*- \*\*/.test(lines[end])) end++;
+  const required = new Set();
+  const optional = new Set();
+  for (const line of lines.slice(start, end)) {
+    for (const m of line.matchAll(PATH_RE)) {
+      const p = m[0].replace(/^\.\//, '');
+      if (!isPipelineWritable(p)) continue;
+      const before = line.slice(Math.max(0, m.index - 12), m.index);
+      const after = line.slice(m.index + m[0].length, m.index + m[0].length + 20);
+      if (OPTIONAL_AFTER.test(after) || OPTIONAL_BEFORE.test(before)) optional.add(p);
+      else required.add(p);
+    }
+  }
+  for (const p of required) optional.delete(p);
+  return { required: [...required], optional: [...optional] };
+}
+
 /** 最初の未完了タスクを完了 (`- [x]`) にした内容を返す */
 export function markFirstOpenTaskDone(content) {
   const task = firstOpenTask(content);

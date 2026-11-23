@@ -142,10 +142,27 @@ jobs:
             exit 0
           fi
 
-      - name: Step 4. ビルド成功時のみ COPILOT_TASK.md のタスクを完了扱いに更新
+      - name: Step 4. 対象ファイルの検査に合格した場合のみ COPILOT_TASK.md のタスクを完了扱いに更新
         run: |
-          # auto-coder が実装した「最初の未完了タスク」の行だけを完了にする（行頭一致・壊れ検査付き）
-          node scripts/mark-task-done.mjs
+          # ビルドは何も変えなくても通るため、完了の前に「対象ファイルが実際に変わったか」を検査する
+          # （2026-11-08 に CHAT-1 が、別ファイルだけ変えた実行で完了扱いになったため）
+          if node scripts/verify-task-files.mjs; then
+            # auto-coder が実装した「最初の未完了タスク」の行だけを完了にする（行頭一致・壊れ検査付き）
+            node scripts/mark-task-done.mjs
+          else
+            echo "⚠️ 対象ファイルの検査に不合格。変更を捨て、タスクに失敗メモを追記します（完了にはしない）。"
+            git checkout .
+            git clean -fd
+            node scripts/verify-task-files.mjs --note
+
+            git config --global user.name "github-actions[bot]"
+            git config --global user.email "41898282+github-actions[bot]@users.noreply.github.io"
+            git add COPILOT_TASK.md
+            git commit -m "chore(auto): 対象ファイル未変更のため完了にせず失敗メモを追記" || echo "No changes to commit"
+            git pull origin main --rebase || true
+            git push origin main || true
+            # 以降の PR 作成ステップは、作業ツリーに差分がないため動かない
+          fi
 
       - name: Check for codebase changes
         id: git-check

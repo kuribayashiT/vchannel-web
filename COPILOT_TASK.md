@@ -15,6 +15,8 @@
 
 **⚠ このファイルのタスク（完了済み・未完了とも）を削除・要約しないこと。** 完了したら該当行の `[ ]` を `[x]` にするだけにする。コードブロックの ``` も消さないこと（2026-11-12 の PR #17、2026-11-13 の PR #18 でファイル後半約 250 行と ``` が消えたため、PM が復元した。原因は `scripts/task-fallback.js` がファイル全体を書き直すこと）。
 
+**対象ファイルの検査（2026-11-23〜）**: パイプラインは完了にする前に、「対象ファイル」欄のファイルがすべて変更・新規作成されたかを `scripts/verify-task-files.mjs` で検査する。1 つでも変わっていなければ変更を捨て、タスクに失敗メモを書く。変更しなくてよいファイルには、パスの後ろに `（任意）` か `（必要なら）` を付けるか、`または` の後に書くこと。
+
 上から順に着手すること（P0 → P1 → P2）。タスク行に `【Copilot】` がある項目（backend-repo の変更など）は、自動パイプラインは飛ばし、運営者が GitHub Copilot に依頼して実装する。1タスク = 1PR を目安とし、実装完了時は `[ ]` を `[x]`（または ✅）に更新すること。
 
 ### P0-GSC: Google Search Console 所有権確認（最優先・P0-AFF より先に着手）
@@ -1622,6 +1624,21 @@
     - キーボードが出た状態でも、シートをスクロールすれば `投稿する` を押せる。
     - `FRONTEND_SPEC.md` 5.6（PM 更新済み）の記述と実装が一致している。
 
+### 🚨 P0-REDO: 完了扱いだったが実装されていなかった分のやり直し（2026-11-23 追加・CHAT-FIX-1 の次に着手）
+
+> **経緯**: 2026-11-23 に PM が、過去の完了（`- [ ]` → `- [x]`）85 件を「完了にしたコミットで対象ファイルが変わったか」で点検した。実装漏れは CHAT-1・CHAT-2（→ CHAT-1R / CHAT-2R）と DOMAIN-2（→ 下の DOMAIN-2R）。他は代替ファイルで実装済み、または P0-COST・AUTOFIX で扱い済み。再発防止として、パイプラインは完了の前に `scripts/verify-task-files.mjs` で対象ファイルの変更を検査するようにした。
+
+- [ ] **DOMAIN-2R. （やり直し）`/vtuber`・`/events`・`/news` に canonical を付ける**
+  - **やり直しの理由**: DOMAIN-2 は 2026-11-17 の実行（`f479655`）で `[x]` になったが、変更されたのは `app/page.tsx` だけだった。2026-11-23 時点で本番の `/vtuber`・`/events`・`/news` の HTML に `<link rel="canonical">` が無い（`/`・`/chat`・`/privacy` は出ている）。
+  - **対象ファイル**: `app/vtuber/page.tsx`, `app/events/page.tsx`, `app/news/page.tsx`
+  - **仕様**:
+    - `app/events/page.tsx` と `app/news/page.tsx` の `metadata` に `alternates: { canonical: "/events" }` / `alternates: { canonical: "/news" }` を足す。既存の `title` などは変えない。
+    - `app/vtuber/page.tsx` の `generateMetadata` の戻り値に `alternates: { canonical: "/vtuber" }` を足す。`catch` などのフォールバックの戻り値がある場合は、そちらにも足す。
+    - `metadataBase` が `SITE_URL` なので、相対パスで書けば絶対 URL になる。
+  - **完了条件**:
+    - `npx tsc --noEmit` / `npm run build` がエラーなし。
+    - 本番の `/vtuber`・`/events`・`/news` の HTML に `<link rel="canonical" href="https://www.vchannel.net/...">` が 1 つだけ出る。
+
 ### P0-CHATROUGH: 掲示板を「気軽に書ける場」にする — 1 行の入力欄と、配信ごとの話題スレ（2026-11-23 追加・CHAT-FIX-1 の次、READ-1 より先に着手）
 
 > **背景**: 掲示板が事務所単位（例: `ホロライブ`）しかなく、「事務所全体の話をする場所」に見えて書きにくい。さらに投稿は FAB → シート → 名前・本文と手順が多く、構えてしまう。
@@ -1803,7 +1820,7 @@
     - `FRONTEND_SPEC.md` 2.2（PM 更新済み）の記述と実装が一致している。
 
 - [ ] **TOPIC-2. 掲示板に「いま話題のスレ」を出し、話題スレを開けるようにする**（TOPIC-1 の次に着手）
-  - **対象ファイル**: `components/ChatBoard.tsx`, `components/ChatTopicList.tsx`（新規）, `lib/chat.ts`
+  - **対象ファイル**: `components/ChatBoard.tsx`, `components/ChatTopicList.tsx`（新規）, `lib/chat.ts`（任意）
   - **仕様**:
     - **画面の構成**（上から）: 注意事項（1 行）→ **いま話題のスレ** → **事務所の雑談**（今のスレッドタブ。見出しの `スレッド一覧` を `事務所の雑談` に変える）→ 選んだスレッドの中身。
     - **`ChatTopicList`（新規）**: `/api/chat/topics` を読み込み、見出し `いま話題のスレ`（lucide-react の `Flame` `size={16}` 付き）の下にカードを縦に並べる。
