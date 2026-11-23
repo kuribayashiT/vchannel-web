@@ -1597,7 +1597,7 @@
 > PM が確認したこと（2026-11-23）: `pl_id=27059`（どこでもリンク）に `url=` を付けると、もしもの楽天アフィリエイト ID を経由して `url` に指定した楽天の検索ページへ 302 で転送される。
 > **楽天モーションウィジェット（`RakutenMotionWidget`）は今回は変えない**。直接の楽天 ID（`getRakutenAffiliateId`）を使ったまま残す。
 
-- [ ] **MOSHIMO-1. `AffiliateLinks` の楽天リンクを、もしもの「どこでもリンク」で作る**
+- [x] **MOSHIMO-1. `AffiliateLinks` の楽天リンクを、もしもの「どこでもリンク」で作る**
   - **対象ファイル**: `lib/affiliate.ts`、`components/AffiliateLinks.tsx`
   - **仕様**:
     - `lib/affiliate.ts`:

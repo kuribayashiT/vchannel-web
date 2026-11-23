@@ -1,6 +1,6 @@
 import { ShoppingBag } from "lucide-react";
 import {
-  buildRakutenAffiliateUrl,
+  buildMoshimoRakutenUrl,
   buildSearchUrl,
   isAffiliateEnabled,
 } from "@/lib/affiliate";
@@ -17,9 +17,7 @@ export function AffiliateLinks({
   const kw = keyword.trim();
   if (!kw || !isAffiliateEnabled()) return null;
 
-  const searchUrl = buildSearchUrl(kw);
-  const href = buildRakutenAffiliateUrl(searchUrl);
-  if (!href) return null;
+  const href = buildMoshimoRakutenUrl(buildSearchUrl(kw));
 
   return (
     <section
@@ -36,6 +34,7 @@ export function AffiliateLinks({
         href={href}
         target="_blank"
         rel="nofollow sponsored noopener"
+        referrerPolicy="no-referrer-when-downgrade"
         className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#bf0000] px-3 py-2 text-sm font-semibold text-white transition hover:brightness-110"
       >
         <ShoppingBag size={16} />

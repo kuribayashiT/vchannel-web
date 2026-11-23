@@ -1,8 +1,7 @@
 ### 🚀 自動実装の成果
-- **タスク**: **CHAT-7. 配信中カードに「感想を書く」リンクを付ける**（CHAT-6 の次に着手）
+- **タスク**: **MOSHIMO-1. `AffiliateLinks` の楽天リンクを、もしもの「どこでもリンク」で作る**
 - **変更したファイル**:
-  - `components/VideoCard.tsx`
-- **改善内容**: `components/VideoCard.tsx` を変更しました。`live === true` のカードだけ、動画の `<a>` の外（カード下部）に `感想を書く` リンクを追加しています。
-リンク先は `/chat?channel=…&draft=…` です。`draft` はタイトル先頭 30 字（超えたら `…`）を「」で囲んだ文に `見てる！ ` を足したものです。
-`next/link` に `rel="nofollow"` を付け、先頭に `MessageSquare` `size={14}` を置きました。配信中以外のカードには出さず、サムネイル・タイトルの再生動作は変えていません。
-`npx tsc --noEmit` と `npm run build` は実行していません。`FRONTEND_SPEC.md` 5.6 は PM 更新済みで実装と一致するため、SPEC への追記はありません。
+  - `lib/affiliate.ts`
+  - `components/AffiliateLinks.tsx`
+- **改善内容**: `lib/affiliate.ts` にもしもの定数 `MOSHIMO_A_ID`・`MOSHIMO_RAKUTEN` と `buildMoshimoRakutenUrl` を追加し、先頭コメントと `buildRakutenAffiliateUrl` の JSDoc を書き換えました。
+`components/AffiliateLinks.tsx` の `href` を `buildMoshimoRakutenUrl(buildSearchUrl(kw))` に変え、`<a>` に `referrerPolicy="no-referrer-when-downgrade"` を追加しました。`isAffiliateEnabled()` の判定、`rel`、`target`、見た目、文言は変えていません。
