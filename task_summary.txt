@@ -1,12 +1,8 @@
 ### 🚀 自動実装の成果
-- **タスク**: **CHAT-6. `/chat?channel=…&draft=…` で事務所スレッドを開き、VTuber 詳細ページから書き込めるようにする**（CHAT-5 の次に着手）
+- **タスク**: **CHAT-7. 配信中カードに「感想を書く」リンクを付ける**（CHAT-6 の次に着手）
 - **変更したファイル**:
-  - `app/chat/page.tsx`
-  - `components/ChatBoard.tsx`
-  - `app/vtuber/[channelId]/page.tsx`
-- **改善内容**: `/chat?channel=…&draft=…` のディープリンクを実装しました。`channel` の所属事務所のスレッドを初期タブにして `scrollIntoView` で見える位置へ出し、`draft` は投稿シートを 1 回だけ自動で開きます（自動送信はしません）。
-シートを閉じると `router.replace("/chat", { scroll: false })` でクエリを消します。`app/chat/page.tsx` は `ChatBoard` を `Suspense` で包み、`canonical` を `/chat` にしました。
-VTuber 詳細ページの `DetailView` 直後に、`{事務所名}の掲示板` カードと `{VTuber名}さんについて書く` ボタン（`rel="nofollow"`）を追加しました。`listThreads()` は `"use cache"` で約 10 分キャッシュし、失敗した場合や対応スレッドがない事務所ではカードを出しません。
-`tsc` と `npm run build` は実行していません。
-`draft` は前後の空白を取って 100 字に切り詰めますが、元の `draft` が空白で終わっていれば末尾に半角スペース 1 つを戻します。`○○さん ` の形で書き始められるようにするためで、仕様書の「前後の空白を取る」とは少し異なります。
-`lib/firestore.ts` は変更していません。
+  - `components/VideoCard.tsx`
+- **改善内容**: `components/VideoCard.tsx` を変更しました。`live === true` のカードだけ、動画の `<a>` の外（カード下部）に `感想を書く` リンクを追加しています。
+リンク先は `/chat?channel=…&draft=…` です。`draft` はタイトル先頭 30 字（超えたら `…`）を「」で囲んだ文に `見てる！ ` を足したものです。
+`next/link` に `rel="nofollow"` を付け、先頭に `MessageSquare` `size={14}` を置きました。配信中以外のカードには出さず、サムネイル・タイトルの再生動作は変えていません。
+`npx tsc --noEmit` と `npm run build` は実行していません。`FRONTEND_SPEC.md` 5.6 は PM 更新済みで実装と一致するため、SPEC への追記はありません。
