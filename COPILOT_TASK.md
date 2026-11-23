@@ -1621,7 +1621,7 @@
 > **背景**: アプリ版の Vちゃんねる（iOS、App Store ID `1611900581`）は、広告削除サブスクと AdMob で収益が出ている。Web の利用者のうち、毎日見に来る人をプッシュ通知のあるアプリへ案内すれば、全体の収益が上がる。今の Web には App Store への導線がない。
 > App Store の URL は `https://apps.apple.com/jp/app/id1611900581`（短い形）を使う。
 
-- [ ] **APPLINK-1. スマートアプリバナーと、設定ページの「アプリ版」案内を追加する**
+- [x] **APPLINK-1. スマートアプリバナーと、設定ページの「アプリ版」案内を追加する**
   - **対象ファイル**: `app/layout.tsx`、`components/SettingsList.tsx`
   - **仕様**:
     - `app/layout.tsx`:

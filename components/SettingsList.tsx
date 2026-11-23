@@ -2,11 +2,14 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { Smartphone } from "lucide-react";
 import { resetSelection } from "@/hooks/useSelection";
 import { CONTACT_EMAIL } from "@/lib/site";
 
 const btn =
   "w-full rounded-lg border border-zinc-200 bg-white px-4 py-3 text-left text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800";
+
+const APP_STORE_URL = "https://apps.apple.com/jp/app/id1611900581";
 
 export function SettingsList() {
   const [message, setMessage] = useState("");
@@ -54,6 +57,22 @@ export function SettingsList() {
           {message}
         </p>
       )}
+
+      <section className="rounded-lg border border-zinc-200 p-4 text-sm dark:border-zinc-800">
+        <h2 className="mb-2 font-bold">アプリ版</h2>
+        <p className="mb-3 text-zinc-600 dark:text-zinc-400">
+          iPhone アプリなら、推しの配信開始をプッシュ通知でお知らせします。
+        </p>
+        <a
+          href={APP_STORE_URL}
+          target="_blank"
+          rel="noopener"
+          className={`${btn} flex items-center gap-2`}
+        >
+          <Smartphone size={16} aria-hidden />
+          <span>App Store で見る</span>
+        </a>
+      </section>
 
       <section className="rounded-lg border border-zinc-200 p-4 text-sm dark:border-zinc-800">
         <h2 className="mb-2 font-bold">アプリ情報</h2>
