@@ -71,18 +71,20 @@ Cloud Functions が定期更新する。アプリは 1 時間 TTL でキャッ�
 - `posts` コレクション：`threadId`, `content`, `author`, `postNo`, `parentNo`, `createdAt`（serverTimestamp）, （Bot 投稿の判別フィールドあり）
 - クエリ: `posts where threadId == X order by createdAt asc`（realtime snapshots）
 - 書き込み: `posts` に追加し、`threads/{id}` の `lastUpdated` / `postCount(+1)` を更新。`postNo` は既存件数+1、`>>N` アンカーの最小値を `parentNo` に格納。
-- **本番ルール（2026-11-08 Console で確認）**: `threads` / `posts` は read 公開。
+- **本番ルール（2026-11-08 Console で確認、2026-11-23 に `topics` を追加して Console から公開）**: `threads` / `topics` / `posts` は read 公開。
   - `threads`: update は `lastUpdated == request.time` かつ `postCount` +1 のみ許可。create / delete は不可。
   - `posts`: create のみ許可。主な条件は以下のとおり。update / delete は不可。
     - フィールドは `threadId`, `content`, `author`, `postNo`, `parentNo`, `createdAt`, `isBot` に限定する。
     - `content` は 1〜500 字、`author` は 20 字以内。
     - `createdAt == request.time`。
     - `isBot` は false または省略。
+    - `threadId` は `threads/{threadId}` が存在する、**または** 書き込み後に `topics/{threadId}` が存在する（`existsAfter`）。話題スレの最初の投稿は、topic の作成と**同じ commit** で書かないと拒否される。
+  - `topics`: create は ID `^v_[A-Za-z0-9_-]{11}$`・フィールドは `kind`/`videoId`/`postCount`/`lastUpdated`/`createdAt` のみ・`kind == 'video'`・ID == `v_` + `videoId`・`postCount == 1`・時刻 == `request.time`。update は `lastUpdated == request.time` と `postCount` +1 のみ。delete 不可。
   - その他のコレクションは全拒否。
 - ⚠ リポジトリ内 `backend-repo/firestore.rules` は 2022 年の期限切れルールのままで、本番と一致していない。**`firebase deploy --only firestore` を実行すると本番ルールが上書きされるため禁止**。本番ルールは Console 側が正。
 - ⚠ 既知の不整合: Flutter アプリは投稿後に thread の `lastUpdated` だけを更新しようとし、ルールで拒否されている（エラーは握りつぶし）。このため Flutter からの投稿分は `postCount` と `lastUpdated` に反映されず、**`postCount` は実際のレス数より小さい**。採番には `postCount` を使わないこと。
 - `postNo` はルール上 `>= 1` のみの検証で、一意性は保証されない（COPILOT_TASK CHAT-2 で Web 側を改善予定）。
-- **`topics` コレクション（話題スレ・2026-11-23 設計。Console のルール追加が前提 → COPILOT_TASK P0-CHATROUGH の人手作業）**:
+- **`topics` コレクション（話題スレ・2026-11-23 追加。ルールは 2026-11-23 に Console で公開済み）**:
   - 配信ごとのスレッド。文書 ID は `v_{動画ID}`。フィールドは `kind`（`"video"`）, `videoId`, `postCount`, `lastUpdated`, `createdAt` のみ。**タイトルやサムネは保存しない**（ルールで中身を検証できないため。表示は Web の配信データから引く）。
   - 投稿は既存の `posts` に `threadId = "v_{動画ID}"` で入れる（フィールドは事務所スレッドと同じ）。
   - 最初の投稿で topic を作成（`postCount: 1`、`currentDocument.exists: false`）、2 件目以降は `postCount` +1・`lastUpdated` 更新。どちらも post と同じ 1 回の commit。

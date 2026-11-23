@@ -1632,9 +1632,14 @@
 >
 > 仕様の正は `FRONTEND_SPEC.md` 2.2 / 5.6（PM 更新済み）。
 >
-> **⏸ TOPIC-1〜3 は運営者の作業（下の「人手作業」）が終わるまで保留**。チェックボックスは付けていない。PM が作業完了を確認してから `- [ ]` に戻す。
+> ✅ **運営者の作業（下の「人手作業」）は 2026-11-23 に完了**。Console でルールを公開し、プレイグラウンドでも確認済み。TOPIC-1〜3 は着手してよい（CHATLINE-1 の次、TOPIC-1 → TOPIC-3 の順）。
 
-#### 人手作業（運営者・Firebase Console）— TOPIC-1 の前提
+#### ✅ 人手作業（運営者・Firebase Console）— 2026-11-23 完了
+
+> **実際に公開したルールの要点**（下の手順 2 の案から変更あり）: `posts` のスレッド確認は `exists(threads/{threadId}) || existsAfter(topics/{threadId})`。ID の形だけで通す案は採用していない。そのため**話題スレの最初の投稿は、post の作成と topic の作成を必ず同じ `:commit` に入れること**（別々に書くと post が拒否される）。`topics` のルールは手順 3 に `videoId is string` を足したもの。全文は `FRONTEND_SPEC.md` 2.2 を参照。
+
+<details><summary>当時の手順（記録）</summary>
+
 
 > ⚠ `firebase deploy --only firestore` は**使わない**（本番ルールが 2022 年版で上書きされる）。必ず Console で編集する。
 
@@ -1676,6 +1681,8 @@
 6. **インデックスは追加しなくてよい**。話題スレ一覧は `topics` を `lastUpdated` 降順で読むだけで、単一フィールドの自動インデックスで足りる。投稿の取得は既存の `posts` の `threadId` のクエリをそのまま使う。
 7. **PM に「ルール公開した」と伝える**。PM が TOPIC-1〜3 を `- [ ]` に戻し、パイプラインが実装する。
 
+</details>
+
 > **影響しないもの（確認済み）**: Flutter アプリは `threads` を全件読んで事務所ごとに振り分けており、`topics` は読まない。ニュース Bot（`backend-repo/functions/index.js` の NewsBot）も `threads` だけを見る。話題スレの投稿は `posts` に入るが、`threadId` が `v_…` なので、アプリのどのスレッドにも出ない。
 
 - [ ] **CHATLINE-1. スレッドの先頭に 1 行の入力欄を置き、シートを開かずに書けるようにする**（CHAT-FIX-1 の次に着手）
@@ -1707,7 +1714,7 @@
     - 375px 幅で入力欄と送信ボタンが 1 行に収まり、横スクロールが出ない。
     - `FRONTEND_SPEC.md` 5.6（PM 更新済み）の記述と実装が一致している。
 
-- ⏸ **TOPIC-1. 話題スレ（配信ごとのスレッド）のサーバー側を作る** — **保留（上の人手作業の完了待ち・チェックボックスなし＝着手禁止）**
+- [ ] **TOPIC-1. 話題スレ（配信ごとのスレッド）のサーバー側を作る**（CHATLINE-1 の次に着手）
   - **対象ファイル**: `lib/chat.ts`, `lib/firestore.ts`, `lib/chat-topics.ts`（新規）, `app/api/chat/posts/route.ts`, `app/api/chat/topics/route.ts`（新規）
   - **仕様**:
     - **`lib/chat.ts`**
@@ -1719,7 +1726,7 @@
       - `getTopicDoc(topicId)`: 1 件 GET。404 なら `null`。
       - `addPost` を、`threadId` が話題スレ（`isTopicId`）のときに次のように分岐する。事務所スレッドの処理は変えない。
         - postNo の採番は事務所スレッドと同じ方法（今の `addPost` と同じ関数）を使う。
-        - `getTopicDoc` が `null`（最初の投稿）: 1 回の `:commit` で「post の作成」と「`topics/{id}` の作成」を書く。topic は `update` 書き込みで `fields: { kind: "video", videoId, postCount: 1 }`、`updateTransforms` で `lastUpdated` / `createdAt` を `REQUEST_TIME`、`currentDocument: { exists: false }`。
+        - `getTopicDoc` が `null`（最初の投稿）: 1 回の `:commit` で「post の作成」と「`topics/{id}` の作成」を書く（**必ず同じ commit**。本番ルールの `existsAfter` で、topic が同時に作られない post は拒否される）。topic は `update` 書き込みで `fields: { kind: "video", videoId, postCount: 1 }`、`updateTransforms` で `lastUpdated` / `createdAt` を `REQUEST_TIME`、`currentDocument: { exists: false }`。
         - 既にある: 1 回の `:commit` で「post の作成」と「`topics/{id}` の `lastUpdated` = REQUEST_TIME・`postCount` +1 の transform」を書く。`currentDocument: { exists: true }`。
         - 同時に 2 人が最初の投稿をして `exists: false` が失敗した場合（`FAILED_PRECONDITION`）は、1 回だけ「既にある」側でやり直す。
     - **`lib/chat-topics.ts`（新規・サーバー専用）**
@@ -1738,7 +1745,7 @@
     - `GET /api/chat/topics` が、書き込みのある話題スレと、ライブ中のおすすめ（最大 3 件）を返す。
     - `FRONTEND_SPEC.md` 2.2（PM 更新済み）の記述と実装が一致している。
 
-- ⏸ **TOPIC-2. 掲示板に「いま話題のスレ」を出し、話題スレを開けるようにする** — **保留（TOPIC-1 の完了待ち・チェックボックスなし＝着手禁止）**
+- [ ] **TOPIC-2. 掲示板に「いま話題のスレ」を出し、話題スレを開けるようにする**（TOPIC-1 の次に着手）
   - **対象ファイル**: `components/ChatBoard.tsx`, `components/ChatTopicList.tsx`（新規）, `lib/chat.ts`
   - **仕様**:
     - **画面の構成**（上から）: 注意事項（1 行）→ **いま話題のスレ** → **事務所の雑談**（今のスレッドタブ。見出しの `スレッド一覧` を `事務所の雑談` に変える）→ 選んだスレッドの中身。
@@ -1765,7 +1772,7 @@
     - 375px 幅で横スクロールが出ない。
     - `FRONTEND_SPEC.md` 5.6（PM 更新済み）の記述と実装が一致している。
 
-- ⏸ **TOPIC-3. 配信中カードの「感想を書く」を、その配信の話題スレにつなぐ** — **保留（TOPIC-2 の完了待ち・チェックボックスなし＝着手禁止）**
+- [ ] **TOPIC-3. 配信中カードの「感想を書く」を、その配信の話題スレにつなぐ**（TOPIC-2 の次に着手）
   - **対象ファイル**: `components/VideoCard.tsx`
   - **仕様**:
     - CHAT-7 で付けた `感想を書く` のリンク先を `/chat?topic=v_{v.videoId}` に変える（`channel` と `draft` は付けない。話題スレのヘッダーにタイトルが出るため）。
