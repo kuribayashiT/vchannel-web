@@ -1,6 +1,7 @@
 "use client";
 
-import { Star } from "lucide-react";
+import Link from "next/link";
+import { MessageSquare, Star } from "lucide-react";
 import { SafeImage } from "@/components/SafeImage";
 import { useFavorites } from "@/hooks/useFavorites";
 import { playVideo } from "@/hooks/usePlayer";
@@ -18,6 +19,19 @@ const timeFmt = new Intl.DateTimeFormat("ja-JP", {
 function formatTime(iso: string) {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? "" : timeFmt.format(d);
+}
+
+const DRAFT_TITLE_MAX = 30;
+
+/** 掲示板の投稿シートに入れる本文（タイトル先頭30字。超えたら …） */
+function buildChatHref(v: StreamCardVideo): string {
+  const chars = Array.from(v.title);
+  const short =
+    chars.length > DRAFT_TITLE_MAX
+      ? `${chars.slice(0, DRAFT_TITLE_MAX).join("")}…`
+      : v.title;
+  const draft = `「${short}」見てる！ `;
+  return `/chat?channel=${encodeURIComponent(v.channelId)}&draft=${encodeURIComponent(draft)}`;
 }
 
 /** サムネイル押下でページ下部のプレーヤーで再生。右上の★でお気に入りを切り替える */
@@ -59,7 +73,11 @@ export function VideoCard({
               className="inline-block animate-pulse rounded bg-red-600 px-2 py-0.5 text-xs font-bold text-white"
               title={`${(v.concurrentViewers ?? 0).toLocaleString()}人が視聴中`}
             >
-              <span aria-hidden className="mr-1 inline-block size-2 rounded-full bg-white" />              配信中 {formatCompact(v.concurrentViewers ?? 0)}人
+              <span
+                aria-hidden
+                className="mr-1 inline-block size-2 rounded-full bg-white"
+              />
+              配信中 {formatCompact(v.concurrentViewers ?? 0)}人
             </span>
           )}
           <p className="line-clamp-2 text-sm font-medium">{v.title}</p>
@@ -67,6 +85,16 @@ export function VideoCard({
           <p className="text-xs text-zinc-500">{formatTime(v.comparisonDay)}</p>
         </div>
       </a>
+      {live && (
+        <Link
+          href={buildChatHref(v)}
+          rel="nofollow"
+          className="flex items-center gap-1.5 border-t border-zinc-100 px-3 py-2 text-xs font-medium text-violet-700 hover:bg-violet-50 dark:border-zinc-800 dark:text-violet-300 dark:hover:bg-violet-950/20"
+        >
+          <MessageSquare size={14} aria-hidden />
+          感想を書く
+        </Link>
+      )}
       <button
         type="button"
         onClick={() => toggle(v.videoId)}
