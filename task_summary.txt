@@ -1,7 +1,7 @@
 ### 🚀 自動実装の成果
-- **タスク**: **MOSHIMO-1. `AffiliateLinks` の楽天リンクを、もしもの「どこでもリンク」で作る**
+- **タスク**: **APPLINK-1. スマートアプリバナーと、設定ページの「アプリ版」案内を追加する**
 - **変更したファイル**:
-  - `lib/affiliate.ts`
-  - `components/AffiliateLinks.tsx`
-- **改善内容**: `lib/affiliate.ts` にもしもの定数 `MOSHIMO_A_ID`・`MOSHIMO_RAKUTEN` と `buildMoshimoRakutenUrl` を追加し、先頭コメントと `buildRakutenAffiliateUrl` の JSDoc を書き換えました。
-`components/AffiliateLinks.tsx` の `href` を `buildMoshimoRakutenUrl(buildSearchUrl(kw))` に変え、`<a>` に `referrerPolicy="no-referrer-when-downgrade"` を追加しました。`isAffiliateEnabled()` の判定、`rel`、`target`、見た目、文言は変えていません。
+  - `app/layout.tsx`
+  - `components/SettingsList.tsx`
+- **改善内容**: app/layout.tsx の metadata に verification の直後で itunes: { appId: "1611900581" } を追加し、スマートアプリバナー用の apple-itunes-app メタタグを出力するようにしました。
+components/SettingsList.tsx の「アプリ情報」の直前に「アプリ版」セクションを追加しました。説明文と、Smartphone アイコン付きの「App Store で見る」ボタン（既存の btn と同じ見た目、新しいタブで開く）を入れています。

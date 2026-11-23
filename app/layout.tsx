@@ -34,6 +34,7 @@ export const metadata: Metadata = {
   verification: {
     google: "dlA9QuuEy2gQC1AuuiFp96bz0wPej2D3daAPKi3q890",
   },
+  itunes: { appId: "1611900581" },
   icons: {
     icon: "/logo.png",
     apple: "/logo.png",
