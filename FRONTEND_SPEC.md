@@ -450,6 +450,10 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 `設定` / `Push通知`（Web 非表示）/ `お知らせ`（`noticeJson`、New バッジ）/ `このアプリについて`: `共有する`・`アプリ情報`・`利用規約`・`お問い合わせ`（メール）・`おすすめVtuber`（メール）。
 - アプリ情報は長い静的ページ。利用規約は現行ほぼプレースホルダー（Next.js 版で正式文面を用意）。
 - `プライバシーポリシー・広告について`（`/privacy`）へのリンクを置く（AFF-2）。
+- アプリ版への案内（APPLINK-1）:
+  - iOS 版の App Store ID は `1611900581`、URL は `https://apps.apple.com/jp/app/id1611900581`。
+  - `app/layout.tsx` の `metadata.itunes` で、スマートアプリバナー（`apple-itunes-app`）を全ページに出す。
+  - `/settings` の「アプリ情報」の直前に「アプリ版」セクションを置く。中身は説明文（プッシュ通知の訴求）と「App Store で見る」ボタン（`Smartphone` アイコン）。
 - 問い合わせ先メールは `vchannel.com.info@gmail.com` を使用し、設定ページと `/privacy` で同じ宛先を表示する。
 
 ### 5.11 収益化（アフィリエイト）

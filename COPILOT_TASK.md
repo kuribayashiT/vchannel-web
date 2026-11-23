@@ -1616,6 +1616,30 @@
     - 上の 2 ページで、`AffiliateLinks` の中に `hb.afl.rakuten.co.jp` が出ない。トップ・ランキングのウィジェットは変わらない。
     - `FRONTEND_SPEC.md` 5.11 は PM が更新済みなので、変更不要。
 
+### 📱 P0-APPLINK: Web からアプリ版（iOS）へ案内する（2026-11-23 追加・MOSHIMO-1 の次、CHAT-FIX-1 より先に着手）
+
+> **背景**: アプリ版の Vちゃんねる（iOS、App Store ID `1611900581`）は、広告削除サブスクと AdMob で収益が出ている。Web の利用者のうち、毎日見に来る人をプッシュ通知のあるアプリへ案内すれば、全体の収益が上がる。今の Web には App Store への導線がない。
+> App Store の URL は `https://apps.apple.com/jp/app/id1611900581`（短い形）を使う。
+
+- [ ] **APPLINK-1. スマートアプリバナーと、設定ページの「アプリ版」案内を追加する**
+  - **対象ファイル**: `app/layout.tsx`、`components/SettingsList.tsx`
+  - **仕様**:
+    - `app/layout.tsx`:
+      - `metadata` の `verification` の直後に `itunes: { appId: "1611900581" }` を追加する。
+      - Next.js が `<meta name="apple-itunes-app" content="app-id=1611900581">` を出力し、iPhone・iPad の Safari の上部にアプリのバナーが出る。iOS がアプリの有無を見て「開く」と「入手」を切り替えるので、独自の表示判定は不要。
+      - 他の metadata は変えない。
+    - `components/SettingsList.tsx`:
+      - 「アプリ情報」セクションの**直前**に「アプリ版」セクションを追加する。枠は既存の `section` と同じクラス。
+        - 見出しは「アプリ版」。
+        - 説明文は「iPhone アプリなら、推しの配信開始をプッシュ通知でお知らせします。」。
+        - ボタンは `<a href="https://apps.apple.com/jp/app/id1611900581" target="_blank" rel="noopener">`。lucide-react の `Smartphone` アイコンと文言「App Store で見る」を入れ、見た目は既存の `btn` と同じにする。
+      - 端末の判定はしない。Android やパソコンでも表示してよい。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - トップ `/` の HTML の `<head>` に `<meta name="apple-itunes-app" content="app-id=1611900581"/>` がある。
+    - `/settings` に「アプリ版」セクションがあり、リンク先が `https://apps.apple.com/jp/app/id1611900581` になっている。
+    - `FRONTEND_SPEC.md` 5.10 は PM が更新済みなので、変更不要。
+
 ### 🚨 P0-CHATFORM: スマホで投稿フォームがはみ出して押しにくい（2026-11-23 追加・**最優先。READ-1 より先に着手**）
 
 > **症状（運営者がスマホで確認）**: 掲示板の投稿シートで名前欄・本文欄をタップすると画面が拡大され、横スクロールしないと `投稿する` ボタンに届かない。また、`キャンセル` ボタンの文字が 2 行に折り返して見た目が崩れている。
