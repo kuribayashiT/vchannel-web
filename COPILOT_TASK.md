@@ -1591,6 +1591,31 @@
 
 ---
 
+### 💰 P0-MOSHIMO: 楽天のグッズ検索リンクをもしもアフィリエイト経由にする（2026-11-23 追加・**小粒なので CHAT-FIX-1 より先に着手**）
+
+> **背景**: 楽天アフィリエイトに直接つなぐと、報酬は主に楽天ポイントで受け取ることになる。もしも経由なら報酬を現金で受け取れ、W報酬も付く。運営費を現金で回収するため、グッズ検索リンク（`AffiliateLinks`）をもしも経由に切り替える。もしもの楽天市場（p_id=54）は 2026-11-23 時点で提携済み。
+> PM が確認したこと（2026-11-23）: `pl_id=27059`（どこでもリンク）に `url=` を付けると、もしもの楽天アフィリエイト ID を経由して `url` に指定した楽天の検索ページへ 302 で転送される。
+> **楽天モーションウィジェット（`RakutenMotionWidget`）は今回は変えない**。直接の楽天 ID（`getRakutenAffiliateId`）を使ったまま残す。
+
+- [ ] **MOSHIMO-1. `AffiliateLinks` の楽天リンクを、もしもの「どこでもリンク」で作る**
+  - **対象ファイル**: `lib/affiliate.ts`、`components/AffiliateLinks.tsx`
+  - **仕様**:
+    - `lib/affiliate.ts`:
+      - 定数 `MOSHIMO_A_ID = "5893757"` と `MOSHIMO_RAKUTEN = { pId: "54", pcId: "54", plId: "27059" }` を追加する。値は秘密情報ではない（リンクに公開される値）。
+      - `buildMoshimoRakutenUrl(targetUrl: string): string` を追加する。返り値は `https://af.moshimo.com/af/c/click?a_id=5893757&p_id=54&pc_id=54&pl_id=27059&url=${encodeURIComponent(targetUrl)}`。
+      - `getRakutenAffiliateId`・`isAffiliateEnabled`・`buildSearchUrl` は変えない。ウィジェットが使っているため。
+      - `buildRakutenAffiliateUrl` は消さずに残す。ただし JSDoc に「グッズ検索リンクには使わない（もしも経由の `buildMoshimoRakutenUrl` を使う）」と書く。
+      - ファイル先頭のコメントを、「グッズ検索リンクはもしも経由、ウィジェットは楽天直接」に書き換える。
+    - `components/AffiliateLinks.tsx`:
+      - `href` を `buildMoshimoRakutenUrl(buildSearchUrl(kw))` にする。`isAffiliateEnabled()` による表示判定はそのまま残す。
+      - `<a>` に `referrerPolicy="no-referrer-when-downgrade"` を追加する。もしもの推奨設定。`rel="nofollow sponsored noopener"`・`target="_blank"`・見た目・文言は変えない。
+      - もしものインプレッション計測用画像（`i.moshimo.com/af/i/impression`）は**付けない**（既存ルール「インプレッション画像は使わない」）。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - `/vtuber/UCCzUftO8KOVkV4wQG1vkUvg` と `/events/11-24` の HTML で、「楽天市場で探す」の `href` が `https://af.moshimo.com/af/c/click?a_id=5893757&p_id=54&pc_id=54&pl_id=27059&url=https%3A%2F%2Fsearch.rakuten.co.jp%2Fsearch%2Fmall%2F` で始まる。
+    - 上の 2 ページで、`AffiliateLinks` の中に `hb.afl.rakuten.co.jp` が出ない。トップ・ランキングのウィジェットは変わらない。
+    - `FRONTEND_SPEC.md` 5.11 は PM が更新済みなので、変更不要。
+
 ### 🚨 P0-CHATFORM: スマホで投稿フォームがはみ出して押しにくい（2026-11-23 追加・**最優先。READ-1 より先に着手**）
 
 > **症状（運営者がスマホで確認）**: 掲示板の投稿シートで名前欄・本文欄をタップすると画面が拡大され、横スクロールしないと `投稿する` ボタンに届かない。また、`キャンセル` ボタンの文字が 2 行に折り返して見た目が崩れている。

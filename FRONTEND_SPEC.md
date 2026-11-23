@@ -453,9 +453,11 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 - 問い合わせ先メールは `vchannel.com.info@gmail.com` を使用し、設定ページと `/privacy` で同じ宛先を表示する。
 
 ### 5.11 収益化（アフィリエイト）
-- 提携状況（2026-11-14）: **楽天: 直接・利用中 / もしも: 会員登録承認済み（2026-11-14、メディア URL の更新と Amazon 提携申請はこれから） / Amazon: 未提携**。
-- アフィリエイトリンクは `lib/affiliate.ts` の `buildRakutenAffiliateUrl` だけで生成する（URL の手書き禁止）。ID は `NEXT_PUBLIC_RAKUTEN_AFFILIATE_ID` を優先し、未設定時は公開 ID `5964c172.78b60cce.5964c173.d6c6def5` を使う。
-- 共通表示は `AffiliateLinks`（`PR` バッジ付き、`rel="nofollow sponsored noopener"`、楽天ボタン1つ）を使う。インプレッション画像は使わない。
+- 提携状況（2026-11-23）: **もしも経由の楽天市場: 提携済み（p_id=54）/ もしも経由の Amazon: 申請中 / 楽天アフィリエイト（直接）: 利用中（ウィジェットだけ）**。
+- アフィリエイトリンクは `lib/affiliate.ts` の関数だけで生成する（URL の手書き禁止）。
+  - グッズ検索リンク（`AffiliateLinks`）はもしも経由にし、`buildMoshimoRakutenUrl(buildSearchUrl(keyword))` で作る。形式は `https://af.moshimo.com/af/c/click?a_id=5893757&p_id=54&pc_id=54&pl_id=27059&url=<エンコードした楽天検索URL>`（どこでもリンク）（MOSHIMO-1）。
+  - 楽天モーションウィジェットは楽天直接の ID を使う。ID は `NEXT_PUBLIC_RAKUTEN_AFFILIATE_ID` を優先し、未設定時は公開 ID `5964c172.78b60cce.5964c173.d6c6def5` を使う（`getRakutenAffiliateId`）。
+- 共通表示は `AffiliateLinks`（`PR` バッジ付き、`rel="nofollow sponsored noopener"`、`referrerPolicy="no-referrer-when-downgrade"`、楽天ボタン1つ）を使う。インプレッション画像（もしもの `i.moshimo.com` を含む）は使わない。
 - 設置箇所は VTuber 詳細（`登録者数の推移` と `最新動画` の間）とイベントカレンダー（日付選択のイベント一覧下）とする。
 - 楽天モーションウィジェットは `RakutenMotionWidget` で表示し、楽天公式 `https://xml.affiliate.rakuten.co.jp/widget/js/rakuten_widget.js?20230106` を `<iframe srcDoc>` で隔離して描画する。`<base target="_blank">` を付け、リンクは新しいタブで開く。
 - ウィジェットサイズは画面幅 640px 未満で `300x250`、640px 以上で `600x200`。`rakuten_size` も同じ値を使う。トップ `/` とランキング `/ranking` のページ下部に各1つ設置する。
