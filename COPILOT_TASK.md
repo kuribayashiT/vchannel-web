@@ -1622,6 +1622,160 @@
     - キーボードが出た状態でも、シートをスクロールすれば `投稿する` を押せる。
     - `FRONTEND_SPEC.md` 5.6（PM 更新済み）の記述と実装が一致している。
 
+### P0-CHATROUGH: 掲示板を「気軽に書ける場」にする — 1 行の入力欄と、配信ごとの話題スレ（2026-11-23 追加・CHAT-FIX-1 の次、READ-1 より先に着手）
+
+> **背景**: 掲示板が事務所単位（例: `ホロライブ`）しかなく、「事務所全体の話をする場所」に見えて書きにくい。さらに投稿は FAB → シート → 名前・本文と手順が多く、構えてしまう。
+>
+> **方針**:
+> 1. スレッドの先頭に 1 行の入力欄を常に置き、配信のコメント欄くらいの気軽さで書けるようにする（CHATLINE-1。すぐ着手できる）。
+> 2. 配信ごとの「話題スレ」を追加する（TOPIC-1〜3）。話題スレは最初の 1 件が投稿されたときに立つ。事務所スレッドは「事務所の雑談」として残す。
+>
+> 仕様の正は `FRONTEND_SPEC.md` 2.2 / 5.6（PM 更新済み）。
+>
+> **⏸ TOPIC-1〜3 は運営者の作業（下の「人手作業」）が終わるまで保留**。チェックボックスは付けていない。PM が作業完了を確認してから `- [ ]` に戻す。
+
+#### 人手作業（運営者・Firebase Console）— TOPIC-1 の前提
+
+> ⚠ `firebase deploy --only firestore` は**使わない**（本番ルールが 2022 年版で上書きされる）。必ず Console で編集する。
+
+1. **今のルールを控える**: Firebase Console → プロジェクト `vtuber-335811` → Firestore Database → 「ルール」タブ。エディタの中身を全部コピーして、手元のメモに保存する（戻せるように）。
+2. **`posts` のルールを確認する**: `match /posts/{...}` のブロックの中に `threads` という単語があるか探す。
+   - **ない場合**: 何もしなくてよい。
+   - **ある場合**（例: `exists(/databases/$(database)/documents/threads/$(request.resource.data.threadId))`）: 話題スレの投稿が拒否されてしまう。その条件を次のように「`threads` か `topics` にあれば OK、または話題スレの ID の形なら OK」に変える。
+     ```
+     (exists(/databases/$(database)/documents/threads/$(request.resource.data.threadId))
+       || exists(/databases/$(database)/documents/topics/$(request.resource.data.threadId))
+       || request.resource.data.threadId.matches('^v_[A-Za-z0-9_-]{11}$'))
+     ```
+     （3 行目は「話題スレの最初の投稿」用。最初の投稿と話題スレの作成は同じ書き込みで行うので、その時点ではまだ `topics` に文書がない。）
+   - 迷ったら、`posts` ブロックを PM（Claude）に貼って確認する。
+3. **`topics` のルールを追加する**: `match /databases/{database}/documents {` の中（`match /posts/...` のブロックの後ろ）に、次をそのまま貼る。
+   ```
+   match /topics/{topicId} {
+     allow read: if true;
+     // 話題スレの作成（最初の投稿と同時）。中身は動画 ID と件数・時刻だけ
+     allow create: if topicId.matches('^v_[A-Za-z0-9_-]{11}$')
+       && request.resource.data.keys().hasOnly(['kind', 'videoId', 'postCount', 'lastUpdated', 'createdAt'])
+       && request.resource.data.kind == 'video'
+       && topicId == 'v_' + request.resource.data.videoId
+       && request.resource.data.postCount == 1
+       && request.resource.data.lastUpdated == request.time
+       && request.resource.data.createdAt == request.time;
+     // 2 件目以降の投稿時: 件数 +1 と最終更新時刻だけ
+     allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['postCount', 'lastUpdated'])
+       && request.resource.data.postCount == resource.data.postCount + 1
+       && request.resource.data.lastUpdated == request.time;
+     allow delete: if false;
+   }
+   ```
+4. **「公開」を押す**。反映まで 1 分ほどかかる。
+5. **ルールのテスト（任意・おすすめ）**: ルール画面の「ルール プレイグラウンド」で次を試す。
+   - `get` / 場所 `topics/v_AAAAAAAAAAA` / 認証なし → **許可**
+   - `delete` / 場所 `topics/v_AAAAAAAAAAA` → **拒否**
+   - 実際に書き込めるかは、TOPIC-1 の実装後に本番で 1 件投稿して確認する（時刻の条件はプレイグラウンドでは再現しにくいため）。
+6. **インデックスは追加しなくてよい**。話題スレ一覧は `topics` を `lastUpdated` 降順で読むだけで、単一フィールドの自動インデックスで足りる。投稿の取得は既存の `posts` の `threadId` のクエリをそのまま使う。
+7. **PM に「ルール公開した」と伝える**。PM が TOPIC-1〜3 を `- [ ]` に戻し、パイプラインが実装する。
+
+> **影響しないもの（確認済み）**: Flutter アプリは `threads` を全件読んで事務所ごとに振り分けており、`topics` は読まない。ニュース Bot（`backend-repo/functions/index.js` の NewsBot）も `threads` だけを見る。話題スレの投稿は `posts` に入るが、`threadId` が `v_…` なので、アプリのどのスレッドにも出ない。
+
+- [ ] **CHATLINE-1. スレッドの先頭に 1 行の入力欄を置き、シートを開かずに書けるようにする**（CHAT-FIX-1 の次に着手）
+  - **対象ファイル**: `components/ChatBoard.tsx`, `lib/chat.ts`
+  - **仕様**:
+    - `ThreadView` の先頭（お題チップの上）に、1 行の入力欄 `QuickComposer` を置く。
+      - 左から: 1 行の `<input>`（`text-base md:text-sm`、`rounded-full`、`px-4 py-2.5`、`min-w-0 flex-1`）、右に送信ボタン（lucide-react の `SendHorizontal` `size={18}`、`size-11 shrink-0 rounded-full`、violet のグラデーション、`aria-label="送信"`）。
+      - プレースホルダー: `{スレッド名}の話ならなんでもOK（ひとことでも）`。長いときは `text-ellipsis` に任せる。
+      - 入力欄の下に小さな行（`text-xs text-zinc-500`）: 左に `名前: {名前}`（タップで名前の入力欄に切り替わる。lucide-react の `Pencil` `size={12}`）、右に `長文で書く`（押すと今の入力内容を初期値にして既存の投稿シートを開く）。
+    - **送信**:
+      - Enter キーで送信する。ただし日本語変換中（`e.nativeEvent.isComposing`）は送信しない。
+      - 空・空白だけのときは送信ボタンを `disabled` にする。
+      - NG ワード判定・API 呼び出し・エラー文言は投稿シートと同じ処理を使う（`PostSheet` の `submit` の中身を関数に切り出して共用する）。エラーは入力欄の下に赤字で出す。
+      - 成功したら入力欄を空にし、新着の取得を呼び、リスト先頭へスクロールする（CHAT-4 と同じ）。
+      - 送信中は入力欄と送信ボタンを `disabled` にする。
+    - **名前を覚える**: 最後に使った名前を `localStorage` の `chat:author` に保存し、次回の初期値にする（入力欄・投稿シートの両方）。読み書きは try/catch で包む。空なら `名無しさん` と表示する。
+    - **既存の導線の変更**:
+      - 右下の `投稿する` FAB は、押すと `QuickComposer` までスクロールしてフォーカスする動作に変える（シートは開かない）。
+      - ディープリンクの `draft` は、投稿シートを開く代わりに `QuickComposer` の初期値にする（自動送信はしない）。クエリを消す処理は、初期値を入れた時点で行う。
+      - お題チップは、`QuickComposer` に `【お題】{お題} ` を入れてフォーカスする動作に変える。
+      - 投稿の `返信` ボタンは今のまま投稿シートを開く（下のほうの投稿から先頭まで戻らなくてよいように）。
+    - `lib/chat.ts` に `AUTHOR_STORAGE_KEY = "chat:author"` を追加する。
+    - `any` は使わない。新しいパッケージは追加しない。
+  - **完了条件**:
+    - `npx tsc --noEmit` / `npm run build` がエラーなし。
+    - スレッドを開くと先頭に 1 行の入力欄があり、文字を入れて Enter（または送信ボタン）で投稿でき、投稿がリスト先頭に出る。
+    - 日本語変換の確定の Enter では送信されない。
+    - 名前を一度入れると、再読み込み後も同じ名前が初期値になる。
+    - 375px 幅で入力欄と送信ボタンが 1 行に収まり、横スクロールが出ない。
+    - `FRONTEND_SPEC.md` 5.6（PM 更新済み）の記述と実装が一致している。
+
+- ⏸ **TOPIC-1. 話題スレ（配信ごとのスレッド）のサーバー側を作る** — **保留（上の人手作業の完了待ち・チェックボックスなし＝着手禁止）**
+  - **対象ファイル**: `lib/chat.ts`, `lib/firestore.ts`, `lib/chat-topics.ts`（新規）, `app/api/chat/posts/route.ts`, `app/api/chat/topics/route.ts`（新規）
+  - **仕様**:
+    - **`lib/chat.ts`**
+      - `TOPIC_ID_RE = /^v_[A-Za-z0-9_-]{11}$/`、`topicIdOf(videoId)`（`"v_" + videoId`）、`videoIdOfTopic(topicId)`、`isTopicId(id)` を追加する。
+      - `TOPIC_TTL_HOURS = 48`（最後の書き込みからこの時間を過ぎた話題スレは一覧に出さない）。
+      - 型 `ChatTopic` を追加する: `{ id; videoId; title; channelId; channelTitle; thumbnail; isLive: boolean; postCount: number; lastUpdated: string | null }`。
+    - **`lib/firestore.ts`**
+      - `listTopicDocs(limit = 30)`: `topics` を `orderBy lastUpdated DESC` + `limit` で `runQuery` する（`where` は付けない。インデックス追加不要）。戻り値は `{ id, videoId, postCount, lastUpdated }[]`。
+      - `getTopicDoc(topicId)`: 1 件 GET。404 なら `null`。
+      - `addPost` を、`threadId` が話題スレ（`isTopicId`）のときに次のように分岐する。事務所スレッドの処理は変えない。
+        - postNo の採番は事務所スレッドと同じ方法（今の `addPost` と同じ関数）を使う。
+        - `getTopicDoc` が `null`（最初の投稿）: 1 回の `:commit` で「post の作成」と「`topics/{id}` の作成」を書く。topic は `update` 書き込みで `fields: { kind: "video", videoId, postCount: 1 }`、`updateTransforms` で `lastUpdated` / `createdAt` を `REQUEST_TIME`、`currentDocument: { exists: false }`。
+        - 既にある: 1 回の `:commit` で「post の作成」と「`topics/{id}` の `lastUpdated` = REQUEST_TIME・`postCount` +1 の transform」を書く。`currentDocument: { exists: true }`。
+        - 同時に 2 人が最初の投稿をして `exists: false` が失敗した場合（`FAILED_PRECONDITION`）は、1 回だけ「既にある」側でやり直す。
+    - **`lib/chat-topics.ts`（新規・サーバー専用）**
+      - `getTopicVideo(videoId)`: 配信タブと同じデータ（`getTrimmedStreamVideos()` と、ライブ中の一覧 `getLiveVideoList()`）から動画を探す。ライブ中の一覧は `"use cache"` + `cacheLife({ stale: 60, revalidate: 60, expire: 300 })` の関数で包み、リクエストごとに GCS を読まないこと（GCS の転送料対策。P0-COST 参照）。見つかれば `{ title, channelId, channelTitle, thumbnail, isLive }`、なければ `null`。`isLive` はライブ中の一覧に含まれるかで決める。
+      - `listActiveTopics()`: `listTopicDocs(30)` のうち、`lastUpdated` が `TOPIC_TTL_HOURS` 以内で、かつ `getTopicVideo` で動画が見つかったものだけを `ChatTopic[]` にして返す。並びは「ライブ中が先」→ `lastUpdated` の新しい順。最大 10 件。全体を `"use cache"` + `cacheLife` 60 秒で包む。Firestore の取得に失敗したら空配列（掲示板全体を落とさない）。
+      - `listTopicSuggestions(excludeIds)`: ライブ中の一覧から、まだ話題スレがない配信を同時視聴者数の多い順に最大 3 件返す（`ChatTopic` 形式、`postCount: 0`）。
+    - **`app/api/chat/topics/route.ts`（新規）**: `GET` で `{ topics: ChatTopic[]; suggestions: ChatTopic[] }` を返す。`?id=v_xxx` を付けたときは、その 1 件の `ChatTopic`（スレがまだなければ `postCount: 0`、動画が見つからなければ 404）を `{ topic }` で返す。
+    - **`app/api/chat/posts/route.ts`**
+      - GET の `threadId` の検証を「今の正規表現 **または** `TOPIC_ID_RE`」に広げる。
+      - POST で `threadId` が話題スレのときは、`getTopicVideo(videoId)` で動画が見つかることを確認する。見つからなければ 400 `この配信には書き込めません`。（ルールでは動画の実在を確認できないため、Web 経由で存在しない動画のスレが立たないようにする。）
+    - `any` は使わない。新しいパッケージは追加しない。
+  - **完了条件**:
+    - `npx tsc --noEmit` / `npm run build` がエラーなし。
+    - ライブ中の動画 ID で `POST /api/chat/posts`（`threadId: "v_{動画ID}"`）すると 201 が返り、Firestore に `topics/v_{動画ID}`（`postCount: 1`）と post ができる。2 件目で `postCount` が 2 になる。
+    - 存在しない動画 ID では 400 が返り、何も書き込まれない。
+    - `GET /api/chat/topics` が、書き込みのある話題スレと、ライブ中のおすすめ（最大 3 件）を返す。
+    - `FRONTEND_SPEC.md` 2.2（PM 更新済み）の記述と実装が一致している。
+
+- ⏸ **TOPIC-2. 掲示板に「いま話題のスレ」を出し、話題スレを開けるようにする** — **保留（TOPIC-1 の完了待ち・チェックボックスなし＝着手禁止）**
+  - **対象ファイル**: `components/ChatBoard.tsx`, `components/ChatTopicList.tsx`（新規）, `lib/chat.ts`
+  - **仕様**:
+    - **画面の構成**（上から）: 注意事項（1 行）→ **いま話題のスレ** → **事務所の雑談**（今のスレッドタブ。見出しの `スレッド一覧` を `事務所の雑談` に変える）→ 選んだスレッドの中身。
+    - **`ChatTopicList`（新規）**: `/api/chat/topics` を読み込み、見出し `いま話題のスレ`（lucide-react の `Flame` `size={16}` 付き）の下にカードを縦に並べる。
+      - カード: 左にサムネイル（`w-28 shrink-0 aspect-video rounded-lg object-cover`、`SafeImage` の `variant="thumbnail"`）、右に 2 行までのタイトル（`text-sm font-semibold line-clamp-2`）、チャンネル名（`text-xs text-zinc-500`）、下に `🔴 配信中`（`isLive` のとき。赤いバッジ）と `{postCount} 件 · {相対時刻}`（例: `12 件 · 3分前`）。
+      - 選択中のカードは violet の枠（`border-violet-500 bg-violet-50`、ダーク: `bg-violet-950/30`）。
+      - 話題スレが 0 件のときは、おすすめ（`suggestions`）を同じカードで出す。件数の代わりに `スレを立てる` と出す。おすすめもないときは、`配信中の配信の「この配信のスレ」から、話題スレを立てられます` を 1 行で出す。
+      - 話題スレとおすすめが合わせて 4 件以上のときは、最初の 3 件だけ出し、`もっと見る（+N）` で開く。
+      - 60 秒ごとに再取得する。タブが非表示の間は止める（CHAT-1 と同じ方針）。
+    - **選択状態**: `ChatBoard` の選択を「事務所スレッドの id」か「話題スレの id（`v_…`）」のどちらか 1 つにする。話題スレのカードを押すと事務所タブの選択は外れ、事務所タブを押すと話題スレの選択は外れる。
+    - **話題スレを開いたとき**（`ThreadView` を共用）:
+      - 先頭に配信のヘッダー: サムネイル（小）・タイトル・チャンネル名・`🔴 配信中` と、`ここで再生` ボタン（`playVideo(videoId)`、lucide-react の `Play`）。チャンネル名は `/vtuber/{channelId}` へのリンク。
+      - `QuickComposer` のプレースホルダーは `この配信の感想をひとこと`。
+      - お題チップは出さない（話題が決まっているため）。
+      - 投稿 0 件のときの空状態: `まだ書き込みがありません` / `最初のひとことで、この配信のスレが立ちます`。
+      - 最初の投稿が成功したら `ChatTopicList` を再取得する（新しいスレが一覧に出る）。
+    - **ディープリンク**: `/chat?topic=v_{動画ID}` で、その話題スレを開く（スレがまだなくても、`/api/chat/topics?id=…` で動画が見つかれば空のスレとして開く。見つからなければ無視して通常表示）。`draft` との組み合わせも CHATLINE-1 と同じく `QuickComposer` の初期値にする。`channel` より `topic` を優先する。
+    - 未読バッジ（`+N`）は話題スレには付けない（話題スレは短命なため）。
+  - **完了条件**:
+    - `npx tsc --noEmit` / `npm run build` がエラーなし。
+    - 書き込みのある話題スレが `いま話題のスレ` に出て、押すと配信ヘッダー付きでスレの中身が開く。
+    - 話題スレが 0 件のとき、ライブ中の配信がおすすめとして出て、押して書き込むとスレが立ち、一覧に出る。
+    - `/chat?topic=v_{ライブ中の動画ID}&draft=テスト` で、その配信のスレが開き、入力欄に `テスト` が入っている。
+    - 375px 幅で横スクロールが出ない。
+    - `FRONTEND_SPEC.md` 5.6（PM 更新済み）の記述と実装が一致している。
+
+- ⏸ **TOPIC-3. 配信中カードの「感想を書く」を、その配信の話題スレにつなぐ** — **保留（TOPIC-2 の完了待ち・チェックボックスなし＝着手禁止）**
+  - **対象ファイル**: `components/VideoCard.tsx`
+  - **仕様**:
+    - CHAT-7 で付けた `感想を書く` のリンク先を `/chat?topic=v_{v.videoId}` に変える（`channel` と `draft` は付けない。話題スレのヘッダーにタイトルが出るため）。
+    - 文言を `この配信のスレ` に変える。件数は出さない（カードごとに Firestore を読まないため）。
+    - `rel="nofollow"` と `next/link` は今のまま。
+  - **完了条件**:
+    - `npx tsc --noEmit` / `npm run build` がエラーなし。
+    - 配信中タブのカードの `この配信のスレ` を押すと、その配信の話題スレが開く。
+    - `FRONTEND_SPEC.md` 5.6（PM 更新済み）の記述と実装が一致している。
+
 ### P0-READNAV: 特集・月間レポートへの導線をファーストビュー付近に置く（2026-11-21 追加・CHAT-7 の次、P1-NEWS より先に着手。READ-1 → READ-4 の順）
 
 > **調査結果（2026-11-21）**: 特集（`/guide`）と月間レポート（`/reports`）へのリンクは、フッターと、トップの配信一覧のさらに下にある「ガイド・特集」欄にしかない。上部・下部のナビにも、ランキングにも無い。週刊特集と月報コメントの自動作成（`FRONTEND_SPEC.md` 5.12.2・5.12.3）が始まったので、読まれる場所に出す。仕様は `FRONTEND_SPEC.md` 5.13。
