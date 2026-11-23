@@ -69,8 +69,10 @@ Cloud Functions が定期更新する。アプリは 1 時間 TTL でキャッ�
 ### 2.2 Firestore（掲示板のみ）
 - `threads` コレクション：`office`（事務所名。RTDB `officeMapping` で表示名に変換）, `lastUpdated`, `postCount`
 - `posts` コレクション：`threadId`, `content`, `author`, `postNo`, `parentNo`, `createdAt`（serverTimestamp）, （Bot 投稿の判別フィールドあり）
-- クエリ: `posts where threadId == X order by createdAt asc`（realtime snapshots）
-- 書き込み: `posts` に追加し、`threads/{id}` の `lastUpdated` / `postCount(+1)` を更新。`postNo` は既存件数+1、`>>N` アンカーの最小値を `parentNo` に格納。
+- クエリ（Flutter アプリ）: `posts where threadId == X order by createdAt asc`（realtime snapshots）
+- クエリ（Web、CHAT-1R）: `posts where threadId == X [and postNo < before | postNo > after] order by postNo desc limit N`（既定 50・最大 100）。複合インデックス `threadId` 昇順 + `postNo` 降順（`CICAgJim14AK`）を使う。`GET /api/chat/posts?threadId=&before=&after=&limit=` は `{ posts（昇順）, hasMore }` を返す。Web の画面は、初回 50 件・`さらに古い投稿を読み込む` で `before`・15 秒ごとに `after` で新着だけを取得し、タブが非表示の間はポーリングしない。
+- 書き込み: `posts` に追加し、`threads/{id}` の `lastUpdated` / `postCount(+1)` を同じ commit で更新。`>>N` アンカーの最小値を `parentNo` に格納。
+  - Web の `postNo` は**スレッド内の最大 postNo + 1**（`nextPostNo`）。thread 側の書き込みに `currentDocument.updateTime` を付けた楽観ロックで、競合（`FAILED_PRECONDITION`）なら最大 3 回やり直し、だめなら 409 `混み合っています。もう一度お試しください`（CHAT-2R）。
 - **本番ルール（2026-11-08 Console で確認、2026-11-23 に `topics` を追加して Console から公開）**: `threads` / `topics` / `posts` は read 公開。
   - `threads`: update は `lastUpdated == request.time` かつ `postCount` +1 のみ許可。create / delete は不可。
   - `posts`: create のみ許可。主な条件は以下のとおり。update / delete は不可。
@@ -83,7 +85,7 @@ Cloud Functions が定期更新する。アプリは 1 時間 TTL でキャッ�
   - その他のコレクションは全拒否。
 - ⚠ リポジトリ内 `backend-repo/firestore.rules` は 2022 年の期限切れルールのままで、本番と一致していない。**`firebase deploy --only firestore` を実行すると本番ルールが上書きされるため禁止**。本番ルールは Console 側が正。
 - ⚠ 既知の不整合: Flutter アプリは投稿後に thread の `lastUpdated` だけを更新しようとし、ルールで拒否されている（エラーは握りつぶし）。このため Flutter からの投稿分は `postCount` と `lastUpdated` に反映されず、**`postCount` は実際のレス数より小さい**。採番には `postCount` を使わないこと。
-- `postNo` はルール上 `>= 1` のみの検証で、一意性は保証されない（COPILOT_TASK CHAT-2 で Web 側を改善予定）。
+- `postNo` はルール上 `>= 1` のみの検証で、一意性は保証されない。Web 同士の重複は CHAT-2R の楽観ロックで防ぐが、Flutter アプリの投稿は thread を更新しないため、Web とアプリの同時投稿の重複は残る（許容）。
 - **`topics` コレクション（話題スレ・2026-11-23 追加。ルールは 2026-11-23 に Console で公開済み）**:
   - 配信ごとのスレッド。文書 ID は `v_{動画ID}`。フィールドは `kind`（`"video"`）, `videoId`, `postCount`, `lastUpdated`, `createdAt` のみ。**タイトルやサムネは保存しない**（ルールで中身を検証できないため。表示は Web の配信データから引く）。
   - 投稿は既存の `posts` に `threadId = "v_{動画ID}"` で入れる（フィールドは事務所スレッドと同じ）。
