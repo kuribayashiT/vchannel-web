@@ -16,11 +16,13 @@ export async function generateMetadata(): Promise<Metadata> {
     return {
       title: PAGE_TITLE,
       description: buildSummary(officeCount, memberCount),
+      alternates: { canonical: "/vtuber" },
     };
   } catch {
     return {
       title: PAGE_TITLE,
       description: "VちゃんねるのVTuber一覧ページです。事務所別にVTuber情報を確認できます。",
+      alternates: { canonical: "/vtuber" },
     };
   }
 }

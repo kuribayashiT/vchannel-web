@@ -1,10 +1,7 @@
 ### 🚀 自動実装の成果
-- **タスク**: **CHAT-FIX-1. 投稿シートをスマホで拡大されない・はみ出さないレイアウトにする**
+- **タスク**: **DOMAIN-2R. （やり直し）`/vtuber`・`/events`・`/news` に canonical を付ける**
 - **変更したファイル**:
-  - `components/ChatBoard.tsx`
-- **改善内容**: `components/ChatBoard.tsx` の `PostSheet` だけを変更しました。ビルドと実機での確認はこの場では行っていません。
-- 名前欄と本文欄を `text-base md:text-sm`・`px-3 py-2`・`w-full min-w-0` にしました。
-- 2 つの注意書きを、ボタン行の上の 1 つの段落（`誹謗中傷・個人情報の書き込みは禁止です。投稿前に[利用規約](/terms)をお読みください。`）にまとめました。
-- ボタン行は `キャンセル`（枠線付き）と `投稿する` の 2 つだけにし、`whitespace-nowrap shrink-0 min-h-11` を付けました。
-- シートに `max-h-[100dvh] overflow-y-auto overflow-x-hidden` と、下端の `pb-[max(1rem,env(safe-area-inset-bottom))]` を付けました。
-- `submit` の処理、文言、NG ワード判定は変えていません。FRONTEND_SPEC.md 5.6 は PM 更新済みのため、SPEC ブロックは出していません。
+  - `app/vtuber/page.tsx`
+  - `app/events/page.tsx`
+  - `app/news/page.tsx`
+- **改善内容**: `/vtuber`・`/events`・`/news` に canonical を追加した。`app/events/page.tsx` と `app/news/page.tsx` の `metadata` に `alternates` を足し、`app/vtuber/page.tsx` の `generateMetadata` は成功時とフォールバック時の両方の戻り値に `alternates: { canonical: "/vtuber" }` を足した。`metadataBase` が `SITE_URL` なので、相対パスで絶対 URL になる。既存の title・description は変えていない。

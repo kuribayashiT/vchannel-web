@@ -1,10 +1,14 @@
+import type { Metadata } from "next";
 import { connection } from "next/server";
 import { EventCalendar } from "@/components/EventCalendar";
 import { GcsFetchError, getEventList } from "@/lib/gcs";
 import { dayKey, mergeEvents, todayJstParts } from "@/lib/events";
 import type { EventList } from "@/types";
 
-export const metadata = { title: "イベントカレンダー" };
+export const metadata: Metadata = {
+  title: "イベントカレンダー",
+  alternates: { canonical: "/events" },
+};
 
 export default async function EventsPage() {
   await connection();

@@ -1677,7 +1677,7 @@
 
 > **経緯**: 2026-11-23 に PM が、過去の完了（`- [ ]` → `- [x]`）85 件を「完了にしたコミットで対象ファイルが変わったか」で点検した。実装漏れは CHAT-1・CHAT-2（→ CHAT-1R / CHAT-2R）と DOMAIN-2（→ 下の DOMAIN-2R）。他は代替ファイルで実装済み、または P0-COST・AUTOFIX で扱い済み。再発防止として、パイプラインは完了の前に `scripts/verify-task-files.mjs` で対象ファイルの変更を検査するようにした。
 
-- [ ] **DOMAIN-2R. （やり直し）`/vtuber`・`/events`・`/news` に canonical を付ける**
+- [x] **DOMAIN-2R. （やり直し）`/vtuber`・`/events`・`/news` に canonical を付ける**
   - **やり直しの理由**: DOMAIN-2 は 2026-11-17 の実行（`f479655`）で `[x]` になったが、変更されたのは `app/page.tsx` だけだった。2026-11-23 時点で本番の `/vtuber`・`/events`・`/news` の HTML に `<link rel="canonical">` が無い（`/`・`/chat`・`/privacy` は出ている）。
   - **対象ファイル**: `app/vtuber/page.tsx`, `app/events/page.tsx`, `app/news/page.tsx`
   - **仕様**:
