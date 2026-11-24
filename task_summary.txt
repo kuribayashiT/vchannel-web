@@ -1,7 +1,10 @@
 ### 🚀 自動実装の成果
-- **タスク**: **APPLINK-1. スマートアプリバナーと、設定ページの「アプリ版」案内を追加する**
+- **タスク**: **CHAT-FIX-1. 投稿シートをスマホで拡大されない・はみ出さないレイアウトにする**
 - **変更したファイル**:
-  - `app/layout.tsx`
-  - `components/SettingsList.tsx`
-- **改善内容**: app/layout.tsx の metadata に verification の直後で itunes: { appId: "1611900581" } を追加し、スマートアプリバナー用の apple-itunes-app メタタグを出力するようにしました。
-components/SettingsList.tsx の「アプリ情報」の直前に「アプリ版」セクションを追加しました。説明文と、Smartphone アイコン付きの「App Store で見る」ボタン（既存の btn と同じ見た目、新しいタブで開く）を入れています。
+  - `components/ChatBoard.tsx`
+- **改善内容**: `components/ChatBoard.tsx` の `PostSheet` だけを変更しました。ビルドと実機での確認はこの場では行っていません。
+- 名前欄と本文欄を `text-base md:text-sm`・`px-3 py-2`・`w-full min-w-0` にしました。
+- 2 つの注意書きを、ボタン行の上の 1 つの段落（`誹謗中傷・個人情報の書き込みは禁止です。投稿前に[利用規約](/terms)をお読みください。`）にまとめました。
+- ボタン行は `キャンセル`（枠線付き）と `投稿する` の 2 つだけにし、`whitespace-nowrap shrink-0 min-h-11` を付けました。
+- シートに `max-h-[100dvh] overflow-y-auto overflow-x-hidden` と、下端の `pb-[max(1rem,env(safe-area-inset-bottom))]` を付けました。
+- `submit` の処理、文言、NG ワード判定は変えていません。FRONTEND_SPEC.md 5.6 は PM 更新済みのため、SPEC ブロックは出していません。

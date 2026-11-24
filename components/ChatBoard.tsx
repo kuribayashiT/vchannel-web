@@ -347,7 +347,7 @@ function PostSheet({
       <div
         role="dialog"
         aria-label="投稿する"
-        className="mx-auto w-full max-w-3xl space-y-3 rounded-t-2xl bg-white p-4 dark:bg-zinc-900"
+        className="mx-auto max-h-[100dvh] w-full max-w-3xl space-y-3 overflow-y-auto overflow-x-hidden rounded-t-2xl bg-white px-4 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] dark:bg-zinc-900"
         onClick={(e) => e.stopPropagation()}
       >
         <p className="text-sm font-bold text-violet-600 dark:text-violet-300">
@@ -358,7 +358,7 @@ function PostSheet({
           maxLength={MAX_AUTHOR}
           onChange={(e) => setAuthor(e.target.value)}
           placeholder={`名前（省略で「${DEFAULT_AUTHOR}」）`}
-          className="w-full rounded-xl border border-zinc-300 bg-transparent p-2 text-sm dark:border-zinc-700"
+          className="w-full min-w-0 rounded-xl border border-zinc-300 bg-transparent px-3 py-2 text-base md:text-sm dark:border-zinc-700"
         />
         <textarea
           value={content}
@@ -366,7 +366,7 @@ function PostSheet({
           onChange={(e) => setContent(e.target.value)}
           rows={5}
           placeholder="投稿内容"
-          className="w-full rounded-xl border border-zinc-300 bg-transparent p-2 text-sm dark:border-zinc-700"
+          className="w-full min-w-0 rounded-xl border border-zinc-300 bg-transparent px-3 py-2 text-base md:text-sm dark:border-zinc-700"
         />
         <div className="flex items-center justify-between text-xs text-zinc-500">
           <span className="text-red-600">{error}</span>
@@ -375,20 +375,20 @@ function PostSheet({
           </span>
         </div>
         <p className="text-xs text-zinc-500">
-          誹謗中傷・個人情報の書き込みは禁止です
+          誹謗中傷・個人情報の書き込みは禁止です。投稿前に
+          <Link
+            href="/terms"
+            className="ml-1 text-blue-600 underline hover:text-blue-500 dark:text-blue-400"
+          >
+            利用規約
+          </Link>
+          をお読みください。
         </p>
         <div className="flex justify-end gap-2">
-          <p className="mr-auto self-center text-xs text-zinc-500">
-            投稿前に
-            <Link href="/terms" className="ml-1 text-blue-600 underline hover:text-blue-500 dark:text-blue-400">
-              利用規約
-            </Link>
-            をお読みください
-          </p>
           <button
             type="button"
             onClick={onClose}
-            className="rounded px-4 py-2 text-sm text-zinc-600"
+            className="min-h-11 shrink-0 whitespace-nowrap rounded-xl border border-zinc-300 px-4 py-2 text-sm text-zinc-600 dark:border-zinc-700 dark:text-zinc-300"
           >
             キャンセル
           </button>
@@ -396,7 +396,7 @@ function PostSheet({
             type="button"
             onClick={submit}
             disabled={busy}
-            className="rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
+            className="min-h-11 shrink-0 whitespace-nowrap rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
           >
             {busy ? "送信中…" : "投稿する"}
           </button>
