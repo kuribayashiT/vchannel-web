@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { cacheLife } from "next/cache";
 import { Newspaper } from "lucide-react";
@@ -6,7 +7,10 @@ import { NewsClusterCard } from "@/components/NewsClusterCard";
 import { NewsList } from "@/components/NewsList";
 import { getCachedNewsClusters } from "@/lib/server-data";
 
-export const metadata = { title: "ニュース" };
+export const metadata: Metadata = {
+  title: "ニュース",
+  alternates: { canonical: "/news" },
+};
 
 const hhmmFmt = new Intl.DateTimeFormat("ja-JP", {
   timeZone: "Asia/Tokyo",
