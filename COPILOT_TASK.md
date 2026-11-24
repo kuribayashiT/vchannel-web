@@ -1751,7 +1751,7 @@
 
 > **影響しないもの（確認済み）**: Flutter アプリは `threads` を全件読んで事務所ごとに振り分けており、`topics` は読まない。ニュース Bot（`backend-repo/functions/index.js` の NewsBot）も `threads` だけを見る。話題スレの投稿は `posts` に入るが、`threadId` が `v_…` なので、アプリのどのスレッドにも出ない。
 
-- [ ] **CHATLINE-1. スレッドの先頭に 1 行の入力欄を置き、シートを開かずに書けるようにする**（CHAT-FIX-1 の次に着手）
+- [x] **CHATLINE-1. スレッドの先頭に 1 行の入力欄を置き、シートを開かずに書けるようにする**（CHAT-FIX-1 の次に着手）
   - **対象ファイル**: `components/ChatBoard.tsx`, `lib/chat.ts`
   - **仕様**:
     - `ThreadView` の先頭（お題チップの上）に、1 行の入力欄 `QuickComposer` を置く。

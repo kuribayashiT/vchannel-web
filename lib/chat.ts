@@ -25,6 +25,8 @@ export interface ChatPostGroup {
 export const MAX_CONTENT = 500;
 export const MAX_AUTHOR = 20;
 export const DEFAULT_AUTHOR = "名無しさん";
+/** 最後に使った名前を覚える localStorage のキー */
+export const AUTHOR_STORAGE_KEY = "chat:author";
 
 /** `>>N` アンカーの最小値（なければ 0） */
 export function extractParentNo(content: string): number {
