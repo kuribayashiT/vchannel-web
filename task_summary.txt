@@ -1,7 +1,10 @@
 ### 🚀 自動実装の成果
-- **タスク**: **DOMAIN-2R. （やり直し）`/vtuber`・`/events`・`/news` に canonical を付ける**
+- **タスク**: **CHATLINE-1. スレッドの先頭に 1 行の入力欄を置き、シートを開かずに書けるようにする**（CHAT-FIX-1 の次に着手）
 - **変更したファイル**:
-  - `app/vtuber/page.tsx`
-  - `app/events/page.tsx`
-  - `app/news/page.tsx`
-- **改善内容**: `/vtuber`・`/events`・`/news` に canonical を追加した。`app/events/page.tsx` と `app/news/page.tsx` の `metadata` に `alternates` を足し、`app/vtuber/page.tsx` の `generateMetadata` は成功時とフォールバック時の両方の戻り値に `alternates: { canonical: "/vtuber" }` を足した。`metadataBase` が `SITE_URL` なので、相対パスで絶対 URL になる。既存の title・description は変えていない。
+  - `lib/chat.ts`
+  - `components/ChatBoard.tsx`
+- **改善内容**: スレッド先頭に 1 行入力欄 `QuickComposer` を追加しました。Enter または送信ボタンで投稿でき、日本語変換中の Enter では送信しません。
+投稿処理（空チェック・NG ワード判定・API 呼び出し・エラー文言）は `submitPost` に切り出し、投稿シートと共用しています。
+名前は `localStorage` の `chat:author` に保存し、入力欄と投稿シートの初期値にします（`AUTHOR_STORAGE_KEY` を `lib/chat.ts` に追加）。
+`投稿する` FAB とお題チップは入力欄へのスクロール・フォーカスに変えました。`draft` は入力欄の初期値にし、入れた時点でクエリを消します。`返信` は従来どおり投稿シートを開きます。
+`npx tsc --noEmit` と `npm run build` は実行していません。

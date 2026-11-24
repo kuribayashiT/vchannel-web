@@ -9,10 +9,20 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type KeyboardEvent,
+  type RefObject,
 } from "react";
-import { MessageCirclePlus, Reply, Sparkles, Star } from "lucide-react";
+import {
+  MessageCirclePlus,
+  Pencil,
+  Reply,
+  SendHorizontal,
+  Sparkles,
+  Star,
+} from "lucide-react";
 import { useSelectedChannels } from "@/hooks/useSelection";
 import {
+  AUTHOR_STORAGE_KEY,
   DEFAULT_AUTHOR,
   MAX_AUTHOR,
   MAX_CONTENT,
@@ -75,8 +85,8 @@ function useJstDateKey(): string {
 }
 
 /**
- * `draft` クエリを投稿シートの初期値にする。
- * 前後の空白を取り 100 字で切り詰める。空なら null（開かない）。
+ * `draft` クエリを 1 行入力欄の初期値にする。
+ * 前後の空白を取り 100 字で切り詰める。空なら null（入れない）。
  * 元の値が空白で終わっていた場合は、続きを書き始めやすいよう末尾に半角スペースを 1 つ戻す。
  */
 function parseDraft(raw: string | null): string | null {
@@ -85,6 +95,28 @@ function parseDraft(raw: string | null): string | null {
   if (!trimmed) return null;
   const text = trimmed.slice(0, MAX_DRAFT);
   return /\s$/.test(raw) && text.length < MAX_DRAFT ? `${text} ` : text;
+}
+
+/** 最後に使った名前を読む（失敗・未保存なら空文字） */
+function readAuthor(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    const v = localStorage.getItem(AUTHOR_STORAGE_KEY);
+    return v ? v.slice(0, MAX_AUTHOR) : "";
+  } catch {
+    return "";
+  }
+}
+
+/** 最後に使った名前を保存する（空なら消す） */
+function writeAuthor(name: string) {
+  try {
+    const t = name.trim();
+    if (t) localStorage.setItem(AUTHOR_STORAGE_KEY, t);
+    else localStorage.removeItem(AUTHOR_STORAGE_KEY);
+  } catch {
+    // 保存できなくても投稿は続行する
+  }
 }
 
 /**
@@ -144,6 +176,35 @@ function containsNgWord(text: string): boolean {
 
 function isHiddenPost(post: { content: string; author?: string | null }): boolean {
   return containsNgWord(post.content) || containsNgWord(post.author ?? "");
+}
+
+/**
+ * 投稿の共通処理（空チェック・NG ワード判定・API 呼び出し）。
+ * 成功なら null、失敗ならエラー文言を返す。投稿シートと QuickComposer で共用する。
+ */
+async function submitPost(
+  threadId: string,
+  content: string,
+  author: string,
+): Promise<string | null> {
+  if (!content.trim()) return "投稿内容を入力してください";
+  if (containsNgWord(content) || containsNgWord(author)) return NG_MESSAGE;
+  try {
+    const res = await fetch("/api/chat/posts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ threadId, content, author }),
+    });
+    if (!res.ok) {
+      const j = (await res.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+      return j?.error ?? "投稿に失敗しました";
+    }
+    return null;
+  } catch {
+    return "通信に失敗しました";
+  }
 }
 
 function reportHref(threadName: string, postNo: number): string {
@@ -290,53 +351,159 @@ function TopicChips({
   );
 }
 
+/** スレッド先頭の 1 行入力欄。シートを開かずに書ける */
+function QuickComposer({
+  thread,
+  value,
+  onChange,
+  author,
+  onAuthorChange,
+  inputRef,
+  wrapperRef,
+  onPosted,
+  onOpenSheet,
+}: {
+  thread: ChatThread;
+  value: string;
+  onChange: (next: string) => void;
+  author: string;
+  onAuthorChange: (next: string) => void;
+  inputRef: RefObject<HTMLInputElement | null>;
+  wrapperRef: RefObject<HTMLDivElement | null>;
+  /** 投稿成功時。使った名前を渡す */
+  onPosted: (author: string) => void;
+  onOpenSheet: (content: string) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [editingName, setEditingName] = useState(false);
+  const displayName = author.trim() || DEFAULT_AUTHOR;
+  const canSend = value.trim().length > 0 && !busy;
+
+  const send = useCallback(async () => {
+    if (!value.trim() || busy) return;
+    setBusy(true);
+    setError("");
+    const err = await submitPost(thread.id, value, author);
+    setBusy(false);
+    if (err) {
+      setError(err);
+      return;
+    }
+    onChange("");
+    onPosted(author);
+  }, [author, busy, onChange, onPosted, thread.id, value]);
+
+  function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter") return;
+    // 日本語変換の確定 Enter では送信しない（Safari は keyCode 229 も見る）
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+    e.preventDefault();
+    void send();
+  }
+
+  return (
+    <div ref={wrapperRef} className="mb-3 scroll-mt-24 space-y-1.5">
+      <div className="flex items-center gap-2">
+        <input
+          ref={inputRef}
+          type="text"
+          value={value}
+          maxLength={MAX_CONTENT}
+          disabled={busy}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={handleKeyDown}
+          enterKeyHint="send"
+          aria-label="ひとことで投稿"
+          placeholder={`${thread.name}の話ならなんでもOK（ひとことでも）`}
+          className="min-w-0 flex-1 text-ellipsis rounded-full border border-zinc-300 bg-transparent px-4 py-2.5 text-base disabled:opacity-60 md:text-sm dark:border-zinc-700"
+        />
+        <button
+          type="button"
+          onClick={() => void send()}
+          disabled={!canSend}
+          aria-label="送信"
+          className="inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-sm hover:brightness-110 disabled:opacity-50"
+        >
+          <SendHorizontal size={18} aria-hidden />
+        </button>
+      </div>
+      <div className="flex items-center justify-between gap-3 text-xs text-zinc-500">
+        {editingName ? (
+          <input
+            autoFocus
+            value={author}
+            maxLength={MAX_AUTHOR}
+            disabled={busy}
+            onChange={(e) => onAuthorChange(e.target.value)}
+            onBlur={() => setEditingName(false)}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter") return;
+              if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+              e.preventDefault();
+              setEditingName(false);
+            }}
+            aria-label="名前"
+            placeholder={`名前（省略で「${DEFAULT_AUTHOR}」）`}
+            className="min-w-0 flex-1 rounded-full border border-zinc-300 bg-transparent px-3 py-1 text-base md:text-sm dark:border-zinc-700"
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setEditingName(true)}
+            className="inline-flex min-w-0 items-center gap-1 hover:text-violet-600 dark:hover:text-violet-300"
+          >
+            <span className="truncate">名前: {displayName}</span>
+            <Pencil size={12} aria-hidden className="shrink-0" />
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => onOpenSheet(value)}
+          className="shrink-0 whitespace-nowrap text-violet-600 hover:underline dark:text-violet-300"
+        >
+          長文で書く
+        </button>
+      </div>
+      {error && (
+        <p role="alert" className="text-xs text-red-600">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function PostSheet({
   threadId,
   initial,
+  initialAuthor,
   onClose,
   onPosted,
 }: {
   threadId: string;
   initial: string;
+  initialAuthor: string;
   onClose: () => void;
-  onPosted: () => void;
+  /** 投稿成功時。使った名前を渡す */
+  onPosted: (author: string) => void;
 }) {
-  const [author, setAuthor] = useState("");
+  const [author, setAuthor] = useState(initialAuthor);
   const [content, setContent] = useState(initial);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function submit() {
-    if (!content.trim()) {
-      setError("投稿内容を入力してください");
-      return;
-    }
-    if (containsNgWord(content) || containsNgWord(author)) {
-      setError(NG_MESSAGE);
-      return;
-    }
     setBusy(true);
     setError("");
-    try {
-      const res = await fetch("/api/chat/posts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ threadId, content, author }),
-      });
-      if (!res.ok) {
-        const j = (await res.json().catch(() => null)) as {
-          error?: string;
-        } | null;
-        setError(j?.error ?? "投稿に失敗しました");
-        return;
-      }
-      onPosted();
-      onClose();
-    } catch {
-      setError("通信に失敗しました");
-    } finally {
-      setBusy(false);
+    const err = await submitPost(threadId, content, author);
+    setBusy(false);
+    if (err) {
+      setError(err);
+      return;
     }
+    onPosted(author);
+    onClose();
   }
 
   return (
@@ -494,38 +661,70 @@ function PostItem({
   );
 }
 
+type SheetState = { initial: string; fromQuick: boolean };
+
 function ThreadView({
   thread,
   onSeen,
-  autoOpenDraft,
-  onSheetClosed,
+  initialDraft,
+  onDraftApplied,
 }: {
   thread: ChatThread;
   onSeen: (postNo: number) => void;
-  /** ディープリンクの draft。マウント時だけ投稿シートの初期値として使う（1 回だけ開く） */
-  autoOpenDraft: string | null;
-  onSheetClosed: () => void;
+  /** ディープリンクの draft。マウント時だけ 1 行入力欄の初期値として使う（自動送信しない） */
+  initialDraft: string | null;
+  /** 初期値を入れた時点で呼ぶ（クエリを消す） */
+  onDraftApplied: () => void;
 }) {
   const [posts, setPosts] = useState<ChatPost[] | null>(null);
   const [failed, setFailed] = useState(false);
-  const [sheet, setSheet] = useState<string | null>(autoOpenDraft);
+  const [sheet, setSheet] = useState<SheetState | null>(null);
+  const [quick, setQuick] = useState(initialDraft ?? "");
+  const [author, setAuthor] = useState(() => readAuthor());
   const [baselinePostNo, setBaselinePostNo] = useState<number | null>(null);
   const [expandedParents, setExpandedParents] = useState<Set<number>>(
     () => new Set(),
   );
   const listRef = useRef<HTMLUListElement | null>(null);
+  const composerRef = useRef<HTMLDivElement | null>(null);
+  const quickInputRef = useRef<HTMLInputElement | null>(null);
   const dateKey = useJstDateKey();
   const topics = useMemo(
     () => (dateKey ? pickTopics(dateKey, 3) : []),
     [dateKey],
   );
-  const openTopic = useCallback((topic: string) => {
-    setSheet(`【お題】${topic}\n`);
+
+  // 初期値を入れた時点でクエリを消す
+  useEffect(() => {
+    if (initialDraft !== null) onDraftApplied();
+  }, [initialDraft, onDraftApplied]);
+
+  /** QuickComposer までスクロールしてフォーカスする。text があれば入力欄に入れる */
+  const focusComposer = useCallback((text?: string) => {
+    if (text !== undefined) setQuick(text);
+    composerRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    window.requestAnimationFrame(() => {
+      const el = quickInputRef.current;
+      if (!el) return;
+      el.focus({ preventScroll: true });
+      const len = el.value.length;
+      try {
+        el.setSelectionRange(len, len);
+      } catch {
+        // 選択位置を設定できなくても問題ない
+      }
+    });
   }, []);
+
+  const openTopic = useCallback(
+    (topic: string) => {
+      focusComposer(`【お題】${topic} `);
+    },
+    [focusComposer],
+  );
   const closeSheet = useCallback(() => {
     setSheet(null);
-    onSheetClosed();
-  }, [onSheetClosed]);
+  }, []);
 
   const byPostNo = useMemo(
     () => new Map((posts ?? []).map((p) => [p.postNo, p])),
@@ -564,10 +763,24 @@ function ThreadView({
       .catch(() => setFailed(true));
   }, [onSeen, thread.id]);
 
-  const handlePosted = useCallback(() => {
-    load();
-    listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [load]);
+  /** 投稿成功後の共通処理: 名前を覚える → 新着取得 → リスト先頭へスクロール */
+  const afterPost = useCallback(
+    (usedAuthor: string) => {
+      writeAuthor(usedAuthor);
+      setAuthor(usedAuthor.trim());
+      load();
+      listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    },
+    [load],
+  );
+
+  const handleSheetPosted = useCallback(
+    (usedAuthor: string) => {
+      if (sheet?.fromQuick) setQuick("");
+      afterPost(usedAuthor);
+    },
+    [afterPost, sheet],
+  );
 
   useEffect(() => {
     load();
@@ -577,6 +790,17 @@ function ThreadView({
 
   return (
     <div>
+      <QuickComposer
+        thread={thread}
+        value={quick}
+        onChange={setQuick}
+        author={author}
+        onAuthorChange={setAuthor}
+        inputRef={quickInputRef}
+        wrapperRef={composerRef}
+        onPosted={afterPost}
+        onOpenSheet={(content) => setSheet({ initial: content, fromQuick: true })}
+      />
       <div className="mb-3 space-y-1.5">
         <p className="text-xs text-zinc-500">話題をえらんで書く</p>
         <TopicChips topics={topics} onPick={openTopic} />
@@ -612,7 +836,9 @@ function ThreadView({
                 threadName={thread.name}
                 isNew={baselinePostNo !== null && parent.postNo > baselinePostNo}
                 refs={parentRefs}
-                onReply={(postNo) => setSheet(`>>${postNo} `)}
+                onReply={(postNo) =>
+                  setSheet({ initial: `>>${postNo} `, fromQuick: false })
+                }
                 onJumpToPost={jumpToPost}
               />
               {g.replies.length > 0 && (
@@ -633,7 +859,12 @@ function ThreadView({
                             reply.postNo > baselinePostNo
                           }
                           refs={refs}
-                          onReply={(postNo) => setSheet(`>>${postNo} `)}
+                          onReply={(postNo) =>
+                            setSheet({
+                              initial: `>>${postNo} `,
+                              fromQuick: false,
+                            })
+                          }
                           onJumpToPost={jumpToPost}
                         />
                       );
@@ -667,7 +898,7 @@ function ThreadView({
       </ul>
       <button
         type="button"
-        onClick={() => setSheet("")}
+        onClick={() => focusComposer()}
         className="fixed bottom-20 right-4 z-40 flex items-center gap-2 rounded-full bg-gradient-to-r from-pink-500 via-violet-500 to-blue-500 px-5 py-3 text-sm font-bold text-white shadow-lg hover:brightness-110 md:bottom-6"
       >
         <Sparkles size={16} aria-hidden />
@@ -676,9 +907,10 @@ function ThreadView({
       {sheet !== null && (
         <PostSheet
           threadId={thread.id}
-          initial={sheet}
+          initial={sheet.initial}
+          initialAuthor={author}
           onClose={closeSheet}
-          onPosted={handlePosted}
+          onPosted={handleSheetPosted}
         />
       )}
     </div>
@@ -698,7 +930,7 @@ export function ChatBoard({ offices }: { offices: OfficeSummary[] }) {
   const [seenCounts, setSeenCounts] = useState<Record<string, number>>(() =>
     readSeenCounts(),
   );
-  // 自動で開く投稿シートの初期値。最初のマウント時のクエリから 1 回だけ決める。
+  // 1 行入力欄の初期値。最初のマウント時のクエリから 1 回だけ決める。
   const [pendingDraft, setPendingDraft] = useState<string | null>(() =>
     parseDraft(searchParams.get("draft")),
   );
@@ -784,8 +1016,8 @@ export function ChatBoard({ offices }: { offices: OfficeSummary[] }) {
     el.scrollIntoView({ inline: "center", block: "nearest" });
   }, [tab, tabs]);
 
-  // 投稿シートを閉じたらクエリを消す（再読込でシートが再び開かないように）
-  const handleSheetClosed = useCallback(() => {
+  // draft を入力欄の初期値に入れた時点でクエリを消す（再読込で再び入らないように）
+  const handleDraftApplied = useCallback(() => {
     setPendingDraft(null);
     if (hasDeepLinkQuery) router.replace("/chat", { scroll: false });
   }, [hasDeepLinkQuery, router]);
@@ -868,8 +1100,8 @@ export function ChatBoard({ offices }: { offices: OfficeSummary[] }) {
           key={activeThread.id}
           thread={activeThread}
           onSeen={(postNo) => markSeen(activeThread.id, postNo)}
-          autoOpenDraft={pendingDraft}
-          onSheetClosed={handleSheetClosed}
+          initialDraft={pendingDraft}
+          onDraftApplied={handleDraftApplied}
         />
       )}
     </div>
