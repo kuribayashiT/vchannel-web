@@ -29,6 +29,7 @@ import {
   groupPostsByParent,
   type ChatPost,
   type ChatPostGroup,
+  type ChatPostPage,
   type ChatThread,
 } from "@/lib/chat";
 import type { OfficeSummary } from "@/lib/offices";
@@ -232,6 +233,14 @@ function shortText(text: string, max = 70): string {
 
 function groupMaxPostNo(g: ChatPostGroup): number {
   return g.replies.reduce((m, r) => Math.max(m, r.postNo), g.parent.postNo);
+}
+
+/** 既存の投稿に取得分を足し、id で重複を除いて postNo 昇順に並べる */
+function mergePosts(prev: ChatPost[], incoming: ChatPost[]): ChatPost[] {
+  const map = new Map<string, ChatPost>();
+  for (const p of prev) map.set(p.id, p);
+  for (const p of incoming) map.set(p.id, p);
+  return [...map.values()].sort((a, b) => a.postNo - b.postNo);
 }
 
 function readSeenCounts(): Record<string, number> {
@@ -677,6 +686,9 @@ function ThreadView({
   onDraftApplied: () => void;
 }) {
   const [posts, setPosts] = useState<ChatPost[] | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreFailed, setLoadMoreFailed] = useState(false);
   const [failed, setFailed] = useState(false);
   const [sheet, setSheet] = useState<SheetState | null>(null);
   const [quick, setQuick] = useState(initialDraft ?? "");
@@ -688,11 +700,19 @@ function ThreadView({
   const listRef = useRef<HTMLUListElement | null>(null);
   const composerRef = useRef<HTMLDivElement | null>(null);
   const quickInputRef = useRef<HTMLInputElement | null>(null);
+  /** 表示中の投稿の最新値（差分取得の before / after 計算用） */
+  const postsRef = useRef<ChatPost[] | null>(null);
+  const loadingMoreRef = useRef(false);
+  const onSeenRef = useRef(onSeen);
   const dateKey = useJstDateKey();
   const topics = useMemo(
     () => (dateKey ? pickTopics(dateKey, 3) : []),
     [dateKey],
   );
+
+  useEffect(() => {
+    onSeenRef.current = onSeen;
+  }, [onSeen]);
 
   // 初期値を入れた時点でクエリを消す
   useEffect(() => {
@@ -740,6 +760,7 @@ function ThreadView({
     [posts],
   );
 
+  // まだ読み込んでいない古い投稿への飛び先は、要素が無いので何もしない
   const jumpToPost = useCallback((postNo: number) => {
     const el = document.getElementById(`post-${postNo}`);
     if (!el) return;
@@ -750,28 +771,80 @@ function ThreadView({
     }, 1200);
   }, []);
 
-  const load = useCallback(() => {
-    fetch(`/api/chat/posts?threadId=${thread.id}`, { cache: "no-store" })
-      .then((r) => (r.ok ? (r.json() as Promise<ChatPost[]>) : Promise.reject()))
-      .then((p) => {
-        const maxPostNo = p.reduce((m, row) => Math.max(m, row.postNo), 0);
-        setPosts(p);
-        setFailed(false);
-        onSeen(maxPostNo);
-        setBaselinePostNo((prev) => prev ?? maxPostNo);
-      })
-      .catch(() => setFailed(true));
-  }, [onSeen, thread.id]);
+  /** 取得した投稿を表示中の一覧にマージし、表示中の最大 postNo を返す */
+  const applyPage = useCallback((incoming: ChatPost[]): number => {
+    const merged = mergePosts(postsRef.current ?? [], incoming);
+    postsRef.current = merged;
+    setPosts(merged);
+    return merged.reduce((m, p) => Math.max(m, p.postNo), 0);
+  }, []);
 
-  /** 投稿成功後の共通処理: 名前を覚える → 新着取得 → リスト先頭へスクロール */
+  /** 新着の取得。表示中の最大 postNo より新しい分だけ（0 件のときは最新 50 件） */
+  const fetchNew = useCallback(async () => {
+    const current = postsRef.current;
+    const maxPostNo = current
+      ? current.reduce((m, p) => Math.max(m, p.postNo), 0)
+      : 0;
+    const params = new URLSearchParams({ threadId: thread.id });
+    const useAfter = maxPostNo > 0;
+    if (useAfter) params.set("after", String(maxPostNo));
+    try {
+      const res = await fetch(`/api/chat/posts?${params.toString()}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error("fetch failed");
+      const page = (await res.json()) as ChatPostPage;
+      const newMax = applyPage(page.posts);
+      if (!useAfter) setHasMore(page.hasMore);
+      setFailed(false);
+      onSeenRef.current(newMax);
+      setBaselinePostNo((prev) => prev ?? newMax);
+    } catch {
+      setFailed(true);
+    }
+  }, [applyPage, thread.id]);
+
+  /** さらに古い投稿の取得。表示中の最小 postNo より前 */
+  const loadOlder = useCallback(async () => {
+    const current = postsRef.current;
+    if (!current || current.length === 0 || loadingMoreRef.current) return;
+    const minPostNo = current.reduce(
+      (m, p) => Math.min(m, p.postNo),
+      Number.POSITIVE_INFINITY,
+    );
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    setLoadMoreFailed(false);
+    try {
+      const params = new URLSearchParams({
+        threadId: thread.id,
+        before: String(minPostNo),
+      });
+      const res = await fetch(`/api/chat/posts?${params.toString()}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error("fetch failed");
+      const page = (await res.json()) as ChatPostPage;
+      applyPage(page.posts);
+      setHasMore(page.hasMore);
+    } catch {
+      setLoadMoreFailed(true);
+    } finally {
+      loadingMoreRef.current = false;
+      setLoadingMore(false);
+    }
+  }, [applyPage, thread.id]);
+
+  /** 投稿成功後の共通処理: 名前を覚える → 新着の差分取得 → リスト先頭へスクロール */
   const afterPost = useCallback(
     (usedAuthor: string) => {
       writeAuthor(usedAuthor);
       setAuthor(usedAuthor.trim());
-      load();
-      listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      void fetchNew().then(() => {
+        listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
     },
-    [load],
+    [fetchNew],
   );
 
   const handleSheetPosted = useCallback(
@@ -782,11 +855,38 @@ function ThreadView({
     [afterPost, sheet],
   );
 
+  // 初回取得と 15 秒ごとの新着ポーリング。タブが非表示の間は止め、戻ったらすぐ 1 回取得する
   useEffect(() => {
-    load();
-    const t = setInterval(load, POLL_MS);
-    return () => clearInterval(t);
-  }, [load]);
+    let timer: number | undefined;
+    const stop = () => {
+      if (timer !== undefined) {
+        window.clearInterval(timer);
+        timer = undefined;
+      }
+    };
+    const start = () => {
+      if (timer === undefined) {
+        timer = window.setInterval(() => void fetchNew(), POLL_MS);
+      }
+    };
+    void fetchNew();
+    if (document.visibilityState !== "hidden") start();
+
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        stop();
+      } else {
+        stop();
+        void fetchNew();
+        start();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      stop();
+    };
+  }, [fetchNew]);
 
   return (
     <div>
@@ -818,7 +918,7 @@ function ThreadView({
           </div>
         </div>
       )}
-      <ul ref={listRef} className="scroll-mt-24 space-y-4 pb-24">
+      <ul ref={listRef} className="scroll-mt-24 space-y-4">
         {groups.map((g) => {
           const parent = g.parent;
           const parentRefs = parseReplyNos(parent.content)
@@ -896,6 +996,25 @@ function ThreadView({
           );
         })}
       </ul>
+      <div className="pb-24 pt-4">
+        {hasMore && (
+          <div className="flex flex-col items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void loadOlder()}
+              disabled={loadingMore}
+              className="rounded-full border border-violet-300 bg-white px-5 py-2 text-sm font-medium text-violet-700 hover:bg-violet-50 disabled:opacity-60 dark:border-violet-700 dark:bg-zinc-900 dark:text-violet-300 dark:hover:bg-violet-950/20"
+            >
+              {loadingMore ? "読み込み中…" : "さらに古い投稿を読み込む"}
+            </button>
+            {loadMoreFailed && (
+              <p role="alert" className="text-xs text-red-600">
+                読み込みに失敗しました
+              </p>
+            )}
+          </div>
+        )}
+      </div>
       <button
         type="button"
         onClick={() => focusComposer()}

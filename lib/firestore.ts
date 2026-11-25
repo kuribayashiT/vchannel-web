@@ -1,8 +1,11 @@
-import type { ChatPost, ChatThread } from "@/lib/chat";
+import type { ChatPost, ChatPostPage, ChatThread } from "@/lib/chat";
 
 const PROJECT = process.env.FIREBASE_PROJECT_ID ?? "vtuber-335811";
 const DB = `projects/${PROJECT}/databases/(default)`;
 const BASE = `https://firestore.googleapis.com/v1/${DB}/documents`;
+
+const DEFAULT_LIMIT = 50;
+const MAX_LIMIT = 100;
 
 type Value = {
   stringValue?: string;
@@ -53,29 +56,76 @@ export async function listThreads(): Promise<ChatThread[]> {
   return out;
 }
 
-function threadFilter(threadId: string) {
-  return {
-    fieldFilter: {
-      field: { fieldPath: "threadId" },
-      op: "EQUAL",
-      value: { stringValue: threadId },
-    },
+type FieldFilter = {
+  fieldFilter: {
+    field: { fieldPath: string };
+    op: "EQUAL" | "LESS_THAN" | "GREATER_THAN";
+    value: Value;
   };
+};
+
+function fieldFilter(
+  fieldPath: string,
+  op: FieldFilter["fieldFilter"]["op"],
+  value: Value,
+): FieldFilter {
+  return { fieldFilter: { field: { fieldPath }, op, value } };
 }
 
-/** 複合インデックス不要にするため、取得後に postNo 昇順へ並べ替える */
-export async function listPosts(threadId: string): Promise<ChatPost[]> {
+function threadFilter(threadId: string): FieldFilter {
+  return fieldFilter("threadId", "EQUAL", { stringValue: threadId });
+}
+
+export type ListPostsOptions = {
+  before?: number;
+  after?: number;
+  limit?: number;
+};
+
+/**
+ * threadId 昇順 + postNo 降順の複合インデックスで、新しい方から limit 件取得し、
+ * 昇順に並べ直して返す。
+ * - before: postNo < before（さらに古い投稿）
+ * - after: postNo > after（新着。hasMore は常に false）
+ */
+export async function listPosts(
+  threadId: string,
+  opts: ListPostsOptions = {},
+): Promise<ChatPostPage> {
+  const rawLimit = Number.isFinite(opts.limit) ? Math.floor(opts.limit ?? 0) : DEFAULT_LIMIT;
+  const limit = Math.min(Math.max(rawLimit || DEFAULT_LIMIT, 1), MAX_LIMIT);
+
+  const filters: FieldFilter[] = [threadFilter(threadId)];
+  if (opts.before !== undefined) {
+    filters.push(
+      fieldFilter("postNo", "LESS_THAN", { integerValue: String(opts.before) }),
+    );
+  }
+  if (opts.after !== undefined) {
+    filters.push(
+      fieldFilter("postNo", "GREATER_THAN", {
+        integerValue: String(opts.after),
+      }),
+    );
+  }
+  const where =
+    filters.length === 1
+      ? filters[0]
+      : { compositeFilter: { op: "AND", filters } };
+
   const rows = (await call(`${BASE}:runQuery`, {
     method: "POST",
     body: JSON.stringify({
       structuredQuery: {
         from: [{ collectionId: "posts" }],
-        where: threadFilter(threadId),
-        limit: 1000,
+        where,
+        orderBy: [{ field: { fieldPath: "postNo" }, direction: "DESCENDING" }],
+        limit,
       },
     }),
   })) as { document?: Doc }[];
-  return rows
+
+  const posts: ChatPost[] = rows
     .flatMap((r) => (r.document ? [r.document] : []))
     .map((d) => {
       const f = d.fields ?? {};
@@ -91,6 +141,9 @@ export async function listPosts(threadId: string): Promise<ChatPost[]> {
       };
     })
     .sort((a, b) => a.postNo - b.postNo);
+
+  const hasMore = opts.after !== undefined ? false : posts.length === limit;
+  return { posts, hasMore };
 }
 
 async function countPosts(threadId: string): Promise<number> {
