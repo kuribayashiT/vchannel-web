@@ -1,4 +1,10 @@
-import type { ChatPost, ChatPostPage, ChatThread } from "@/lib/chat";
+import {
+  isTopicId,
+  videoIdOfTopic,
+  type ChatPost,
+  type ChatPostPage,
+  type ChatThread,
+} from "@/lib/chat";
 
 const PROJECT = process.env.FIREBASE_PROJECT_ID ?? "vtuber-335811";
 const DB = `projects/${PROJECT}/databases/(default)`;
@@ -83,6 +89,57 @@ export async function listThreads(): Promise<ChatThread[]> {
     token = data.nextPageToken ?? "";
   } while (token);
   return out;
+}
+
+export type TopicDocSummary = {
+  id: string;
+  videoId: string;
+  postCount: number;
+  lastUpdated: string | null;
+};
+
+export type TopicDoc = TopicDocSummary & { updateTime: string | null };
+
+function toTopicSummary(d: Doc): TopicDocSummary {
+  const f = d.fields ?? {};
+  const id = idOf(d);
+  return {
+    id,
+    videoId: str(f, "videoId") || videoIdOfTopic(id),
+    postCount: int(f, "postCount"),
+    lastUpdated: ts(f, "lastUpdated"),
+  };
+}
+
+/**
+ * topics を lastUpdated 降順で limit 件取得する（where なし。単一フィールドの
+ * 自動インデックスだけで動くので、インデックス追加は不要）。
+ */
+export async function listTopicDocs(limit = 30): Promise<TopicDocSummary[]> {
+  const rows = (await call(`${BASE}:runQuery`, {
+    method: "POST",
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId: "topics" }],
+        orderBy: [
+          { field: { fieldPath: "lastUpdated" }, direction: "DESCENDING" },
+        ],
+        limit,
+      },
+    }),
+  })) as { document?: Doc }[];
+  return rows.flatMap((r) => (r.document ? [toTopicSummary(r.document)] : []));
+}
+
+/** topics/{topicId} を 1 件取得。存在しなければ null */
+export async function getTopicDoc(topicId: string): Promise<TopicDoc | null> {
+  try {
+    const doc = (await call(`${BASE}/topics/${topicId}`)) as Doc;
+    return { ...toTopicSummary(doc), updateTime: doc.updateTime ?? null };
+  } catch (e) {
+    if (e instanceof FirestoreError && e.status === 404) return null;
+    throw e;
+  }
 }
 
 type FieldFilter = {
@@ -196,17 +253,117 @@ export async function nextPostNo(threadId: string): Promise<number> {
   return (Number.isFinite(max) ? max : 0) + 1;
 }
 
-/**
- * 既存アプリと同じ形式で posts を追加し、threads を更新する（1コミットで原子的に）。
- * postNo は「最大 postNo + 1」。thread 文書の updateTime を前提条件にした楽観ロックで、
- * 競合（FAILED_PRECONDITION）なら最大 3 回やり直す。3 回とも失敗したら status 409 の Error。
- */
-export async function addPost(input: {
+type PostInput = {
   threadId: string;
   content: string;
   author: string;
   parentNo: number;
-}): Promise<number> {
+};
+
+type Write = Record<string, unknown>;
+
+/** posts の作成書き込み（事務所スレッド・話題スレ共通） */
+function buildPostWrite(input: PostInput, postNo: number): Write {
+  const postId = crypto.randomUUID().replace(/-/g, "").slice(0, 20);
+  return {
+    update: {
+      name: `${DB}/documents/posts/${postId}`,
+      fields: {
+        threadId: { stringValue: input.threadId },
+        content: { stringValue: input.content },
+        author: { stringValue: input.author },
+        postNo: { integerValue: String(postNo) },
+        parentNo: { integerValue: String(input.parentNo) },
+        isBot: { booleanValue: false },
+      },
+    },
+    updateTransforms: [
+      { fieldPath: "createdAt", setToServerValue: "REQUEST_TIME" },
+    ],
+    currentDocument: { exists: false },
+  };
+}
+
+/** 話題スレの競合（前提条件の不一致・すでに存在）かどうか */
+function isTopicConflict(e: unknown): boolean {
+  if (!(e instanceof FirestoreError)) return false;
+  if (e.status === 400 && e.reason === "FAILED_PRECONDITION") return true;
+  if (e.status === 409 && e.reason === "ALREADY_EXISTS") return true;
+  return false;
+}
+
+/**
+ * 話題スレへの投稿。最初の投稿は post と topics/{id} の作成を同じ commit で書く
+ * （本番ルールの existsAfter で、topic が同時に作られない post は拒否されるため）。
+ * 2 件目以降は topic の lastUpdated / postCount(+1) を更新する。
+ * 競合なら最大 3 回、topic の GET からやり直す。
+ */
+async function addTopicPost(input: PostInput): Promise<number> {
+  const topicId = input.threadId;
+  const videoId = videoIdOfTopic(topicId);
+  const topicName = `${DB}/documents/topics/${topicId}`;
+
+  for (let attempt = 0; attempt < MAX_POST_ATTEMPTS; attempt++) {
+    const topic = await getTopicDoc(topicId);
+    const postNo = await nextPostNo(topicId);
+    const postWrite = buildPostWrite(input, postNo);
+
+    let topicWrite: Write;
+    if (!topic) {
+      topicWrite = {
+        update: {
+          name: topicName,
+          fields: {
+            kind: { stringValue: "video" },
+            videoId: { stringValue: videoId },
+            postCount: { integerValue: "1" },
+          },
+        },
+        updateTransforms: [
+          { fieldPath: "lastUpdated", setToServerValue: "REQUEST_TIME" },
+          { fieldPath: "createdAt", setToServerValue: "REQUEST_TIME" },
+        ],
+        currentDocument: { exists: false },
+      };
+    } else {
+      topicWrite = {
+        transform: {
+          document: topicName,
+          fieldTransforms: [
+            { fieldPath: "lastUpdated", setToServerValue: "REQUEST_TIME" },
+            { fieldPath: "postCount", increment: { integerValue: "1" } },
+          ],
+        },
+        currentDocument: topic.updateTime
+          ? { updateTime: topic.updateTime }
+          : { exists: true },
+      };
+    }
+
+    try {
+      await call(`${BASE}:commit`, {
+        method: "POST",
+        body: JSON.stringify({ writes: [postWrite, topicWrite] }),
+      });
+      return postNo;
+    } catch (e) {
+      if (!isTopicConflict(e)) throw e;
+      // 他の投稿が先に入った（同時に最初の投稿が起きた場合を含む）: GET からやり直す
+    }
+  }
+
+  throw new FirestoreError(409, "CONFLICT", "Firestore conflict");
+}
+
+/**
+ * 既存アプリと同じ形式で posts を追加し、threads を更新する（1コミットで原子的に）。
+ * postNo は「最大 postNo + 1」。thread 文書の updateTime を前提条件にした楽観ロックで、
+ * 競合（FAILED_PRECONDITION）なら最大 3 回やり直す。3 回とも失敗したら status 409 の Error。
+ * threadId が話題スレ（v_{動画ID}）のときは topics を更新する（addTopicPost）。
+ */
+export async function addPost(input: PostInput): Promise<number> {
+  if (isTopicId(input.threadId)) return addTopicPost(input);
+
   const threadName = `${DB}/documents/threads/${input.threadId}`;
 
   for (let attempt = 0; attempt < MAX_POST_ATTEMPTS; attempt++) {
@@ -219,29 +376,12 @@ export async function addPost(input: {
     const postNo = await nextPostNo(input.threadId);
 
     // 3. post 作成 + thread 更新を 1 回の commit で
-    const postId = crypto.randomUUID().replace(/-/g, "").slice(0, 20);
     try {
       await call(`${BASE}:commit`, {
         method: "POST",
         body: JSON.stringify({
           writes: [
-            {
-              update: {
-                name: `${DB}/documents/posts/${postId}`,
-                fields: {
-                  threadId: { stringValue: input.threadId },
-                  content: { stringValue: input.content },
-                  author: { stringValue: input.author },
-                  postNo: { integerValue: String(postNo) },
-                  parentNo: { integerValue: String(input.parentNo) },
-                  isBot: { booleanValue: false },
-                },
-              },
-              updateTransforms: [
-                { fieldPath: "createdAt", setToServerValue: "REQUEST_TIME" },
-              ],
-              currentDocument: { exists: false },
-            },
+            buildPostWrite(input, postNo),
             {
               transform: {
                 document: threadName,

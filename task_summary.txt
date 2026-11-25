@@ -1,9 +1,18 @@
 ### 🚀 自動実装の成果
-- **タスク**: **CHAT-2R. （やり直し）Web 投稿の postNo を「件数 + 1」から「最大 postNo + 1（楽観ロック付き）」にする**（CHAT-1R の次、TOPIC-1 より先に着手）
+- **タスク**: **TOPIC-1. 話題スレ（配信ごとのスレッド）のサーバー側を作る**（CHAT-2R の次に着手）
 - **変更したファイル**:
+  - `lib/chat.ts`
   - `lib/firestore.ts`
+  - `lib/chat-topics.ts`
+  - `app/api/chat/topics/route.ts`
   - `app/api/chat/posts/route.ts`
-- **改善内容**: Web 投稿の postNo を、件数 + 1 ではなく「スレッド内の最大 postNo + 1」で採番するようにしました。thread の `updateTime` を使った楽観ロックで、`FAILED_PRECONDITION` なら最大 3 回やり直し、3 回とも失敗したら 409 の Error を投げます。
-`call()` が投げるエラーを `status`（HTTP ステータス）と `reason`（`error.status`）を持つ `FirestoreError` に変え、最大 postNo の取得を `nextPostNo(threadId)` に切り出し、`countPosts()` は削除しました。
-API は `FirestoreError` の `status` が 409 なら、今までと同じ文言の 409 を返します。それ以外のエラーは 502 のままです。
-`npx tsc --noEmit` と `npm run build` は実行しておらず、複数タブからの同時投稿も試していません。FRONTEND_SPEC.md は 2.2 が更新済みのため、SPEC ブロックは出していません。
+- **改善内容**: 話題スレ（配信ごとのスレッド）のサーバー側を実装しました。`npx tsc --noEmit` と `npm run build` は実行していません。
+
+- `lib/chat.ts` に `TOPIC_ID_RE`・`topicIdOf`・`videoIdOfTopic`・`isTopicId`・`TOPIC_TTL_HOURS`・`ChatTopic` を追加しました。`validatePost` も話題スレ ID を受け付けるようにしています。
+- `lib/firestore.ts` に `listTopicDocs` と `getTopicDoc` を追加しました。`addPost` は話題スレのとき、最初の投稿は post と topic を同じ commit で作成し、2 件目以降は topic の `lastUpdated` と `postCount` を更新します。事務所スレッドの処理は変えていません。
+- `lib/chat-topics.ts`（新規）に `getTopicVideo`・`listActiveTopics`・`listTopicSuggestions` を作りました。ライブ中の一覧と一覧全体は `"use cache"`（60 秒）で包んでいます。
+- `app/api/chat/topics/route.ts`（新規）と `app/api/chat/posts/route.ts` を仕様どおり対応しました。
+- 判断した点と確認してほしい点は次のとおりです。
+  - 既存の `getTrimmedStreamVideos()` と `getLiveVideoList()` はソースが見えず import 元を特定できなかったため、`lib/chat-topics.ts` 内で GCS の `streamVideos.json` と `livevideoList.json` を直接 fetch しています。配信タブと同じデータです。既存関数に差し替えるなら `loadVideoIndex()` の 2 行だけです。
+  - 2 件目以降の topic 側の前提条件は、仕様の 2 通りの記述（`updateTime` と `exists: true`）が食い違っていたため、直前に GET した `updateTime` を使い、取れないときだけ `exists: true` にしています。
+  - 最初の投稿が同時に起きて作成に失敗した場合は、`FAILED_PRECONDITION` に加えて `ALREADY_EXISTS` も衝突として扱い、全体の最大 3 回のやり直しの中で「既にある」側に切り替わります。
