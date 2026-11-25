@@ -1837,7 +1837,7 @@
     - 2 つのタブからほぼ同時に投稿しても、Web 同士では postNo が重複しない。
     - `FRONTEND_SPEC.md` 2.2（PM 更新済み）の記述と実装が一致している。
 
-- [ ] **TOPIC-1. 話題スレ（配信ごとのスレッド）のサーバー側を作る**（CHAT-2R の次に着手）
+- [x] **TOPIC-1. 話題スレ（配信ごとのスレッド）のサーバー側を作る**（CHAT-2R の次に着手）
   - **対象ファイル**: `lib/chat.ts`, `lib/firestore.ts`, `lib/chat-topics.ts`（新規）, `app/api/chat/posts/route.ts`, `app/api/chat/topics/route.ts`（新規）
   - **仕様**:
     - **`lib/chat.ts`**

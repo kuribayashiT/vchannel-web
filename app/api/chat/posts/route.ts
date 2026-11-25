@@ -1,5 +1,12 @@
 import type { NextRequest } from "next/server";
-import { extractParentNo, validatePost } from "@/lib/chat";
+import {
+  extractParentNo,
+  isTopicId,
+  TOPIC_ID_RE,
+  validatePost,
+  videoIdOfTopic,
+} from "@/lib/chat";
+import { getTopicVideo } from "@/lib/chat-topics";
 import { addPost, FirestoreError, listPosts } from "@/lib/firestore";
 
 const POSITIVE_INT = /^[1-9]\d{0,6}$/;
@@ -13,7 +20,7 @@ function isConflictError(e: unknown): boolean {
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const threadId = sp.get("threadId") ?? "";
-  if (!/^[A-Za-z0-9]{10,40}$/.test(threadId)) {
+  if (!/^[A-Za-z0-9]{10,40}$/.test(threadId) && !TOPIC_ID_RE.test(threadId)) {
     return Response.json({ error: "スレッドが不正です" }, { status: 400 });
   }
 
@@ -60,6 +67,18 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: parsed.error }, { status: 400 });
   }
   try {
+    // 話題スレは、配信データに動画があるときだけ書き込める
+    // （ルールでは動画の実在を確認できないため、存在しない動画のスレを立てさせない）
+    if (isTopicId(parsed.threadId)) {
+      const video = await getTopicVideo(videoIdOfTopic(parsed.threadId));
+      if (!video) {
+        return Response.json(
+          { error: "この配信には書き込めません" },
+          { status: 400 },
+        );
+      }
+    }
+
     // postNo は addPost 内で「最大 postNo + 1」（楽観ロック付き、最大 3 回試行）
     const postNo = await addPost({
       ...parsed,

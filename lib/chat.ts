@@ -25,11 +25,41 @@ export interface ChatPostGroup {
   replies: ChatPost[];
 }
 
+/** 配信ごとの話題スレ */
+export interface ChatTopic {
+  id: string;
+  videoId: string;
+  title: string;
+  channelId: string;
+  channelTitle: string;
+  thumbnail: string;
+  isLive: boolean;
+  postCount: number;
+  lastUpdated: string | null;
+}
+
 export const MAX_CONTENT = 500;
 export const MAX_AUTHOR = 20;
 export const DEFAULT_AUTHOR = "名無しさん";
 /** 最後に使った名前を覚える localStorage のキー */
 export const AUTHOR_STORAGE_KEY = "chat:author";
+
+/** 話題スレの文書 ID（`v_` + YouTube 動画 ID） */
+export const TOPIC_ID_RE = /^v_[A-Za-z0-9_-]{11}$/;
+/** 最後の書き込みからこの時間を過ぎた話題スレは一覧に出さない */
+export const TOPIC_TTL_HOURS = 48;
+
+export function topicIdOf(videoId: string): string {
+  return `v_${videoId}`;
+}
+
+export function videoIdOfTopic(topicId: string): string {
+  return topicId.startsWith("v_") ? topicId.slice(2) : topicId;
+}
+
+export function isTopicId(id: string): boolean {
+  return TOPIC_ID_RE.test(id);
+}
 
 /** `>>N` アンカーの最小値（なければ 0） */
 export function extractParentNo(content: string): number {
@@ -88,7 +118,7 @@ export function validatePost(
   const content = typeof b.content === "string" ? b.content.trim() : "";
   const author =
     (typeof b.author === "string" ? b.author.trim() : "") || DEFAULT_AUTHOR;
-  if (!/^[A-Za-z0-9]{10,40}$/.test(threadId)) {
+  if (!/^[A-Za-z0-9]{10,40}$/.test(threadId) && !isTopicId(threadId)) {
     return { ok: false, error: "スレッドが不正です" };
   }
   if (!content) return { ok: false, error: "投稿内容を入力してください" };
