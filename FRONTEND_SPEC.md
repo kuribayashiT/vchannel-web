@@ -102,12 +102,12 @@ Cloud Functions が定期更新する。アプリは 1 時間 TTL でキャッ�
 ### 2.3.1 VTuber 自動発見・自動登録（バックエンド、2026-11-11 追加）
 - 実装: `backend-repo/functions/vtuberDiscovery.js`。`index.js` の `scheduledVtuberDiscovery`（毎日 0:30 JST）が実行し、`previewVtuberDiscovery`（HTTP GET）は書き込みなしの試走結果を返す。
 - 流れ: Holodex（`type=vtuber`、登録者数の多い順）→ 未登録チャンネルを YouTube API で再確認 → Wikidata で照合 → 判定 → RTDB `vtuber` / `officeMapping` / `office` に 1 回のマルチパス更新で書き込む。登録後の登録者数・ランキング・`officedataList.json` は既存の 24 時間／30 分ジョブがそのまま拾う。
-- 登録条件: 登録者数 5 万人以上（YouTube API の値）、Holodex で `inactive` でない、チャンネル ID・Twitter ID が既存と重複しない、本人確認シグナル（Wikidata の P2397 一致／既知の事務所所属／チャンネル名・概要・キーワードに VTuber 関連語）が 1 つ以上。個人勢と新規事務所は日本語圏のみ（名前にかな・カナ、または概要にかな・カナ 30 字以上）。
+- 登録条件: 登録者数が `minSubscribers` 以上（YouTube API の値。既定 5 万、2026-11-25 から RTDB 設定で 3 万）、Holodex で `inactive` でない、チャンネル ID・Twitter ID が既存と重複しない、本人確認シグナル（Wikidata の P2397 一致／既知の事務所所属／チャンネル名・概要・キーワードに VTuber 関連語）が 1 つ以上。個人勢と新規事務所は日本語圏のみ（名前にかな・カナ、または概要にかな・カナ 30 字以上）。
 - 事務所チャンネル: 事務所に所属していて、名前に「公式」「official」がある、または名前がほぼ事務所名だけ（例: `hololive ホロライブ - VTuber Group`、`KAMITSUBAKI STUDIO`）のチャンネルは `officeFlg: true` で登録する（一覧で先頭に出る）。新規事務所を作る際の人数には数えない。
 - 所属の判定: Holodex の org と `group`（例: hololive の `English -Promise-`）を、登録済み VTuber の実際の `office` と照らして学習した対応を優先する（`group` 単位 → 地域 EN/ID/KR → 自動作成時の学習 → org 全体 → 静的マップ）。個人勢（Independents / Twitch Independents）は常に `personal`。実在の事務所を `personal` として学習しない。
 - 保留（`vtuberDiscovery/pending`、登録しない）: 本人確認シグナルなし／Twitter 重複・Holodex `extra_ids` が登録済み（サブチャンネル）／名前に「切り抜き」「まとめ」「翻訳」／個人勢なのに「公式」を名乗る／メンバー 1 人だけの未知の事務所。
 - 事務所の自動追加: 未知の Holodex org は、条件を満たすメンバーが 2 人以上いれば `officeMapping` と `office` に追加する（表示名は Holodex の英語名。`vtuberDiscovery/offices/{key}.needsNameReview` が true のものは日本語名に手で直す）。30 分ジョブにより、新しい事務所の掲示板スレッドが自動で作られる点に注意。
-- 上限: 1 回あたり登録 30 人・新規事務所 3 件。超過分は翌日以降に繰り越す。
+- 上限: 1 回あたり登録 30 人（2026-11-14 から RTDB 設定で 200 人）・新規事務所 3 件。超過分は翌日以降に繰り越す。
 - 自動登録された VTuber の行には `registeredBy: "auto-discovery"` と `discovery`（Holodex org、登録時の登録者数、Wikidata ID、判定シグナル）が付く。`debut` / `birthday` は空で登録し、下記 2.3.2 の補完ジョブが埋める（チャンネル開設日はデビュー日と一致しないため使わない）。
 - 設定・停止（2.3.1）: `vtuberDiscovery/config`（`enabled` / `minSubscribers` / `maxRegisterPerRun` / `maxNewOfficesPerRun` / `minMembersForNewOffice`）で上書きできる。`enabled: false` で停止する。実行記録は `vtuberDiscovery/runs`（直近 30 件）に残る。`vtuberDiscovery/*` は公開読み取り不可。
 - 除外リスト（2026-11-12 追加、5.12）: `vtuberDiscovery/excluded/{channelId}` にあるチャンネルは、登録済みと同じ扱いで候補から外す（`registeredIds` に加える。`extra_ids` の照合には使わない）。管理画面で削除した VTuber が翌日に再登録されるのを防ぐ。YouTube API で確認する前の「未登録の絞り込み」の段階で外し、件数を実行記録の `excluded` に残す。
