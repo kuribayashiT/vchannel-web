@@ -1812,7 +1812,7 @@
     - 他のタブで投稿すると、15 秒以内に先頭に出て、重複しない。
     - `FRONTEND_SPEC.md` 2.2 / 5.6（PM 更新済み）の記述と実装が一致している。
 
-- [ ] **CHAT-2R. （やり直し）Web 投稿の postNo を「件数 + 1」から「最大 postNo + 1（楽観ロック付き）」にする**（CHAT-1R の次、TOPIC-1 より先に着手）
+- [x] **CHAT-2R. （やり直し）Web 投稿の postNo を「件数 + 1」から「最大 postNo + 1（楽観ロック付き）」にする**（CHAT-1R の次、TOPIC-1 より先に着手）
   - **やり直しの理由**: CHAT-1R と同じ（`670e919` で `[x]` になったが未実装。今も `countPosts()+1` で採番している）。
   - **対象ファイル**: `lib/firestore.ts`, `app/api/chat/posts/route.ts`
   - **背景**:

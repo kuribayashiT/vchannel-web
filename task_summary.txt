@@ -1,12 +1,9 @@
 ### 🚀 自動実装の成果
-- **タスク**: **CHAT-1R. （やり直し）投稿一覧の差分取得・ページング — 全件取得＋15 秒ごとの全件ポーリングをやめる**（CHATLINE-1 の次、TOPIC-1 より先に着手）
+- **タスク**: **CHAT-2R. （やり直し）Web 投稿の postNo を「件数 + 1」から「最大 postNo + 1（楽観ロック付き）」にする**（CHAT-1R の次、TOPIC-1 より先に着手）
 - **変更したファイル**:
-  - `lib/chat.ts`
   - `lib/firestore.ts`
   - `app/api/chat/posts/route.ts`
-  - `components/ChatBoard.tsx`
-- **改善内容**: CHAT-1R として、投稿一覧を差分取得・ページングに変更しました。`tsc` と `npm run build` は実行しておらず、動作確認もしていません。
-- `lib/firestore.ts` の `listPosts` が `before` / `after` / `limit` を受け取るようになりました。`postNo` 降順で `limit` 件を取得し、昇順に並べ直して `{ posts, hasMore }` を返します。
-- `GET /api/chat/posts` は `before` / `after` / `limit` を検証します。不正な値と `before`・`after` の同時指定は 400、`limit` は 100 に丸めます。
-- `lib/chat.ts` に `ChatPostPage` 型を追加しました。
-- `ThreadView` は初回に最新 50 件を取得します。リスト末尾の `さらに古い投稿を読み込む` ボタンで `before` 取得、15 秒ごとのポーリングで `after` 取得に変えました。タブが非表示の間はポーリングを止め、表示に戻ったらすぐ 1 回取得します。投稿成功時にも新着を取得します。`id` で重複を除きます。
+- **改善内容**: Web 投稿の postNo を、件数 + 1 ではなく「スレッド内の最大 postNo + 1」で採番するようにしました。thread の `updateTime` を使った楽観ロックで、`FAILED_PRECONDITION` なら最大 3 回やり直し、3 回とも失敗したら 409 の Error を投げます。
+`call()` が投げるエラーを `status`（HTTP ステータス）と `reason`（`error.status`）を持つ `FirestoreError` に変え、最大 postNo の取得を `nextPostNo(threadId)` に切り出し、`countPosts()` は削除しました。
+API は `FirestoreError` の `status` が 409 なら、今までと同じ文言の 409 を返します。それ以外のエラーは 502 のままです。
+`npx tsc --noEmit` と `npm run build` は実行しておらず、複数タブからの同時投稿も試していません。FRONTEND_SPEC.md は 2.2 が更新済みのため、SPEC ブロックは出していません。

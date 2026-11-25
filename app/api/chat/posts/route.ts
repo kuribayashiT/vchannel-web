@@ -1,18 +1,13 @@
 import type { NextRequest } from "next/server";
 import { extractParentNo, validatePost } from "@/lib/chat";
-import { addPost, listPosts } from "@/lib/firestore";
+import { addPost, FirestoreError, listPosts } from "@/lib/firestore";
 
 const POSITIVE_INT = /^[1-9]\d{0,6}$/;
 const MAX_LIMIT = 100;
 
 /** 投稿の競合（楽観ロックの再試行上限超過）を表すエラーかどうか */
 function isConflictError(e: unknown): boolean {
-  return (
-    typeof e === "object" &&
-    e !== null &&
-    "status" in e &&
-    (e as { status: unknown }).status === 409
-  );
+  return e instanceof FirestoreError && e.status === 409;
 }
 
 export async function GET(req: NextRequest) {
@@ -65,6 +60,7 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: parsed.error }, { status: 400 });
   }
   try {
+    // postNo は addPost 内で「最大 postNo + 1」（楽観ロック付き、最大 3 回試行）
     const postNo = await addPost({
       ...parsed,
       parentNo: extractParentNo(parsed.content),
