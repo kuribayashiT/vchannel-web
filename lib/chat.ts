@@ -17,6 +17,9 @@ export interface ChatPost {
   createdAt: string | null;
 }
 
+/** GET /api/chat/posts のレスポンス。posts は postNo 昇順 */
+export type ChatPostPage = { posts: ChatPost[]; hasMore: boolean };
+
 export interface ChatPostGroup {
   parent: ChatPost;
   replies: ChatPost[];

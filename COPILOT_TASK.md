@@ -1780,7 +1780,7 @@
     - 375px 幅で入力欄と送信ボタンが 1 行に収まり、横スクロールが出ない。
     - `FRONTEND_SPEC.md` 5.6（PM 更新済み）の記述と実装が一致している。
 
-- [ ] **CHAT-1R. （やり直し）投稿一覧の差分取得・ページング — 全件取得＋15 秒ごとの全件ポーリングをやめる**（CHATLINE-1 の次、TOPIC-1 より先に着手）
+- [x] **CHAT-1R. （やり直し）投稿一覧の差分取得・ページング — 全件取得＋15 秒ごとの全件ポーリングをやめる**（CHATLINE-1 の次、TOPIC-1 より先に着手）
   - **やり直しの理由**: CHAT-1 は 2026-11-08 のパイプライン実行（`670e919`）で `[x]` になったが、その実行で変更されたのは `components/RankingTabs.tsx` だけで、**実装されていなかった**（`lib/firestore.ts` は最初のコミット `2627fad` から一度も変わっていない）。仕様の中身は CHAT-1 と同じで、その後の変更（CHAT-4 の新しい順の表示・CHATLINE-1 の入力欄）に合わせて書き直した。
   - **前提**: Firestore の複合インデックス `posts`: `threadId` 昇順 + `postNo` **降順**（ID: `CICAgJim14AK`、2026-11-08 作成済み）。既存の `threadId` + `createdAt` のインデックスは Flutter アプリが使うので消さない。
   - **対象ファイル**: `lib/firestore.ts`, `app/api/chat/posts/route.ts`, `components/ChatBoard.tsx`, `lib/chat.ts`
