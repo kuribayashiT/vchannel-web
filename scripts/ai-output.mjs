@@ -14,6 +14,7 @@
 // 管理画面・記事の自動作成（AGENTS.md で Claude Code 担当）や .md、scripts/、.github/ は書き込まない。
 import fs from 'fs';
 import path from 'path';
+import Anthropic from '@anthropic-ai/sdk';
 
 export const MAX_FILES = 6;
 const ALLOWED_DIRS = ['app/', 'components/', 'lib/', 'hooks/', 'types/'];
@@ -135,30 +136,28 @@ export function appendSpecs(specs) {
   return applied;
 }
 
-/** Messages API を呼び、テキスト部分を返す */
-export async function callClaude(prompt, { maxTokens = 32000 } = {}) {
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': process.env.ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-5-5',
-      max_tokens: maxTokens,
-      messages: [{ role: 'user', content: prompt }],
-    }),
+/**
+ * Messages API をストリーミングで呼び、テキスト部分を返す。
+ * Sonnet 5.5 は思考（adaptive thinking）が既定でオンで、思考のトークンも max_tokens に含まれる。
+ * 大きいファイルの全文を出すと 32K では足りないため、上限 128K にしてストリーミングで受ける
+ * （非ストリーミングで大きい max_tokens を使うと HTTP タイムアウトになるため）。
+ */
+export async function callClaude(prompt, { maxTokens = 128000 } = {}) {
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  const stream = client.messages.stream({
+    model: 'claude-sonnet-5-5',
+    max_tokens: maxTokens,
+    messages: [{ role: 'user', content: prompt }],
   });
-  const data = await response.json();
-  if (!response.ok || data.error) {
-    throw new Error(`API Error: ${JSON.stringify(data, null, 2)}`);
-  }
+  const data = await stream.finalMessage();
+  if (data.usage) console.log(`usage: input ${data.usage.input_tokens} / output ${data.usage.output_tokens} tokens (stop: ${data.stop_reason})`);
   if (data.stop_reason === 'max_tokens') {
     throw new Error('出力が max_tokens で途中で切れたため、反映しません。');
   }
-  const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
+  if (data.stop_reason === 'refusal') {
+    throw new Error(`モデルが応答を拒否しました: ${JSON.stringify(data.stop_details)}`);
+  }
+  const text = data.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
   if (!text) throw new Error(`レスポンスにテキストがありません: ${JSON.stringify(data)}`);
-  if (data.usage) console.log(`usage: input ${data.usage.input_tokens} / output ${data.usage.output_tokens} tokens`);
   return text;
 }
