@@ -20,6 +20,11 @@ import {
   Sparkles,
   Star,
 } from "lucide-react";
+import {
+  ChatTopicHeader,
+  ChatTopicList,
+  parseTopicLookup,
+} from "@/components/ChatTopicList";
 import { useSelectedChannels } from "@/hooks/useSelection";
 import {
   AUTHOR_STORAGE_KEY,
@@ -27,10 +32,12 @@ import {
   MAX_AUTHOR,
   MAX_CONTENT,
   groupPostsByParent,
+  isTopicId,
   type ChatPost,
   type ChatPostGroup,
   type ChatPostPage,
   type ChatThread,
+  type ChatTopic,
 } from "@/lib/chat";
 import type { OfficeSummary } from "@/lib/offices";
 import { CONTACT_EMAIL } from "@/lib/site";
@@ -264,6 +271,9 @@ function writeSeenCounts(next: Record<string, number>) {
   localStorage.setItem(SEEN_COUNTS_KEY, JSON.stringify(next));
 }
 
+/** 話題スレには未読バッジを付けないので、既読の記録もしない */
+const noopSeen = () => {};
+
 function Body({
   text,
   onJumpToPost,
@@ -363,6 +373,7 @@ function TopicChips({
 /** スレッド先頭の 1 行入力欄。シートを開かずに書ける */
 function QuickComposer({
   thread,
+  placeholder,
   value,
   onChange,
   author,
@@ -373,6 +384,7 @@ function QuickComposer({
   onOpenSheet,
 }: {
   thread: ChatThread;
+  placeholder: string;
   value: string;
   onChange: (next: string) => void;
   author: string;
@@ -424,7 +436,7 @@ function QuickComposer({
           onKeyDown={handleKeyDown}
           enterKeyHint="send"
           aria-label="ひとことで投稿"
-          placeholder={`${thread.name}の話ならなんでもOK（ひとことでも）`}
+          placeholder={placeholder}
           className="min-w-0 flex-1 text-ellipsis rounded-full border border-zinc-300 bg-transparent px-4 py-2.5 text-base disabled:opacity-60 md:text-sm dark:border-zinc-700"
         />
         <button
@@ -674,12 +686,18 @@ type SheetState = { initial: string; fromQuick: boolean };
 
 function ThreadView({
   thread,
+  topic = null,
   onSeen,
+  onFirstPost,
   initialDraft,
   onDraftApplied,
 }: {
   thread: ChatThread;
+  /** 話題スレのとき、その配信の情報（配信ヘッダーを出し、お題チップは出さない） */
+  topic?: ChatTopic | null;
   onSeen: (postNo: number) => void;
+  /** 話題スレで、投稿 0 件の状態から最初の投稿が成功したとき */
+  onFirstPost?: () => void;
   /** ディープリンクの draft。マウント時だけ 1 行入力欄の初期値として使う（自動送信しない） */
   initialDraft: string | null;
   /** 初期値を入れた時点で呼ぶ（クエリを消す） */
@@ -709,6 +727,7 @@ function ThreadView({
     () => (dateKey ? pickTopics(dateKey, 3) : []),
     [dateKey],
   );
+  const isTopicThread = topic !== null;
 
   useEffect(() => {
     onSeenRef.current = onSeen;
@@ -737,8 +756,8 @@ function ThreadView({
   }, []);
 
   const openTopic = useCallback(
-    (topic: string) => {
-      focusComposer(`【お題】${topic} `);
+    (topicText: string) => {
+      focusComposer(`【お題】${topicText} `);
     },
     [focusComposer],
   );
@@ -838,13 +857,16 @@ function ThreadView({
   /** 投稿成功後の共通処理: 名前を覚える → 新着の差分取得 → リスト先頭へスクロール */
   const afterPost = useCallback(
     (usedAuthor: string) => {
+      const wasEmpty = (postsRef.current?.length ?? 0) === 0;
       writeAuthor(usedAuthor);
       setAuthor(usedAuthor.trim());
+      // 話題スレの最初の投稿でスレが立つので、話題スレ一覧を取り直す
+      if (isTopicThread && wasEmpty) onFirstPost?.();
       void fetchNew().then(() => {
         listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       });
     },
-    [fetchNew],
+    [fetchNew, isTopicThread, onFirstPost],
   );
 
   const handleSheetPosted = useCallback(
@@ -890,8 +912,14 @@ function ThreadView({
 
   return (
     <div>
+      {topic && <ChatTopicHeader topic={topic} />}
       <QuickComposer
         thread={thread}
+        placeholder={
+          topic
+            ? "この配信の感想をひとこと"
+            : `${thread.name}の話ならなんでもOK（ひとことでも）`
+        }
         value={quick}
         onChange={setQuick}
         author={author}
@@ -901,13 +929,21 @@ function ThreadView({
         onPosted={afterPost}
         onOpenSheet={(content) => setSheet({ initial: content, fromQuick: true })}
       />
-      <div className="mb-3 space-y-1.5">
-        <p className="text-xs text-zinc-500">話題をえらんで書く</p>
-        <TopicChips topics={topics} onPick={openTopic} />
-      </div>
+      {!isTopicThread && (
+        <div className="mb-3 space-y-1.5">
+          <p className="text-xs text-zinc-500">話題をえらんで書く</p>
+          <TopicChips topics={topics} onPick={openTopic} />
+        </div>
+      )}
       {failed && <p className="mb-2 text-sm text-red-600">読み込みに失敗しました</p>}
       {posts === null && !failed && <p className="text-sm text-zinc-500">読み込み中…</p>}
-      {posts?.length === 0 && (
+      {posts?.length === 0 && isTopicThread && (
+        <div className="rounded-2xl border border-dashed border-violet-300 bg-violet-50 px-4 py-8 text-center text-sm text-violet-700 dark:border-violet-800 dark:bg-violet-950/20 dark:text-violet-300">
+          <p className="font-semibold">まだ書き込みがありません</p>
+          <p>最初のひとことで、この配信のスレが立ちます</p>
+        </div>
+      )}
+      {posts?.length === 0 && !isTopicThread && (
         <div className="space-y-3 rounded-2xl border border-dashed border-violet-300 bg-violet-50 px-4 py-8 text-center text-sm text-violet-700 dark:border-violet-800 dark:bg-violet-950/20 dark:text-violet-300">
           <div>
             <p className="font-semibold">まだ投稿がありません</p>
@@ -1041,11 +1077,23 @@ export function ChatBoard({ offices }: { offices: OfficeSummary[] }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const channelParam = searchParams.get("channel") ?? "";
-  const hasDeepLinkQuery = searchParams.has("channel") || searchParams.has("draft");
+  const topicParam = searchParams.get("topic") ?? "";
+  const deepTopicId = isTopicId(topicParam) ? topicParam : "";
+  const hasDeepLinkQuery =
+    searchParams.has("channel") ||
+    searchParams.has("draft") ||
+    searchParams.has("topic");
+
+  // 最初のマウント時の topic だけを覚える（クエリを消した後も動作が変わらないように）
+  const [initialTopicId] = useState(deepTopicId);
 
   const [threads, setThreads] = useState<ChatThread[] | null>(null);
   const [failed, setFailed] = useState(false);
-  const [tab, setTab] = useState("");
+  // 選択は「事務所スレッドの id」か「話題スレの id（v_…）」のどちらか 1 つ。空は未選択（初期）
+  const [selectedId, setSelectedId] = useState(initialTopicId);
+  // 選択中の話題スレの配信情報
+  const [topicData, setTopicData] = useState<ChatTopic | null>(null);
+  const [topicRefresh, setTopicRefresh] = useState(0);
   const [seenCounts, setSeenCounts] = useState<Record<string, number>>(() =>
     readSeenCounts(),
   );
@@ -1054,7 +1102,9 @@ export function ChatBoard({ offices }: { offices: OfficeSummary[] }) {
     parseDraft(searchParams.get("draft")),
   );
   const tabRefs = useRef(new Map<string, HTMLButtonElement>());
-  const scrollPendingRef = useRef(channelParam !== "");
+  const scrollPendingRef = useRef(channelParam !== "" && initialTopicId === "");
+
+  const topicMode = isTopicId(selectedId);
 
   useEffect(() => {
     fetch("/api/chat/threads")
@@ -1062,6 +1112,34 @@ export function ChatBoard({ offices }: { offices: OfficeSummary[] }) {
       .then(setThreads)
       .catch(() => setFailed(true));
   }, []);
+
+  // ディープリンク: topic の配信が見つかれば、スレがなくても空のスレとして開く。見つからなければ無視する
+  useEffect(() => {
+    if (!initialTopicId) return;
+    let cancelled = false;
+    const giveUp = () => {
+      setSelectedId((prev) => (prev === initialTopicId ? "" : prev));
+    };
+    fetch(`/api/chat/topics?id=${encodeURIComponent(initialTopicId)}`, {
+      cache: "no-store",
+    })
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((json: unknown) => {
+        if (cancelled) return;
+        const found = parseTopicLookup(json);
+        if (!found || found.id !== initialTopicId) {
+          giveUp();
+          return;
+        }
+        setTopicData((prev) => (prev && prev.id !== found.id ? prev : found));
+      })
+      .catch(() => {
+        if (!cancelled) giveUp();
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [initialTopicId]);
 
   const markSeen = useCallback((threadId: string, postNo: number) => {
     setSeenCounts((prev) => {
@@ -1113,27 +1191,29 @@ export function ChatBoard({ offices }: { offices: OfficeSummary[] }) {
     return threads.find((t) => t.name.toLowerCase() === name)?.id ?? null;
   }, [channelParam, offices, threads]);
 
-  // 初期タブ（tab が空の間）はディープリンクのスレッドを優先する
-  const current = tabs.find((t) => t.id === (tab || deepLinkThreadId)) ?? null;
-  const activeThread = current ?? tabs[0] ?? null;
+  // 初期タブ（未選択の間）はディープリンクのスレッドを優先する
+  const current = topicMode
+    ? null
+    : (tabs.find((t) => t.id === (selectedId || deepLinkThreadId)) ?? null);
+  const activeThread = topicMode ? null : (current ?? tabs[0] ?? null);
 
   useEffect(() => {
-    if (!tabs.length) return;
-    if (tab === "") {
-      setTab(deepLinkThreadId ?? tabs[0].id);
+    if (!tabs.length || topicMode) return;
+    if (selectedId === "") {
+      setSelectedId(deepLinkThreadId ?? tabs[0].id);
       return;
     }
-    if (!tabs.some((t) => t.id === tab)) setTab(tabs[0].id);
-  }, [tab, tabs, deepLinkThreadId]);
+    if (!tabs.some((t) => t.id === selectedId)) setSelectedId(tabs[0].id);
+  }, [selectedId, topicMode, tabs, deepLinkThreadId]);
 
   // 選んだタブが見えるよう、横スクロールで中央へ（ディープリンクで開いたときの 1 回だけ）
   useEffect(() => {
-    if (!scrollPendingRef.current || !tab) return;
-    const el = tabRefs.current.get(tab);
+    if (!scrollPendingRef.current || !selectedId || topicMode) return;
+    const el = tabRefs.current.get(selectedId);
     if (!el) return;
     scrollPendingRef.current = false;
     el.scrollIntoView({ inline: "center", block: "nearest" });
-  }, [tab, tabs]);
+  }, [selectedId, topicMode, tabs]);
 
   // draft を入力欄の初期値に入れた時点でクエリを消す（再読込で再び入らないように）
   const handleDraftApplied = useCallback(() => {
@@ -1141,16 +1221,44 @@ export function ChatBoard({ offices }: { offices: OfficeSummary[] }) {
     if (hasDeepLinkQuery) router.replace("/chat", { scroll: false });
   }, [hasDeepLinkQuery, router]);
 
+  const handleSelectTopic = useCallback((topic: ChatTopic) => {
+    setTopicData(topic);
+    setSelectedId(topic.id);
+  }, []);
+
+  const handleTopicFirstPost = useCallback(() => {
+    setTopicRefresh((n) => n + 1);
+  }, []);
+
+  const topicThread = useMemo<ChatThread | null>(
+    () =>
+      topicMode && topicData && topicData.id === selectedId
+        ? {
+            id: topicData.id,
+            name: topicData.title,
+            office: "",
+            postCount: topicData.postCount,
+            lastUpdated: topicData.lastUpdated,
+          }
+        : null,
+    [topicMode, topicData, selectedId],
+  );
+
   return (
     <div className="space-y-4">
       <RulesPanel />
+      <ChatTopicList
+        selectedId={topicMode ? selectedId : null}
+        onSelect={handleSelectTopic}
+        refreshKey={topicRefresh}
+      />
       <div className="-mx-4 px-4">
-        <p className="mb-2 text-xs font-medium text-zinc-500">スレッド一覧</p>
+        <h2 className="mb-2 text-xs font-medium text-zinc-500">事務所の雑談</h2>
         <div className="flex gap-2 overflow-x-auto pb-1">
           {tabs.map((t) => {
             const unread = Math.max(t.postCount - (seenCounts[t.id] ?? 0), 0);
             const starred = starredIds.has(t.id);
-            const selected = activeThread?.id === t.id;
+            const selected = !topicMode && activeThread?.id === t.id;
             return (
               <button
                 key={t.id}
@@ -1160,7 +1268,7 @@ export function ChatBoard({ offices }: { offices: OfficeSummary[] }) {
                 }}
                 type="button"
                 onClick={() => {
-                  setTab(t.id);
+                  setSelectedId(t.id);
                   markSeen(t.id, t.postCount);
                 }}
                 aria-pressed={selected}
@@ -1206,7 +1314,7 @@ export function ChatBoard({ offices }: { offices: OfficeSummary[] }) {
           スレッドを読み込めませんでした
         </p>
       )}
-      {!threads && !failed && (
+      {!threads && !failed && !topicMode && (
         <p className="text-sm text-zinc-500">読み込み中…</p>
       )}
       {threads?.length === 0 && (
@@ -1214,6 +1322,20 @@ export function ChatBoard({ offices }: { offices: OfficeSummary[] }) {
           スレッドがありません
         </p>
       )}
+      {topicMode &&
+        (topicThread && topicData ? (
+          <ThreadView
+            key={topicThread.id}
+            thread={topicThread}
+            topic={topicData}
+            onSeen={noopSeen}
+            onFirstPost={handleTopicFirstPost}
+            initialDraft={pendingDraft}
+            onDraftApplied={handleDraftApplied}
+          />
+        ) : (
+          <p className="text-sm text-zinc-500">読み込み中…</p>
+        ))}
       {activeThread && (
         <ThreadView
           key={activeThread.id}
