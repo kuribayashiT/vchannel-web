@@ -654,6 +654,8 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 - **内部リンク**: 詳細ページ同士（同じ事務所のメンバー）、日付ページの前日・翌日、一覧から詳細へ、をすべて `<Link>`（`<a href>`）でつなぐ。`onClick` だけの遷移にはしない。
 - **sitemap**: 静的ページ＋全 VTuber 詳細＋日付ページ（366 URL）を載せる。
 - **robots**: AI クローラー（GPTBot / ClaudeBot / PerplexityBot 等）は許可を維持する。
+  - `DISALLOW` は `/api/`・`/settings`・`/favorites`・`/admin`・`/chat?` の5つ。
+  - `/chat?` は、下書き付きの掲示板 URL（`/chat?channel=…&draft=…`）にクロールの枠を使わせないための指定。`/chat` 本体はクロールを許可する（CRAWL-1）。
 - **`/llms.txt`**: AI 向けのサイト案内として提供する。
   - `text/plain; charset=utf-8` を返し、主要ページ案内・データ出典/更新頻度・登録者数上位50人の詳細URLを含める。
 

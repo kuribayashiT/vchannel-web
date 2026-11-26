@@ -1640,6 +1640,27 @@
     - `/settings` に「アプリ版」セクションがあり、リンク先が `https://apps.apple.com/jp/app/id1611900581` になっている。
     - `FRONTEND_SPEC.md` 5.10 は PM が更新済みなので、変更不要。
 
+### 🔎 P0-CRAWL: 掲示板の下書き付き URL に Googlebot のクロールを使わせない（2026-11-26 追加・**小粒なので未完了タスクの中で最初に着手**）
+
+> **症状（Search Console、2026-11-26）**: 「代替ページ（適切な canonical タグあり）」に 66 件出た。例はすべて `/chat?channel=UC…&draft=○○さん` の形で、11/25 にクロールされていた。
+> **原因**:
+> - VTuber 詳細の「○○さんについて書く」（`app/vtuber/[channelId]/page.tsx`）と、配信中カードの「感想を書く」（`components/VideoCard.tsx`）が、VTuber ごと・配信ごとに違う `/chat?…` の URL を作っている。
+> - どちらのリンクにも `rel="nofollow"` は付いているが、nofollow は Google にとってヒントにすぎず、実際にはクロールされている。
+> - `/chat` の canonical は `/chat` なのでインデックスの問題はない。ただし、これらの URL は VTuber 数×配信数だけ増えるため、まだクロールされていないページ（「検出 - インデックス未登録」962 件）に回すべきクロールの枠を食っている。
+> **対策**: robots.txt で `/chat?` から始まる URL をクロールさせない。`/chat` 本体はクロールしてよい。
+
+- [ ] **CRAWL-1. robots.txt で `/chat?…`（クエリ付きの掲示板 URL）をクロール禁止にする**
+  - **対象ファイル**: `app/robots.ts`
+  - **仕様**:
+    - `DISALLOW` に `"/chat?"` を追加する。順番は `"/admin"` の後。
+    - robots.txt の前方一致により、`/chat?channel=…&draft=…` や `/chat?topic=…` が禁止され、`/chat` 自体は許可されたままになる。
+    - 他のルール（AI ボット・sitemap）は変えない。
+    - リンク側（`rel="nofollow"`）はそのまま残す。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - ビルド後の `/robots.txt` で、`User-Agent: *` のブロックに `Disallow: /chat?` がある。`Disallow: /chat` 単独の行はない。
+    - `FRONTEND_SPEC.md` は PM が更新済みなので、変更不要。
+
 ### 🚨 P0-CHATFORM: スマホで投稿フォームがはみ出して押しにくい（2026-11-23 追加・**最優先。READ-1 より先に着手**）
 
 > **症状（運営者がスマホで確認）**: 掲示板の投稿シートで名前欄・本文欄をタップすると画面が拡大され、横スクロールしないと `投稿する` ボタンに届かない。また、`キャンセル` ボタンの文字が 2 行に折り返して見た目が崩れている。
