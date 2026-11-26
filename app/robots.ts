@@ -13,7 +13,7 @@ const AI_BOTS = [
   "CCBot",
 ];
 
-const DISALLOW = ["/api/", "/settings", "/favorites", "/admin"];
+const DISALLOW = ["/api/", "/settings", "/favorites", "/admin", "/chat?"];
 
 export default function robots(): MetadataRoute.Robots {
   return {
