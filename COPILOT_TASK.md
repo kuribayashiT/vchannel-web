@@ -1661,6 +1661,37 @@
     - ビルド後の `/robots.txt` で、`User-Agent: *` のブロックに `Disallow: /chat?` がある。`Disallow: /chat` 単独の行はない。
     - `FRONTEND_SPEC.md` は PM が更新済みなので、変更不要。
 
+- [ ] **CRAWL-2. 全ページの HTML に入っている「全事務所・全 VTuber 一覧」を外し、フィルターを開いたときに API から取る**（CRAWL-1 の次に着手）
+  - **背景（PM が 2026-11-26 に本番で計測）**:
+    - `app/layout.tsx` が `getOfficeSummaries()`（全事務所の約 1,800 人分の `{ channelId, name }`）を `AppShell` に props で渡している。そのため、**全ページの HTML に約 1,800 人分の一覧が入っている**。
+    - 計測した HTML のサイズは、`/` が 238KB、`/vtuber/…` が 544KB、`/events/11-26` が 455KB、`/ranking` が 607KB。
+    - 一覧が使われるのはフィルター（`SideMenu`）を開いたときだけ。HTML が重いと Googlebot の 1 ページあたりの負担が増え、まだクロールされていない約 960 ページが後回しになりやすい。スマホの表示速度にも効く。
+  - **対象ファイル**: `app/api/offices/route.ts`（新規）、`app/layout.tsx`、`components/AppShell.tsx`
+  - **仕様**:
+    - `app/api/offices/route.ts`（新規）:
+      - `GET` で `getOfficeSummaries()` を JSON で返す。
+      - ヘッダーは `/api/office-thumbnails/route.ts` と同じ `Cache-Control: public, s-maxage=3600, stale-while-revalidate=86400`。
+      - 失敗したときは `{ error: "failed" }`（502）を返す。
+    - `app/layout.tsx`:
+      - `getOfficeSummaries` の呼び出しと import を消し、`<AppShell>{children}</AppShell>` にする。
+    - `components/AppShell.tsx`:
+      - `AppShell` の `offices` props をなくす。
+      - モジュールの中で、`/api/offices` を 1 回だけ取得する関数 `loadOffices(): Promise<OfficeSummary[]>` を作る。Promise をモジュール変数に保存して使い回し、失敗したら保存を消して次回また取得できるようにする。
+      - `SideMenu` は、開いたときに `loadOffices()` を呼んで state に入れる。取得中は「読み込み中…」、失敗したら「読み込みに失敗しました」と「再読み込み」ボタンを出す。取得できたら、今までどおり `OfficeSelector` に渡す。
+      - フィルターボタンの `disabled={offices.length === 0}` は外し、常に押せるようにする。
+      - 旧選択の移行（`migrateLegacyFullSelection`）は、マウント時に次のように動かす。
+        - `localStorage` の `selectionMigratedV1` が `"1"` なら何もしない。
+        - `selectedChannelIds` が空、または無いときは、取得せずに `selectionMigratedV1 = "1"` だけを書く。
+        - それ以外のときだけ `loadOffices()` で全 ID を取り、今までの関数に渡す。
+      - 関数の中身（95% 判定）は変えない。
+    - `app/chat/page.tsx` など、他のページでの `getOfficeSummaries()` の使い方は変えない。
+  - **完了条件**:
+    - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
+    - ビルド後の `/privacy` の HTML に `"members"` が含まれない。
+    - `/` の HTML が、変更前（ローカルのビルドで計測）より 100KB 以上小さい。
+    - ヘッダーのフィルターを開くと、事務所の一覧が出て、今までどおり選択・解除ができる。
+    - `FRONTEND_SPEC.md` は PM が更新済みなので、変更不要。
+
 ### 🚨 P0-CHATFORM: スマホで投稿フォームがはみ出して押しにくい（2026-11-23 追加・**最優先。READ-1 より先に着手**）
 
 > **症状（運営者がスマホで確認）**: 掲示板の投稿シートで名前欄・本文欄をタップすると画面が拡大され、横スクロールしないと `投稿する` ボタンに届かない。また、`キャンセル` ボタンの文字が 2 行に折り返して見た目が崩れている。
