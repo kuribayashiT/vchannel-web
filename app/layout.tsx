@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AppShell } from "@/components/AppShell";
-import { getOfficeSummaries, type OfficeSummary } from "@/lib/offices";
 import {
   ADSENSE_CLIENT_ID,
   SITE_DESCRIPTION,
@@ -85,14 +84,7 @@ const jsonLd = {
   ],
 };
 
-export default async function RootLayout({ children }: LayoutProps) {
-  let offices: OfficeSummary[] = [];
-  try {
-    offices = await getOfficeSummaries();
-  } catch {
-    // 取得失敗時はフィルターなしで続行
-  }
-
+export default function RootLayout({ children }: LayoutProps) {
   return (
     <html
       lang="ja"
@@ -105,7 +97,7 @@ export default async function RootLayout({ children }: LayoutProps) {
             __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
           }}
         />
-        <AppShell offices={offices}>{children}</AppShell>
+        <AppShell>{children}</AppShell>
         <Analytics />
       </body>
     </html>

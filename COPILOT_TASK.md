@@ -1661,7 +1661,7 @@
     - ビルド後の `/robots.txt` で、`User-Agent: *` のブロックに `Disallow: /chat?` がある。`Disallow: /chat` 単独の行はない。
     - `FRONTEND_SPEC.md` は PM が更新済みなので、変更不要。
 
-- [ ] **CRAWL-2. 全ページの HTML に入っている「全事務所・全 VTuber 一覧」を外し、フィルターを開いたときに API から取る**（CRAWL-1 の次に着手）
+- [x] **CRAWL-2. 全ページの HTML に入っている「全事務所・全 VTuber 一覧」を外し、フィルターを開いたときに API から取る**（CRAWL-1 の次に着手）
   - **背景（PM が 2026-11-26 に本番で計測）**:
     - `app/layout.tsx` が `getOfficeSummaries()`（全事務所の約 1,800 人分の `{ channelId, name }`）を `AppShell` に props で渡している。そのため、**全ページの HTML に約 1,800 人分の一覧が入っている**。
     - 計測した HTML のサイズは、`/` が 238KB、`/vtuber/…` が 544KB、`/events/11-26` が 455KB、`/ranking` が 607KB。
