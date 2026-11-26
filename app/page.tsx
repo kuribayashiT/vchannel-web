@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Radio, Sparkles, Trophy, Users } from "lucide-react";
+import { BarChart3, Radio, Sparkles, Trophy, Users } from "lucide-react";
 import { GrowthTop3 } from "@/components/GrowthTop3";
 import { GuideCard } from "@/components/GuideCard";
 import { RakutenMotionWidget } from "@/components/RakutenMotionWidget";
@@ -9,6 +9,7 @@ import { StreamTabs } from "@/components/StreamTabs";
 import { GcsFetchError } from "@/lib/gcs";
 import { getGrowthData } from "@/lib/growth-data";
 import { getAllGuides } from "@/lib/guide";
+import { getCurrentReportContext, getReportComment } from "@/lib/reports";
 import type { SubscriberGrowthItem } from "@/types";
 
 export const metadata: Metadata = {
@@ -16,6 +17,7 @@ export const metadata: Metadata = {
 };
 
 const TOP_CANDIDATES = 30;
+type ReportParagraphPart = { text: string; href?: string };
 
 /** 取得に失敗しても配信タブは表示したいので空配列にフォールバック */
 async function loadWeeklyGrowth(): Promise<SubscriberGrowthItem[]> {
@@ -57,6 +59,7 @@ function Hero() {
         <p className="mt-2 text-sm leading-relaxed text-white/90 md:text-base">
           いま配信中のライブ、今日・明日の配信予定、登録者数の急上昇まで。
           推しの活動をひと目で追いかけられます。
+          登録者数や同時視聴者数のデータをもとに、運営者が書いた特集やガイドも毎週更新しています。
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           <a
@@ -86,25 +89,111 @@ function Hero() {
   );
 }
 
+function stripTags(text: string): string {
+  return text.replace(/<[^>]*>/g, "");
+}
+
+function decodeEntities(text: string): string {
+  return text
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
+function toText(text: string): string {
+  return decodeEntities(stripTags(text)).replace(/\s+/g, " ").trim();
+}
+
+function parseParagraphParts(htmlParagraph: string): ReportParagraphPart[] {
+  const parts: ReportParagraphPart[] = [];
+  const anchorPattern = /<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g;
+  let lastIndex = 0;
+
+  for (const match of htmlParagraph.matchAll(anchorPattern)) {
+    const index = match.index ?? 0;
+    const before = toText(htmlParagraph.slice(lastIndex, index));
+    if (before) parts.push({ text: before });
+    const href = match[1];
+    const label = toText(match[2]);
+    if (label) {
+      if (href.startsWith("/")) {
+        parts.push({ text: label, href });
+      } else {
+        parts.push({ text: label });
+      }
+    }
+    lastIndex = index + match[0].length;
+  }
+
+  const after = toText(htmlParagraph.slice(lastIndex));
+  if (after) parts.push({ text: after });
+  return parts;
+}
+
+function getReportExcerpt(commentHtml: string): ReportParagraphPart[][] {
+  const html = commentHtml.replace(/<!--[\s\S]*?-->/g, "");
+  return [...html.matchAll(/<p>([\s\S]*?)<\/p>/g)]
+    .map((match) => parseParagraphParts(match[1]))
+    .filter((parts) => parts.length > 0)
+    .slice(0, 2);
+}
+
 export default async function Home() {
   const growthPromise = loadWeeklyGrowth();
-  const growth = await growthPromise;
-  const latestGuides = getAllGuides().slice(0, 3);
+  const reportContextPromise = getCurrentReportContext();
+  const [growth, { month }] = await Promise.all([
+    growthPromise,
+    reportContextPromise,
+  ]);
+  const latestGuides = getAllGuides().slice(0, 4);
+  const reportComment = getReportComment(month);
+  const reportExcerpt = reportComment ? getReportExcerpt(reportComment) : [];
+  const monthLabel = Number(month.slice(5, 7));
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-5 md:px-6 md:py-8">
       <Hero />
       <GrowthTop3 items={growth} />
-      <section id="streams" aria-labelledby="home-streams-title" className="scroll-mt-20">
-        <SectionHeader
-          id="home-streams-title"
-          as="h2"
-          title="配信"
-          icon={Radio}
-        />
-        <StreamTabs />
-      </section>
-      <RakutenMotionWidget />
+      {reportExcerpt.length > 0 && (
+        <section className="mt-8" aria-labelledby="home-report-highlight-title">
+          <SectionHeader
+            id="home-report-highlight-title"
+            as="h2"
+            title={`${monthLabel}月のVTuberレポートから`}
+            icon={BarChart3}
+          />
+          <div className="space-y-3 text-sm leading-7 text-zinc-700 dark:text-zinc-200">
+            {reportExcerpt.map((parts, index) => (
+              <p key={`report-highlight-${index}`}>
+                {parts.map((part, partIndex) =>
+                  part.href ? (
+                    <Link
+                      key={`report-highlight-${index}-${partIndex}`}
+                      href={part.href}
+                      className="text-blue-700 underline dark:text-blue-300"
+                    >
+                      {part.text}
+                    </Link>
+                  ) : (
+                    <span key={`report-highlight-${index}-${partIndex}`}>
+                      {part.text}
+                    </span>
+                  ),
+                )}
+              </p>
+            ))}
+          </div>
+          <Link
+            href={`/reports/${month}`}
+            className="mt-3 inline-flex text-sm font-medium text-blue-700 hover:underline dark:text-blue-300"
+          >
+            レポートの続きを読む →
+          </Link>
+        </section>
+      )}
       {latestGuides.length > 0 && (
         <section className="mt-8" aria-labelledby="home-guides-title">
           <div className="mb-3 flex items-center justify-between gap-3">
@@ -125,6 +214,16 @@ export default async function Home() {
           </div>
         </section>
       )}
+      <section id="streams" aria-labelledby="home-streams-title" className="scroll-mt-20">
+        <SectionHeader
+          id="home-streams-title"
+          as="h2"
+          title="配信"
+          icon={Radio}
+        />
+        <StreamTabs />
+      </section>
+      <RakutenMotionWidget />
     </main>
   );
 }
