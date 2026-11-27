@@ -1,6 +1,7 @@
 ### 🚀 自動実装の成果
-- **タスク**: **TOPIC-3. 配信中カードの「感想を書く」を、その配信の話題スレにつなぐ**（TOPIC-2 の次に着手）
+- **タスク**: **READ-1. 読みものへのリンク部品 `ReadingLinks` を作る**
 - **変更したファイル**:
-  - `components/VideoCard.tsx`
-- **仕様書の追記**: `### 5.6 チャット（掲示板）`
-- **改善内容**: 配信中カードのリンク先を `/chat?topic=v_{動画ID}` に変更し、文言を `この配信のスレ` にしました。`channel` と `draft` は付けず、不要になった `buildChatHref` と関連定数を削除しました。`next/link` と `rel="nofollow"` は変更していません。
+  - `components/ReadingLinks.tsx`
+- **改善内容**: `components/ReadingLinks.tsx` を新規作成しました。最新の特集と月間レポートへのリンクを、`card`（トップ用）と `chips`（ランキング用）の 2 つの見た目で出す Server Component です。
+特集は `getAllGuides()` の最初の `特集`、無ければ `/guide` への固定リンクにします。月は `getCurrentReportContext()` の `month` を使い、`Date` は使っていません。
+どのページにも置いていません。`tsc` と `npm run build` は実行していません。`getAllGuides()` が返す記事の `slug`・`title`・`category` は、中身を確認できず、仕様書の記述から推測した名前です。

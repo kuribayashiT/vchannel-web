@@ -1963,7 +1963,7 @@
 > **調査結果（2026-11-21）**: 特集（`/guide`）と月間レポート（`/reports`）へのリンクは、フッターと、トップの配信一覧のさらに下にある「ガイド・特集」欄にしかない。上部・下部のナビにも、ランキングにも無い。週刊特集と月報コメントの自動作成（`FRONTEND_SPEC.md` 5.12.2・5.12.3）が始まったので、読まれる場所に出す。仕様は `FRONTEND_SPEC.md` 5.13。
 > ⚠ 自動パイプラインは 1 回で 1 ファイルしか変えられないので、タスクを 1 ファイルずつに分けてある。READ-2・READ-3 は READ-1 の部品を使うので、必ず READ-1 の後に着手すること。
 
-- [ ] **READ-1. 読みものへのリンク部品 `ReadingLinks` を作る**
+- [x] **READ-1. 読みものへのリンク部品 `ReadingLinks` を作る**
   - **対象ファイル**: 新規 `components/ReadingLinks.tsx`（Server Component。`"use client"` を付けない）
   - **仕様**: `FRONTEND_SPEC.md` 5.13 の「共通部品」のとおり。
     - `export async function ReadingLinks({ variant }: { variant: "card" | "chips" })`。
