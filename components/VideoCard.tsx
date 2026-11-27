@@ -21,17 +21,9 @@ function formatTime(iso: string) {
   return Number.isNaN(d.getTime()) ? "" : timeFmt.format(d);
 }
 
-const DRAFT_TITLE_MAX = 30;
-
-/** 掲示板の投稿シートに入れる本文（タイトル先頭30字。超えたら …） */
-function buildChatHref(v: StreamCardVideo): string {
-  const chars = Array.from(v.title);
-  const short =
-    chars.length > DRAFT_TITLE_MAX
-      ? `${chars.slice(0, DRAFT_TITLE_MAX).join("")}…`
-      : v.title;
-  const draft = `「${short}」見てる！ `;
-  return `/chat?channel=${encodeURIComponent(v.channelId)}&draft=${encodeURIComponent(draft)}`;
+/** その配信の話題スレ（タイトルはスレのヘッダーに出るため channel / draft は付けない） */
+function buildTopicHref(v: StreamCardVideo): string {
+  return `/chat?topic=${encodeURIComponent(`v_${v.videoId}`)}`;
 }
 
 /** サムネイル押下でページ下部のプレーヤーで再生。右上の★でお気に入りを切り替える */
@@ -87,12 +79,12 @@ export function VideoCard({
       </a>
       {live && (
         <Link
-          href={buildChatHref(v)}
+          href={buildTopicHref(v)}
           rel="nofollow"
           className="flex items-center gap-1.5 border-t border-zinc-100 px-3 py-2 text-xs font-medium text-violet-700 hover:bg-violet-50 dark:border-zinc-800 dark:text-violet-300 dark:hover:bg-violet-950/20"
         >
           <MessageSquare size={14} aria-hidden />
-          感想を書く
+          この配信のスレ
         </Link>
       )}
       <button

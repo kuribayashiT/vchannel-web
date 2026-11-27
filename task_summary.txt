@@ -1,11 +1,6 @@
 ### 🚀 自動実装の成果
-- **タスク**: **TOPIC-2. 掲示板に「いま話題のスレ」を出し、話題スレを開けるようにする**（TOPIC-1 の次に着手）
+- **タスク**: **TOPIC-3. 配信中カードの「感想を書く」を、その配信の話題スレにつなぐ**（TOPIC-2 の次に着手）
 - **変更したファイル**:
-  - `components/ChatTopicList.tsx`
-  - `components/ChatBoard.tsx`
-- **改善内容**: 掲示板に「いま話題のスレ」を追加しました。新規の `ChatTopicList` は `/api/chat/topics` を 60 秒ごとに取得し（非表示タブでは停止）、カード表示・おすすめ・`もっと見る（+N）` を持ちます。`ChatBoard` では選択を事務所スレッドか話題スレのどちらか 1 つにし、`/chat?topic=v_…&draft=…` のディープリンクにも対応しました。話題スレを開くと配信ヘッダー（`ここで再生`付き）が出て、お題チップは出さず、空状態の文言と入力欄のプレースホルダーを話題スレ用にしています。最初の投稿が成功したら一覧を再取得します。
-`npx tsc --noEmit` と `npm run build` は実行していません。
-次の 3 点は実物を見ていないため推測で書いています。型エラーが出たらここを見てください。
-- `SafeImage` は `@/components/SafeImage` の名前付き export で、`src`・`alt`・`variant`・`className` を受け取る前提です。
-- `playVideo` は `@/hooks/usePlayer` の名前付き export の関数である前提です。
-- `/api/chat/topics` のレスポンスは `{ topics, suggestions }`、`?id=` は単体の話題スレまたは `{ topic }` のどちらでも読めるようにしています。
+  - `components/VideoCard.tsx`
+- **仕様書の追記**: `### 5.6 チャット（掲示板）`
+- **改善内容**: 配信中カードのリンク先を `/chat?topic=v_{動画ID}` に変更し、文言を `この配信のスレ` にしました。`channel` と `draft` は付けず、不要になった `buildChatHref` と関連定数を削除しました。`next/link` と `rel="nofollow"` は変更していません。
