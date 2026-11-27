@@ -1974,7 +1974,7 @@
     - この時点ではどのページにも置かない（READ-2・READ-3 で置く）。`any` は使わない。新しいパッケージは追加しない。
   - **完了条件**: `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
 
-- [ ] **READ-2. トップの「今週の急上昇」の直後に `ReadingLinks`（card）を置く**（READ-1 の次に着手）
+- [x] **READ-2. トップの「今週の急上昇」の直後に `ReadingLinks`（card）を置く**（READ-1 の次に着手）
   - **対象ファイル**: `app/page.tsx`
   - **仕様**: `<GrowthTop3 items={growth} />` の直後、`<section id="streams" …>` の前に `<ReadingLinks variant="card" />` を置く（`ReadingLinks` 側に `mb-6` が無ければ `<div className="mb-6">` で包む）。配信の下の既存「ガイド・特集」欄は消さない。
   - **完了条件**:

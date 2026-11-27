@@ -4,6 +4,7 @@ import { BarChart3, Radio, Sparkles, Trophy, Users } from "lucide-react";
 import { GrowthTop3 } from "@/components/GrowthTop3";
 import { GuideCard } from "@/components/GuideCard";
 import { RakutenMotionWidget } from "@/components/RakutenMotionWidget";
+import { ReadingLinks } from "@/components/ReadingLinks";
 import { SectionHeader } from "@/components/SectionHeader";
 import { StreamTabs } from "@/components/StreamTabs";
 import { GcsFetchError } from "@/lib/gcs";
@@ -157,6 +158,9 @@ export default async function Home() {
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-5 md:px-6 md:py-8">
       <Hero />
       <GrowthTop3 items={growth} />
+      <div className="mb-6">
+        <ReadingLinks variant="card" />
+      </div>
       {reportExcerpt.length > 0 && (
         <section className="mt-8" aria-labelledby="home-report-highlight-title">
           <SectionHeader

@@ -1,7 +1,5 @@
 ### 🚀 自動実装の成果
-- **タスク**: **READ-1. 読みものへのリンク部品 `ReadingLinks` を作る**
+- **タスク**: **READ-2. トップの「今週の急上昇」の直後に `ReadingLinks`（card）を置く**（READ-1 の次に着手）
 - **変更したファイル**:
-  - `components/ReadingLinks.tsx`
-- **改善内容**: `components/ReadingLinks.tsx` を新規作成しました。最新の特集と月間レポートへのリンクを、`card`（トップ用）と `chips`（ランキング用）の 2 つの見た目で出す Server Component です。
-特集は `getAllGuides()` の最初の `特集`、無ければ `/guide` への固定リンクにします。月は `getCurrentReportContext()` の `month` を使い、`Date` は使っていません。
-どのページにも置いていません。`tsc` と `npm run build` は実行していません。`getAllGuides()` が返す記事の `slug`・`title`・`category` は、中身を確認できず、仕様書の記述から推測した名前です。
+  - `app/page.tsx`
+- **改善内容**: `app/page.tsx` の `<GrowthTop3 items={growth} />` の直後、`<section id="streams">` より前に `ReadingLinks`（`variant="card"`）を追加しました。`ReadingLinks` 側に `mb-6` があるか確認できなかったため、`<div className="mb-6">` で包んでいます。`GrowthTop3` は自分で `null` を返すだけなので、選択中の事務所で急上昇が出ない場合でも `ReadingLinks` は常に表示されます。配信の下の「ガイド・特集」欄は残しています。`tsc` と `npm run build` は実行していません。
