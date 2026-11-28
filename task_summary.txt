@@ -1,8 +1,8 @@
 ### 🚀 自動実装の成果
-- **タスク**: **READ-3. ランキングの説明文の直後に `ReadingLinks`（chips）を置く**（READ-2 の次に着手）
+- **タスク**: **READ-4. 設定ページに「読みもの」欄を追加する**（READ-3 の次に着手）
 - **変更したファイル**:
-  - `app/ranking/page.tsx`
+  - `components/SettingsList.tsx`
 - **仕様書の追記**: `### 5.13 読みもの（特集・月間レポート）への導線（2026-11-21 追加）`
-- **改善内容**: `app/ranking/page.tsx` の説明文の直後、`{weekly ? (<Suspense …>` の前に `<ReadingLinks variant="chips" />` を置きました。下に `mb-4` の余白を付けています。置き場所を `weekly` の条件分岐の外にしたので、ランキングの読み込みに失敗したときも表示されます。
-表が下がる量を約 44px に抑えるため、説明文の `<p>` の下余白だけ `mb-4` から `mb-2` に変えています。これは仕様の `mb-4` から外れる変更です。
-`npx tsc --noEmit`、`npm run build`、375px 幅での目視確認はまだ実行していません。`ReadingLinks` の中身（チップの高さなど）は、ファイル一覧にあるだけでコードを確認できていません。
+- **改善内容**: 設定ページ（SettingsList）の「共有する」ボタンの前に「読みもの」欄を追加しました。
+見出し（h2、text-sm font-bold）と、ガイド・特集（/guide）、月間レポート（/reports）、誕生日・周年カレンダー（/events）への Link を置いています。
+各リンクは既存の btn と同じ見た目で、右端に ChevronRight（aria-hidden）を付けています。

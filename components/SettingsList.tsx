@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Smartphone } from "lucide-react";
+import { ChevronRight, Smartphone } from "lucide-react";
 import { resetSelection } from "@/hooks/useSelection";
 import { CONTACT_EMAIL } from "@/lib/site";
 
@@ -10,6 +10,12 @@ const btn =
   "w-full rounded-lg border border-zinc-200 bg-white px-4 py-3 text-left text-sm hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800";
 
 const APP_STORE_URL = "https://apps.apple.com/jp/app/id1611900581";
+
+const READING_LINKS = [
+  { href: "/guide", label: "ガイド・特集" },
+  { href: "/reports", label: "月間レポート" },
+  { href: "/events", label: "誕生日・周年カレンダー" },
+] as const;
 
 export function SettingsList() {
   const [message, setMessage] = useState("");
@@ -34,6 +40,20 @@ export function SettingsList() {
 
   return (
     <div className="space-y-3">
+      <section className="space-y-2">
+        <h2 className="text-sm font-bold">読みもの</h2>
+        {READING_LINKS.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={`${btn} flex items-center justify-between gap-2`}
+          >
+            <span>{item.label}</span>
+            <ChevronRight size={16} aria-hidden className="shrink-0" />
+          </Link>
+        ))}
+      </section>
+
       <button type="button" onClick={share} className={btn}>
         共有する
       </button>
