@@ -3,6 +3,7 @@ import { cacheLife } from "next/cache";
 import { Suspense } from "react";
 import { RakutenMotionWidget } from "@/components/RakutenMotionWidget";
 import { RankingTabs } from "@/components/RankingTabs";
+import { ReadingLinks } from "@/components/ReadingLinks";
 import { formatNumber } from "@/lib/format";
 import {
   GcsFetchError,
@@ -139,7 +140,10 @@ export default async function RankingPage({ searchParams }: PageProps) {
       <h1 className="mb-5 text-2xl font-extrabold tracking-tight">
         ランキング
       </h1>
-      <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-300">{summary}</p>
+      <p className="mb-2 text-sm text-zinc-600 dark:text-zinc-300">{summary}</p>
+      <div className="mb-4">
+        <ReadingLinks variant="chips" />
+      </div>
       {top10.length > 0 && (
         <script
           type="application/ld+json"

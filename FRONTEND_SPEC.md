@@ -630,6 +630,7 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 - トップの既存「ガイド・特集」欄（配信の下）とフッターのリンクはそのまま残す。
 
 ---
+- READ-3 実装済み: `/ranking` では説明文の `<p>`（下余白 `mb-2`）の直後に `<div className="mb-4"><ReadingLinks variant="chips" /></div>` を置く。`weekly` の成否に関わらず表示するため、ランキングの読み込み失敗時もチップは出る。表の開始位置の下がりを約 44px に抑えるため、説明文の下余白を `mb-4` から `mb-2` に縮めている。
 
 ## 6. 非機能・移行時の注意
 

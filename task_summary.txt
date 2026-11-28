@@ -1,5 +1,8 @@
 ### 🚀 自動実装の成果
-- **タスク**: **READ-2. トップの「今週の急上昇」の直後に `ReadingLinks`（card）を置く**（READ-1 の次に着手）
+- **タスク**: **READ-3. ランキングの説明文の直後に `ReadingLinks`（chips）を置く**（READ-2 の次に着手）
 - **変更したファイル**:
-  - `app/page.tsx`
-- **改善内容**: `app/page.tsx` の `<GrowthTop3 items={growth} />` の直後、`<section id="streams">` より前に `ReadingLinks`（`variant="card"`）を追加しました。`ReadingLinks` 側に `mb-6` があるか確認できなかったため、`<div className="mb-6">` で包んでいます。`GrowthTop3` は自分で `null` を返すだけなので、選択中の事務所で急上昇が出ない場合でも `ReadingLinks` は常に表示されます。配信の下の「ガイド・特集」欄は残しています。`tsc` と `npm run build` は実行していません。
+  - `app/ranking/page.tsx`
+- **仕様書の追記**: `### 5.13 読みもの（特集・月間レポート）への導線（2026-11-21 追加）`
+- **改善内容**: `app/ranking/page.tsx` の説明文の直後、`{weekly ? (<Suspense …>` の前に `<ReadingLinks variant="chips" />` を置きました。下に `mb-4` の余白を付けています。置き場所を `weekly` の条件分岐の外にしたので、ランキングの読み込みに失敗したときも表示されます。
+表が下がる量を約 44px に抑えるため、説明文の `<p>` の下余白だけ `mb-4` から `mb-2` に変えています。これは仕様の `mb-4` から外れる変更です。
+`npx tsc --noEmit`、`npm run build`、375px 幅での目視確認はまだ実行していません。`ReadingLinks` の中身（チップの高さなど）は、ファイル一覧にあるだけでコードを確認できていません。

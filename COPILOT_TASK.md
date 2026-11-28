@@ -2002,7 +2002,7 @@
     - `curl -s https://www.vchannel.net/` の HTML で、`11月のVTuberレポートから`（その月の表記）の段落と、ガイド・特集のカード 4 件が、`id="streams"` より**前**に出てくる。
     - スマホ（375px）・PC（1280px）で横スクロールが出ない。ダークモードでも崩れない。
 
-- [ ] **READ-3. ランキングの説明文の直後に `ReadingLinks`（chips）を置く**（READ-2 の次に着手）
+- [x] **READ-3. ランキングの説明文の直後に `ReadingLinks`（chips）を置く**（READ-2 の次に着手）
   - **対象ファイル**: `app/ranking/page.tsx`
   - **仕様**: 説明文（`{summary}` の `<p className="mb-4 …">`）の直後、`{weekly ? (<Suspense …>` の前に `<ReadingLinks variant="chips" />` を置く（下に `mb-4` の余白）。ランキングの読み込みに失敗したときも表示する。
   - **完了条件**:
