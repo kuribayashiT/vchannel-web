@@ -2009,7 +2009,7 @@
     - `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。
     - スマホ（375px）でチップが 1 行に収まり、表の開始位置が 1 行分（約 44px）以上は下がらない。
 
-- [ ] **READ-4. 設定ページに「読みもの」欄を追加する**（READ-3 の次に着手）
+- [x] **READ-4. 設定ページに「読みもの」欄を追加する**（READ-3 の次に着手）
   - **対象ファイル**: `components/SettingsList.tsx`
   - **仕様**: 「共有する」ボタンの前に、見出し「読みもの」（`h2`、`text-sm font-bold`）と、`next/link` の `<Link>` 3 つ（`ガイド・特集` → `/guide`、`月間レポート` → `/reports`、`誕生日・周年カレンダー` → `/events`）を置く。見た目は既存の `btn` と同じで、右端に `ChevronRight`（`lucide-react`、`aria-hidden`）。`"use client"` のままでよい（データは使わない）。
   - **完了条件**: `npx tsc --noEmit` がエラーなし。`npm run build` が成功する。`/settings` から 3 つのページに移動できる。

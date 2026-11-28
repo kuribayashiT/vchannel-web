@@ -631,6 +631,7 @@ fetch timeout 1 分 / 最小 fetch 間隔 5 分。Next.js では `noticeJson` �
 
 ---
 - READ-3 実装済み: `/ranking` では説明文の `<p>`（下余白 `mb-2`）の直後に `<div className="mb-4"><ReadingLinks variant="chips" /></div>` を置く。`weekly` の成否に関わらず表示するため、ランキングの読み込み失敗時もチップは出る。表の開始位置の下がりを約 44px に抑えるため、説明文の下余白を `mb-4` から `mb-2` に縮めている。
+- READ-4 実装済み: `/settings` の `SettingsList` の「共有する」ボタンの前に、`<section>` で見出し `<h2 className="text-sm font-bold">読みもの</h2>` と `next/link` の `<Link>` 3 つ（`ガイド・特集` → `/guide`、`月間レポート` → `/reports`、`誕生日・周年カレンダー` → `/events`）を置いた。各リンクは既存の `btn` と同じ見た目（`flex items-center justify-between`）で、右端に `ChevronRight`（`aria-hidden`）を付ける。`"use client"` のままでデータは使わない。
 
 ## 6. 非機能・移行時の注意
 
