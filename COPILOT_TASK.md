@@ -2114,7 +2114,7 @@
     - 一時スクリプト（コミットしない）で現在の `news.json` に `clusterNews` をかけ、gnews 由来で残った記事の一覧を PR 本文に貼る。EXILE TRIBE mobile・ビルボードライブ・ナタリー（音楽）・スポーツ中継の記事が残っていないこと。`アップランドフェス`・`らびぱれ!!`・`UltraLMTM` の記事は残ること。
     - 完了報告に `firebase deploy --only functions:scheduledNewsUpdate` が必要と書く。
 
-- [ ] **NEWS-THUMB. サムネが無い記事に、同じ話題の別媒体の画像を借り、それでも無ければカテゴリ別のかわいい代替サムネを出す**（NEWS-FIX-1 の次、NEWS-TAP より先に着手）
+- [x] **NEWS-THUMB. サムネが無い記事に、同じ話題の別媒体の画像を借り、それでも無ければカテゴリ別のかわいい代替サムネを出す**（NEWS-FIX-1 の次、NEWS-TAP より先に着手）
   - **対象ファイル**: `lib/news.ts`（`NewsCluster` に `imageSrc` を追加）、新規 `components/NewsThumbFallback.tsx`、`components/SafeImage.tsx`（`fallback?: ReactNode` を追加）、`components/NewsClusterCard.tsx`、`FRONTEND_SPEC.md`（5.3.2.1）
   - **仕様**（`FRONTEND_SPEC.md` 5.3.2.1 のとおり）:
     - `NewsCluster.imageSrc`: 代表記事の `imageSrc`、無ければ `others` で最初に画像がある記事の `imageSrc`、どれも無ければ `null`。カードはこの値を使う。

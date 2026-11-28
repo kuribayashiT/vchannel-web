@@ -48,6 +48,8 @@ export type NewsCluster = {
   sourceCount: number;
   category: NewsCategory;
   vtubers: VTuberRef[];
+  /** 代表記事の画像、無ければ others で最初に画像がある記事の画像、どれも無ければ null */
+  imageSrc: string | null;
   latestAt: string;
   score: number;
   clicks: number;
@@ -471,6 +473,8 @@ export function clusterNews(
       if (!lead) return null;
       const allViews = cluster.entries.map((entry) => entry.view);
       const others = allViews.filter((item) => item.id !== lead.id);
+      const imageSrc =
+        lead.imageSrc ?? others.find((item) => item.imageSrc)?.imageSrc ?? null;
       const sourceCount = new Set(allViews.map((item) => item.source)).size;
       const latestMs = Math.max(
         ...cluster.entries.map((entry) =>
@@ -517,6 +521,7 @@ export function clusterNews(
         sourceCount,
         category: categorizeNews(lead.title),
         vtubers: extractClusterVtubers(allViews, opts.aliases),
+        imageSrc,
         latestAt,
         score,
         clicks: clusterClicks,

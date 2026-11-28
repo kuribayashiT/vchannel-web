@@ -1,8 +1,12 @@
 ### 🚀 自動実装の成果
-- **タスク**: **READ-4. 設定ページに「読みもの」欄を追加する**（READ-3 の次に着手）
+- **タスク**: **NEWS-THUMB. サムネが無い記事に、同じ話題の別媒体の画像を借り、それでも無ければカテゴリ別のかわいい代替サムネを出す**（NEWS-FIX-1 の次、NEWS-TAP より先に着手）
 - **変更したファイル**:
-  - `components/SettingsList.tsx`
-- **仕様書の追記**: `### 5.13 読みもの（特集・月間レポート）への導線（2026-11-21 追加）`
-- **改善内容**: 設定ページ（SettingsList）の「共有する」ボタンの前に「読みもの」欄を追加しました。
-見出し（h2、text-sm font-bold）と、ガイド・特集（/guide）、月間レポート（/reports）、誕生日・周年カレンダー（/events）への Link を置いています。
-各リンクは既存の btn と同じ見た目で、右端に ChevronRight（aria-hidden）を付けています。
+  - `lib/news.ts`
+  - `components/NewsThumbFallback.tsx`
+  - `components/SafeImage.tsx`
+  - `components/NewsClusterCard.tsx`
+- **改善内容**: `NewsCluster` に `imageSrc` を追加しました。代表記事に画像が無ければ `others` の最初の画像付き記事の画像を使い、どれも無ければ `null` です。
+`SafeImage` に任意の `fallback` を追加しました。`src` が空・読み込み失敗のときだけ、既定アイコンの代わりに `fallback` を表示します。
+新規の `NewsThumbFallback`（Server Component）は、カテゴリ別のグラデーション・アイコン・媒体名を表示します。色のクラスはカテゴリごとに完全なクラス名を書いたオブジェクトで持ちます。
+`NewsClusterCard` は `cluster.imageSrc` を使い、一覧と今日の注目の両方で `fallback` を渡します。
+`npx tsc --noEmit` と `npm run build` は実行していません。

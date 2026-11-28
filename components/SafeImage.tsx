@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ImageOff, User, type LucideIcon } from "lucide-react";
 
 type Variant = "avatar" | "thumbnail";
@@ -14,6 +14,8 @@ type Props = {
   variant?: Variant;
   loading?: "lazy" | "eager";
   referrerPolicy?: React.HTMLAttributeReferrerPolicy;
+  /** 指定すると、src が空・読み込み失敗のときに既定のアイコンの代わりに表示する */
+  fallback?: ReactNode;
 };
 
 const ICONS: Record<Variant, LucideIcon> = {
@@ -32,6 +34,7 @@ export function SafeImage({
   variant = "thumbnail",
   loading = "lazy",
   referrerPolicy = "no-referrer",
+  fallback,
 }: Props) {
   const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
@@ -48,6 +51,9 @@ export function SafeImage({
   const failed = !src || failedSrc === src;
 
   if (failed) {
+    if (fallback !== undefined && fallback !== null) {
+      return <>{fallback}</>;
+    }
     return (
       <div
         role={alt ? "img" : undefined}
