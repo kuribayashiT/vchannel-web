@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ChevronDown, Heart } from "lucide-react";
 import { NewsExternalLink } from "@/components/NewsExternalLink";
+import { NewsThumbFallback } from "@/components/NewsThumbFallback";
 import { SafeImage } from "@/components/SafeImage";
 import { NEWS_CATEGORY_LABELS, type NewsCluster } from "@/lib/news";
 
@@ -44,7 +45,7 @@ export function NewsClusterCard({
           className={featured ? "block" : "shrink-0"}
         >
           <SafeImage
-            src={cluster.lead.imageSrc}
+            src={cluster.imageSrc}
             alt=""
             variant="thumbnail"
             loading="lazy"
@@ -53,6 +54,13 @@ export function NewsClusterCard({
               featured
                 ? "aspect-video w-full rounded object-cover"
                 : "h-20 w-32 rounded object-cover"
+            }
+            fallback={
+              <NewsThumbFallback
+                category={cluster.category}
+                source={cluster.lead.source}
+                size={featured ? "featured" : "list"}
+              />
             }
           />
         </NewsExternalLink>
